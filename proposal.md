@@ -1,9 +1,8 @@
-﻿# Project Proposal — Shift Schedule Management System
+﻿# Shift Schedule Management System
 
-## Project Title
-Shift Schedule Management System
+## Project Proposal
 
-## Team Members
+### Team Members
 
 | Student ID | Name |
 | --- | --- |
@@ -12,6 +11,14 @@ Shift Schedule Management System
 | 6631503028 | Parichat Sriagsorn |
 | 6631503049 | Alisa Pansomkid |
 | 6631503126 | Panaikron Marohabut |
+
+---
+
+## Executive Summary
+
+This project proposes a centralized Shift Schedule Management System designed to replace the current Excel-based scheduling process with a more structured, secure, and efficient digital workflow. The system will support schedule creation, approvals, schedule-change requests, business-rule validation, notifications, and HR data export in a single platform.
+
+By improving transparency, reducing manual work, and enabling role-based access, the system aims to support Production Department operations more effectively while ensuring employees, supervisors, and external users receive the latest approved schedule information.
 
 ---
 
