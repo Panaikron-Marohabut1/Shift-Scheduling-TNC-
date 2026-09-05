@@ -1,0 +1,1841 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShiftFlow — ระบบจัดการตารางกะ</title>
+  <style>
+    :root {
+      --navy: #102a43;
+      --navy-2: #123b53;
+      --mint: #65d6c2;
+      --bg: #f5f7fb;
+      --ink: #173b55;
+      --muted: #8297a4;
+      --line: #e0e8ee;
+      --card: #fff;
+      --orange: #e38b6d;
+      --shadow: 0 8px 25px rgba(25, 60, 81, .05);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: 0;
+    }
+
+    button:active {
+      transform: scale(.98);
+    }
+
+    /* Layout & Sidebar */
+    .app {
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: 278px;
+      flex: 0 0 278px;
+      min-height: 100vh;
+      background: var(--navy);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand {
+      height: 88px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 28px;
+      border-bottom: 1px solid rgba(255, 255, 255, .1);
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 13px;
+      display: grid;
+      place-items: center;
+      background: var(--mint);
+      color: #0c3143;
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px;
+      letter-spacing: -.04em;
+    }
+
+    .brand small {
+      display: block;
+      margin-top: 3px;
+      color: #9bb7c5;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .side-body {
+      flex: 1;
+      padding: 28px 16px;
+      overflow: auto;
+    }
+
+    .side-title {
+      padding: 0 12px;
+      margin: 0 0 12px;
+      color: #7292a5;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .nav-group {
+      margin-bottom: 28px;
+    }
+
+    .nav-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 11px;
+      background: transparent;
+      color: #a9c0ca;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 700;
+      margin: 4px 0;
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      background: rgba(255, 255, 255, .11);
+      color: #fff;
+    }
+
+    .nav-btn.active {
+      box-shadow: inset 3px 0 0 var(--mint);
+    }
+
+    .nav-icon {
+      width: 18px;
+      text-align: center;
+      color: #789aaa;
+    }
+
+    .nav-btn.active .nav-icon {
+      color: var(--mint);
+    }
+
+    .badge {
+      margin-left: auto;
+      border-radius: 20px;
+      padding: 3px 8px;
+      background: var(--orange);
+      color: #fff;
+      font-size: 10px;
+    }
+
+    .health {
+      margin-top: 4px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 15px;
+      background: rgba(255, 255, 255, .055);
+    }
+
+    .health-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      color: #d5e5e9;
+    }
+
+    .health-value {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      margin: 13px 0 6px;
+    }
+
+    .health-value strong {
+      font-size: 24px;
+    }
+
+    .health-value span {
+      font-size: 10px;
+      color: var(--mint);
+    }
+
+    .progress {
+      height: 6px;
+      overflow: hidden;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, .1);
+    }
+
+    .progress i {
+      display: block;
+      width: 94%;
+      height: 100%;
+      border-radius: 9px;
+      background: var(--mint);
+    }
+
+    .health p {
+      margin: 11px 0 0;
+      color: #8ba9b7;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .profile {
+      padding: 14px 16px;
+      border-top: 1px solid rgba(255, 255, 255, .1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #e7c7b7;
+      color: #6e4033;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .profile strong {
+      display: block;
+      font-size: 12px;
+    }
+
+    .profile small {
+      display: block;
+      margin-top: 3px;
+      color: #8da9b6;
+      font-size: 10px;
+    }
+
+    /* Main Content Area */
+    .main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .topbar {
+      height: 88px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 40px;
+      background: rgba(248, 250, 252, .92);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+    }
+
+    .crumb {
+      color: #8da0af;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .crumb b {
+      color: #537086;
+    }
+
+    .topbar h1 {
+      margin: 5px 0 0;
+      font-size: 22px;
+      letter-spacing: -.04em;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search {
+      width: 220px;
+      height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+
+    .role-select {
+      height: 40px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #fff;
+      color: #36546a;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #fff;
+      color: #58748b;
+    }
+
+    .content {
+      max-width: 1540px;
+      margin: auto;
+      padding: 36px 40px;
+    }
+
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: #80a1ae;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .page-head h2 {
+      margin: 0;
+      font-size: 34px;
+      letter-spacing: -.055em;
+    }
+
+    .page-head p {
+      margin: 9px 0 0;
+      color: #718798;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      height: 40px;
+      padding: 0 15px;
+      border-radius: 11px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .btn-light {
+      border: 1px solid #d8e3e9;
+      background: #fff;
+      color: #557086;
+    }
+
+    .btn-dark {
+      background: var(--navy-2);
+      color: #fff;
+      box-shadow: 0 7px 18px rgba(16, 64, 84, .18);
+    }
+
+    /* Cards & Grids */
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 28px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      padding: 20px;
+    }
+
+    .metric-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 16px;
+      background: #e5f8f3;
+      color: #168573;
+      font-weight: 800;
+    }
+
+    .metric:nth-child(2) .metric-icon {
+      background: #fff0ea;
+      color: #cb6f50;
+    }
+
+    .metric:nth-child(3) .metric-icon {
+      background: #f0edff;
+      color: #7258ba;
+    }
+
+    .metric:nth-child(4) .metric-icon {
+      background: #fff0f0;
+      color: #cf5e5e;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 27px;
+      letter-spacing: -.06em;
+    }
+
+    .metric b {
+      display: block;
+      margin-top: 5px;
+      font-size: 12px;
+    }
+
+    .metric small {
+      display: block;
+      margin-top: 6px;
+      color: #94a7b2;
+      font-size: 10px;
+    }
+
+    .two-col {
+      grid-template-columns: minmax(0, 1.55fr) minmax(320px, .78fr);
+      margin-bottom: 24px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #edf1f4;
+    }
+
+    .panel-head h3 {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: -.02em;
+    }
+
+    .panel-head p {
+      margin: 5px 0 0;
+      color: #8aa0ae;
+      font-size: 11px;
+    }
+
+    .live {
+      padding: 5px 8px;
+      border-radius: 20px;
+      background: #e6f7f3;
+      color: #168573;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    /* Schedule Tables */
+    .schedule-wrap {
+      overflow: auto;
+    }
+
+    .schedule {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+
+    .schedule th {
+      padding: 12px 9px;
+      border-bottom: 1px solid #edf1f4;
+      color: #9aacb7;
+      text-align: center;
+      font-size: 9px;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .schedule th:first-child {
+      text-align: left;
+      padding-left: 24px;
+    }
+
+    .schedule td {
+      padding: 13px 9px;
+      border-bottom: 1px solid #f0f3f5;
+      text-align: center;
+    }
+
+    .schedule td:first-child {
+      text-align: left;
+      padding-left: 24px;
+    }
+
+    .person {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .person .avatar {
+      width: 28px;
+      height: 28px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 9px;
+    }
+
+    .person strong {
+      display: block;
+      white-space: nowrap;
+      font-size: 11px;
+    }
+
+    .person small {
+      display: block;
+      margin-top: 3px;
+      color: #9aabb6;
+      font-size: 9px;
+    }
+
+    .shift {
+      display: inline-flex;
+      min-width: 48px;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 7px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .shift small {
+      margin-top: 2px;
+      font-size: 8px;
+      font-weight: 700;
+      opacity: .75;
+    }
+
+    .day {
+      background: #e4f4fb;
+      color: #267493;
+    }
+
+    .night {
+      background: #e9e7fb;
+      color: #6555a7;
+    }
+
+    .morning {
+      background: #fff1d9;
+      color: #ac7725;
+    }
+
+    .off {
+      background: #f0f3f5;
+      color: #8297a4;
+    }
+
+    .panel-foot {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 14px 24px;
+      color: #849aa7;
+      font-size: 10px;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend i {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 5px;
+      font-style: normal;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .attention {
+      padding-bottom: 4px;
+    }
+
+    /* Requests */
+    .request {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      border-bottom: 1px solid #edf1f4;
+    }
+
+    .request:last-child {
+      border-bottom: 0;
+    }
+
+    .request .avatar {
+      width: 32px;
+      height: 32px;
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .request main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .request strong {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 11px;
+    }
+
+    .request p {
+      margin: 5px 0 0;
+      color: #8ca0ad;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .request small {
+      display: block;
+      margin-top: 4px;
+      color: #a8b6be;
+      font-size: 9px;
+    }
+
+    .request-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .approve,
+    .reject {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      font-weight: 800;
+    }
+
+    .approve {
+      background: #e6f7f3;
+      color: #218875;
+    }
+
+    .reject {
+      background: #fff0f0;
+      color: #c95e5e;
+    }
+
+    .full-btn {
+      width: calc(100% - 48px);
+      margin: 8px 24px 16px;
+      height: 36px;
+      border: 1px solid #dce8eb;
+      border-radius: 10px;
+      background: #fff;
+      color: #3b7782;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .coverage {
+      padding: 24px;
+    }
+
+    .coverage-row {
+      margin: 0 0 18px;
+    }
+
+    .coverage-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .coverage-line {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #4a677b;
+    }
+
+    .coverage-bar {
+      height: 8px;
+      border-radius: 8px;
+      background: #eef3f5;
+      overflow: hidden;
+    }
+
+    .coverage-bar i {
+      display: block;
+      height: 100%;
+      border-radius: 8px;
+      background: var(--mint);
+    }
+
+    .bottom-grid {
+      grid-template-columns: minmax(0, 1.35fr) minmax(310px, .65fr);
+    }
+
+    .activity {
+      padding: 24px;
+    }
+
+    .activity-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 15px 0;
+    }
+
+    .activity-row p {
+      flex: 1;
+      margin: 0;
+      color: #637d8e;
+      font-size: 10px;
+    }
+
+    .activity-row small {
+      color: #a4b2bb;
+      font-size: 9px;
+    }
+
+    /* Specific Role Views */
+    .role-view {
+      display: grid;
+      gap: 24px;
+    }
+
+    .role-banner {
+      padding: 26px;
+      border-radius: 18px;
+      background: var(--navy-2);
+      color: #fff;
+    }
+
+    .role-banner h3 {
+      margin: 10px 0 0;
+      font-size: 28px;
+      letter-spacing: -.05em;
+    }
+
+    .role-banner p {
+      margin: 6px 0 0;
+      color: #acc9d0;
+      font-size: 12px;
+    }
+
+    .role-banner .meta {
+      display: flex;
+      gap: 35px;
+      margin-top: 28px;
+    }
+
+    .role-banner .meta small {
+      display: block;
+      color: #8fb3bf;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+
+    .role-banner .meta b {
+      display: block;
+      margin-top: 5px;
+      font-size: 18px;
+    }
+
+    .list {
+      padding: 24px;
+    }
+
+    .list h3 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .list p {
+      margin: 5px 0 18px;
+      color: #8aa0ae;
+      font-size: 11px;
+    }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 0;
+      border-top: 1px solid #edf1f4;
+      font-size: 10px;
+    }
+
+    .list-item strong {
+      color: #4d6b7d;
+    }
+
+    .list-item span {
+      margin-left: auto;
+      color: #8197a4;
+    }
+
+    .quick-actions {
+      display: grid;
+      gap: 10px;
+      padding: 24px;
+    }
+
+    .quick {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid #dce9eb;
+      border-radius: 12px;
+      background: #fff;
+      text-align: left;
+    }
+
+    .quick:hover {
+      border-color: #9dd4cb;
+      background: #f5fbfa;
+    }
+
+    .quick .round {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: #e6f7f3;
+      color: #168573;
+      font-weight: 800;
+    }
+
+    .quick strong {
+      display: block;
+      color: #36566d;
+      font-size: 11px;
+    }
+
+    .quick small {
+      display: block;
+      margin-top: 4px;
+      color: #91a5b1;
+      font-size: 10px;
+    }
+
+    .quick span:last-child {
+      margin-left: auto;
+      color: #a7b6be;
+    }
+
+    .role-stats {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 24px;
+    }
+
+    .role-stat {
+      padding: 16px;
+    }
+
+    .role-stat .metric-icon {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 13px;
+    }
+
+    .role-stat strong {
+      font-size: 21px;
+    }
+
+    .role-stat b {
+      font-size: 10px;
+    }
+
+    .role-stat small {
+      font-size: 9px;
+    }
+
+    .transport {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(320px, .7fr);
+      gap: 24px;
+    }
+
+    .transport-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+
+    .transport-table th,
+    .transport-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #eef2f4;
+      text-align: left;
+    }
+
+    .transport-table th {
+      background: #f7fafb;
+      color: #96a9b3;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+
+    .access {
+      padding: 24px;
+    }
+
+    .access p {
+      display: flex;
+      gap: 8px;
+      color: #6f8794;
+      font-size: 10px;
+    }
+
+    /* Modal & Toast */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(14, 38, 59, .45);
+    }
+
+    .modal {
+      width: min(470px, 100%);
+      padding: 26px;
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 24px 80px rgba(14, 38, 59, .25);
+    }
+
+    .modal h3 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .modal label {
+      display: block;
+      margin-top: 16px;
+      color: #547087;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .modal input,
+    .modal select {
+      width: 100%;
+      height: 42px;
+      margin-top: 7px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: #3c5b70;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 25px;
+    }
+
+    .modal-actions .btn {
+      flex: 1;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      z-index: 50;
+      transform: translateX(-50%);
+      padding: 12px 17px;
+      border-radius: 999px;
+      background: var(--navy-2);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      box-shadow: 0 12px 28px rgba(13, 48, 69, .25);
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 1100px) {
+
+      .metrics,
+      .role-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .two-col,
+      .transport,
+      .bottom-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .search {
+        width: 160px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 20;
+        transform: translateX(-100%);
+        transition: transform .2s;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .topbar {
+        height: 70px;
+        padding: 0 18px;
+      }
+
+      .topbar h1 {
+        font-size: 18px;
+      }
+
+      .top-actions .search {
+        display: none;
+      }
+
+      .content {
+        padding: 24px 18px;
+      }
+
+      .page-head {
+        align-items: flex-start;
+        flex-direction: column;
+        margin-bottom: 22px;
+      }
+
+      .page-head h2 {
+        font-size: 28px;
+      }
+
+      .actions {
+        width: 100%;
+      }
+
+      .actions .btn {
+        flex: 1;
+      }
+
+      .metrics,
+      .role-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-head {
+        padding: 18px;
+      }
+
+      .request {
+        padding: 14px 18px;
+      }
+
+      .full-btn {
+        width: calc(100% - 36px);
+        margin-left: 18px;
+        margin-right: 18px;
+      }
+
+      .schedule th:first-child,
+      .schedule td:first-child {
+        padding-left: 16px;
+      }
+
+      .role-banner .meta {
+        gap: 18px;
+      }
+
+      .topbar .role-select {
+        max-width: 115px;
+      }
+
+      .brand {
+        height: 70px;
+      }
+
+      .mobile-menu {
+        display: grid !important;
+      }
+
+      .mobile-role {
+        display: block !important;
+      }
+    }
+
+    .mobile-menu {
+      display: none;
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: #58748b;
+      font-size: 18px;
+    }
+
+    .mobile-role {
+      display: none;
+      margin-left: auto;
+    }
+
+    /* Month Schedule View */
+    .month-schedule {
+      min-width: 2180px;
+    }
+
+    .month-schedule th,
+    .month-schedule td {
+      min-width: 62px;
+    }
+
+    .month-schedule th:first-child,
+    .month-schedule td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      min-width: 230px;
+      background: #fff;
+    }
+
+    .month-schedule th:first-child {
+      z-index: 3;
+      background: #f7fafb;
+    }
+
+    .month-schedule .weekend {
+      background: #fff8f7;
+    }
+
+    .month-schedule th.weekend {
+      color: #be8178;
+    }
+
+    .month-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .month-toolbar button {
+      width: 30px;
+      height: 30px;
+      border: 1px solid #dfe7ee;
+      border-radius: 8px;
+      background: #fff;
+      color: #547087;
+      font-weight: 800;
+    }
+
+    .month-note {
+      padding: 12px 24px;
+      border-bottom: 1px solid #edf1f4;
+      color: #8aa0ae;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar Nav -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">✦</div>
+        <div>
+          <strong>ShiftFlow</strong>
+          <small>ฝ่ายผลิต</small>
+        </div>
+      </div>
+      <div class="side-body">
+        <div class="nav-group">
+          <p class="side-title">พื้นที่ทำงาน</p>
+          <button class="nav-btn active" data-view="overview"><span class="nav-icon">▦</span>ภาพรวม</button>
+          <button class="nav-btn" data-view="schedule"><span class="nav-icon">▣</span>ตารางกะ</button>
+          <button class="nav-btn" data-view="requests"><span class="nav-icon">✓</span>คำขอ <span class="badge">3</span></button>
+        </div>
+        <div class="nav-group">
+          <p class="side-title">จัดการ</p>
+          <button class="nav-btn" data-view="people"><span class="nav-icon">♧</span>พนักงาน</button>
+          <button class="nav-btn" data-view="reports"><span class="nav-icon">▤</span>รายงาน</button>
+        </div>
+        <div class="nav-group">
+          <p class="side-title">ระบบ</p>
+          <button class="nav-btn" data-view="settings"><span class="nav-icon">⚙</span>ตั้งค่า</button>
+        </div>
+        <div class="health">
+          <div class="health-head"><span>ตารางกะ health</span><span>♢</span></div>
+          <div class="health-value"><strong>94%</strong><span>+3.2%</span></div>
+          <div class="progress"><i></i></div>
+          <p>ความครอบคลุมของทุกกะอยู่ในระดับดี</p>
+        </div>
+      </div>
+      <div class="profile">
+        <div class="avatar" id="profileAvatar">KS</div>
+        <div>
+          <strong id="profileName">Kanya Srisawat</strong>
+          <small id="profileRole">หัวหน้างานกะ</small>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <header class="topbar">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="mobile-menu" id="menuBtn">☰</button>
+          <div>
+            <div class="crumb">ฝ่ายผลิต <b>/</b> <b id="crumbView">ภาพรวม</b></div>
+            <h1 id="topTitle">สวัสดีตอนเช้า คุณกัญญา</h1>
+          </div>
+        </div>
+        <div class="top-actions">
+          <input class="search" placeholder="ค้นหาพนักงานหรือทีม" />
+          <button class="icon-btn">♧</button>
+          <select class="role-select" id="roleSelect">
+            <option value="Supervisor">หัวหน้างาน</option>
+            <option value="Shift Operator">พนักงานปฏิบัติการ</option>
+            <option value="HR">ฝ่ายบุคคล</option>
+            <option value="Contractor / Van Driver">ผู้รับเหมา / พนักงานขับรถรับส่ง</option>
+          </select>
+          <div class="avatar" id="topAvatar">KS</div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">วันศุกร์ที่ 4 กันยายน 2569</p>
+            <h2 id="pageTitle">ภาพรวมการผลิต</h2>
+            <p id="pageSubtitle">ติดตามทีมให้พร้อม ปลอดภัย และทำงานต่อเนื่องในกะถัดไป</p>
+          </div>
+          <div class="actions" id="headerActions">
+            <button class="btn btn-light" id="exportBtn">⇩ ส่งออก</button>
+            <button class="btn btn-dark" id="createBtn">＋ สร้างกะ</button>
+          </div>
+        </div>
+        <div id="content"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toastRoot"></div>
+
+  <script>
+    // State & Mock Data
+    const employees = [
+      { name: 'Charuwan Kasaempan', initials: 'CK', team: 'Assembly A', shifts: ['D', 'D', 'O', 'N', 'N', 'O', 'D'] },
+      { name: 'Juladit Teekawiwat', initials: 'JT', team: 'Assembly A', shifts: ['N', 'N', 'O', 'D', 'D', 'D', 'O'] },
+      { name: 'Parichat Sriagsorn', initials: 'PS', team: 'Packaging', shifts: ['M', 'M', 'O', 'M', 'O', 'N', 'N'] },
+      { name: 'Alisa Pansomkid', initials: 'AP', team: 'Quality Control', shifts: ['D', 'O', 'D', 'D', 'D', 'O', 'M'] },
+      { name: 'Panaikron Marohabut', initials: 'PM', team: 'Maintenance', shifts: ['O', 'N', 'N', 'O', 'M', 'M', 'D'] }
+    ];
+
+    const requests = [
+      { id: 1, person: 'Charuwan Kasaempan', initials: 'CK', type: 'สลับกะ', detail: '07 Sep · D shift with Juladit', status: 'รอดำเนินการ' },
+      { id: 2, person: 'Parichat Sriagsorn', initials: 'PS', type: 'กะกลางวัน-off change', detail: '08 Sep · Requesting day off', status: 'รอดำเนินการ' },
+      { id: 3, person: 'Alisa Pansomkid', initials: 'AP', type: 'สลับกะ', detail: '10 Sep · M shift with Panaikron', status: 'รอดำเนินการ' }
+    ];
+
+    const roles = {
+      'Supervisor': { initials: 'KS', name: 'Kanya Srisawat', subtitle: 'หัวหน้างานกะ', short: 'หัวหน้างาน' },
+      'Shift Operator': { initials: 'CK', name: 'Charuwan Kasaempan', subtitle: 'พนักงานปฏิบัติการ', short: 'พนักงานปฏิบัติการ' },
+      'HR': { initials: 'HR', name: 'Nattapong Rattanakul', subtitle: 'เจ้าหน้าที่ฝ่ายบุคคล', short: 'ฝ่ายบุคคล' },
+      'Contractor / Van Driver': { initials: 'VD', name: 'Somchai Prasert', subtitle: 'พนักงานขับรถรับส่ง', short: 'พนักงานขับรถรับส่ง' }
+    };
+
+    const shift = {
+      D: ['day', 'กะกลางวัน'],
+      N: ['night', 'กะกลางคืน'],
+      M: ['morning', 'กะเช้า'],
+      O: ['off', 'หยุด']
+    };
+
+    let activeRole = 'Supervisor';
+    let activeView = 'overview';
+
+    const $ = id => document.getElementById(id);
+
+    // Helpers
+    function toast(message) {
+      $('toastRoot').innerHTML = `<div class="toast">✓ ${message}</div>`;
+      setTimeout(() => $('toastRoot').innerHTML = '', 3000);
+    }
+
+    function roleBadge(code) {
+      const [cls, label] = shift[code];
+      return `<span class="shift ${cls}"><b>${code}</b><small>${label}</small></span>`;
+    }
+
+    // Component Renders
+    function monthlyScheduleTable() {
+      const days = Array.from({ length: 30 }, (_, i) => i + 1);
+      const weekday = d => new Date(2026, 8, d).toLocaleDateString('th-TH', { weekday: 'short' }).replace('วัน', '');
+      const isWeekend = d => [0, 6].includes(new Date(2026, 8, d).getDay());
+      const monthlyShift = (employee, day) => employee.shifts[(day - 4 + 7) % 7];
+
+      return `
+        <div class="month-note">ลากตารางแนวนอนเพื่อดูวันที่ 1–30 กันยายน 2569 · ข้อมูลตัวอย่างจากตารางกะล่าสุดที่อนุมัติแล้ว</div>
+        <div class="schedule-wrap">
+          <table class="schedule month-schedule">
+            <thead>
+              <tr>
+                <th>พนักงาน / ทีม</th>
+                ${days.map(d => `<th class="${isWeekend(d) ? 'weekend' : ''}">${weekday(d)}<br><b>${String(d).padStart(2, '0')}</b></th>`).join('')}
+                <th>รวม</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${employees.map(e => `
+                <tr>
+                  <td>
+                    <div class="person">
+                      <span class="avatar">${e.initials}</span>
+                      <span><strong>${e.name}</strong><small>${e.team}</small></span>
+                    </div>
+                  </td>
+                  ${days.map(d => `<td class="${isWeekend(d) ? 'weekend' : ''}">${roleBadge(monthlyShift(e, d))}</td>`).join('')}
+                  <td><b>${e.shifts.filter(x => x !== 'O').length * 4} ชม.</b></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function scheduleTable() {
+      return `
+        <div class="schedule-wrap">
+          <table class="schedule">
+            <thead>
+              <tr>
+                <th>พนักงานปฏิบัติการ</th>
+                ${['Fri 04', 'Sat 05', 'Sun 06', 'Mon 07', 'Tue 08', 'Wed 09', 'Thu 10'].map(x => `<th>${x}</th>`).join('')}
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${employees.map(e => `
+                <tr>
+                  <td>
+                    <div class="person">
+                      <span class="avatar">${e.initials}</span>
+                      <span><strong>${e.name}</strong><small>${e.team}</small></span>
+                    </div>
+                  </td>
+                  ${e.shifts.map(s => `<td>${roleBadge(s)}</td>`).join('')}
+                  <td>···</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function requestRow(r) {
+      return `
+        <div class="request">
+          <span class="avatar">${r.initials}</span>
+          <main>
+            <strong>${r.person}</strong>
+            <p>${r.type} · ${r.detail}</p>
+            <small>12 min ago</small>
+          </main>
+          <div class="request-actions">
+            <button class="reject" onclick="updateRequest(${r.id},'ไม่อนุมัติ')">×</button>
+            <button class="approve" onclick="updateRequest(${r.id},'อนุมัติแล้ว')">✓</button>
+          </div>
+        </div>`;
+    }
+
+    // View Generators
+    function overview() {
+      return `
+        <div class="grid metrics">
+          <div class="card metric">
+            <div class="metric-icon">♧</div>
+            <strong>24 / 32</strong>
+            <b>กำลังปฏิบัติงานวันนี้</b>
+            <small>พนักงานกำลังปฏิบัติงาน 75%</small>
+          </div>
+          <div class="card metric">
+            <div class="metric-icon">✓</div>
+            <strong>${requests.filter(r => r.status === 'รอดำเนินการ').length.toString().padStart(2, '0')}</strong>
+            <b>คำขอรอดำเนินการ</b>
+            <small>รอหัวหน้างานตรวจสอบ</small>
+          </div>
+          <div class="card metric">
+            <div class="metric-icon">♢</div>
+            <strong>94%</strong>
+            <b>ตารางกะ coverage</b>
+            <small>ทุกแผนก</small>
+          </div>
+          <div class="card metric">
+            <div class="metric-icon">!</div>
+            <strong>02</strong>
+            <b>ปัญหาที่ต้องตรวจสอบ</b>
+            <small>ต้องดำเนินการ</small>
+          </div>
+        </div>
+
+        <div class="grid two-col">
+          <section class="card">
+            <div class="panel-head">
+              <div>
+                <h3>ตารางกะประจำสัปดาห์นี้ <span class="live">กำลังใช้งาน</span></h3>
+                <p>04–10 กันยายน 2569 · ทุกทีมการผลิต</p>
+              </div>
+              <button class="btn btn-light" onclick="setView('schedule')">ดูตารางกะทั้งหมด ›</button>
+            </div>
+            ${scheduleTable()}
+            <div class="panel-foot">
+              <span class="legend"><i class="day">D</i> กะกลางวัน</span>
+              <span class="legend"><i class="night">N</i> กะกลางคืน</span>
+              <span class="legend"><i class="morning">M</i> กะเช้า</span>
+              <span class="legend"><i class="off">O</i> หยุด</span>
+              <span style="margin-left:auto">◷ อัปเดตล่าสุด 08:42 น.</span>
+            </div>
+          </section>
+
+          <section class="card attention">
+            <div class="panel-head">
+              <div>
+                <h3>รายการที่ต้องตรวจสอบ</h3>
+                <p>คำขอ waiting for your review</p>
+              </div>
+              <span>♧</span>
+            </div>
+            ${requests.slice(0, 3).map(requestRow).join('')}
+            <button class="full-btn" onclick="setView('requests')">ตรวจสอบคำขอทั้งหมด ›</button>
+          </section>
+        </div>
+
+        <div class="grid bottom-grid">
+          <section class="card coverage">
+            <div class="panel-head" style="padding:0 0 22px;border:0">
+              <div>
+                <h3>ความครอบคลุมแยกตามทีม</h3>
+                <p>จำนวนพนักงานปัจจุบันเทียบกับแผน</p>
+              </div>
+            </div>
+            ${[
+              ['Assembly A', 100, '12 / 12'],
+              ['Packaging', 92, '11 / 12'],
+              ['Quality Control', 88, '7 / 8'],
+              ['Maintenance', 75, '3 / 4']
+            ].map(x => `
+              <div class="coverage-row">
+                <div class="coverage-line">
+                  <span>${x[0]}</span>
+                  <span>${x[2]}</span>
+                </div>
+                <div class="coverage-bar">
+                  <i style="width:${x[1]}%"></i>
+                </div>
+              </div>
+            `).join('')}
+          </section>
+
+          <section class="card activity">
+            <div class="panel-head" style="padding:0 0 16px;border:0">
+              <div>
+                <h3>กิจกรรมล่าสุด</h3>
+                <p>การเปลี่ยนแปลงล่าสุดในพื้นที่ทำงาน</p>
+              </div>
+            </div>
+            <div class="activity-row">
+              <span class="avatar">KS</span>
+              <p><b>Kanya</b> published the September schedule</p>
+              <small>08:42</small>
+            </div>
+            <div class="activity-row">
+              <span class="avatar">JT</span>
+              <p><b>Juladit</b> submitted a day-off request</p>
+              <small>08:18</small>
+            </div>
+            <div class="activity-row">
+              <span class="avatar">PM</span>
+              <p><b>Panaikron</b> confirmed a night shift</p>
+              <small>Yesterday</small>
+            </div>
+          </section>
+        </div>`;
+    }
+
+    function operatorView() {
+      return `
+        <div class="role-view">
+          <div class="grid two-col">
+            <section class="card">
+              <div class="role-banner">
+                <p>วันนี้ · วันศุกร์ที่ 4 ก.ย. 2569</p>
+                <h3>กะกลางวัน</h3>
+                <p>ทีมประกอบ A · สายการผลิต 02</p>
+                <div class="meta">
+                  <div><small>เวลาปฏิบัติงาน</small><b>07:00 – 19:00</b></div>
+                  <div><small>เวลารายงานตัว</small><b>06:45 · Gate 2</b></div>
+                </div>
+              </div>
+              <div class="list">
+                <h3>ตารางกะถัดไปของฉัน</h3>
+                <p>7 วันถัดไป</p>
+                ${[
+                  ['Sat 05', 'D', '07:00–19:00', 'ได้รับมอบหมาย'],
+                  ['Sun 06', 'O', 'Rest day', 'วันหยุดส่วนตัว'],
+                  ['Mon 07', 'N', '19:00–07:00', 'ได้รับมอบหมาย'],
+                  ['Tue 08', 'N', '19:00–07:00', 'ได้รับมอบหมาย']
+                ].map(x => `
+                  <div class="list-item">
+                    <strong>${x[0]}</strong>
+                    ${roleBadge(x[1])}
+                    <span>${x[2]} · ${x[3]}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </section>
+
+            <section class="card quick-actions">
+              <div>
+                <h3 style="margin:0;font-size:15px">ต้องการเปลี่ยนตารางกะหรือไม่?</h3>
+                <p style="color:#8aa0ae;font-size:11px">คำขอจะถูกตรวจสอบตามกฎความปลอดภัยและจำนวนพนักงาน</p>
+              </div>
+              <button class="quick" onclick="toast('เริ่มส่งคำขอสลับกะแล้ว')">
+                <span class="round">♧</span>
+                <span><strong>ส่งคำขอสลับกะ</strong><small>ค้นหาเพื่อนร่วมงานเพื่อสลับกะ</small></span>
+                <span>›</span>
+              </button>
+              <button class="quick" onclick="toast('เริ่มส่งคำขอเปลี่ยนวันหยุดแล้ว')">
+                <span class="round">□</span>
+                <span><strong>เปลี่ยนวันหยุด</strong><small>ส่งคำขอให้หัวหน้างานตรวจสอบ</small></span>
+                <span>›</span>
+              </button>
+              <div class="card" style="padding:16px;background:#fff8f3;border:0">
+                <b style="font-size:11px">สถานะคำขอของฉัน</b>
+                <p style="font-size:10px;color:#96a6af">สลับกะ · 07 Sep <span style="float:right;color:#c97255;font-weight:800">รอดำเนินการ</span></p>
+                <small style="color:#96a6af">รอหัวหน้างานตรวจสอบ</small>
+              </div>
+            </section>
+          </div>
+        </div>`;
+    }
+
+    function hrView() {
+      return `
+        <div class="role-view">
+          <div class="grid role-stats">
+            <div class="card role-stat"><div class="metric-icon">♢</div><strong>186</strong><b>กะที่อนุมัติแล้ว</b><small>กันยายน 2569</small></div>
+            <div class="card role-stat"><div class="metric-icon">♧</div><strong>32</strong><b>พนักงานปฏิบัติการ</b><small>ทั้งหมด 4 ทีม</small></div>
+            <div class="card role-stat"><div class="metric-icon">!</div><strong>07</strong><b>รายการ OT ที่ต้องตรวจสอบ</b><small>รอตรวจสอบ</small></div>
+            <div class="card role-stat"><div class="metric-icon">▤</div><strong>08:42</strong><b>ส่งออกล่าสุด</b><small>วันนี้ · CSV</small></div>
+          </div>
+          <div class="grid two-col">
+            <section class="card" style="padding:24px">
+              <div class="panel-head" style="padding:0 0 18px">
+                <div>
+                  <h3>ข้อมูลตารางกะที่อนุมัติแล้ว</h3>
+                  <p>พร้อมใช้สำหรับเงินเดือน OT และเบี้ยกะ</p>
+                </div>
+                <span class="live">เฉพาะรายการที่อนุมัติแล้ว</span>
+              </div>
+              <div class="schedule-wrap">
+                <table class="transport-table">
+                  <thead><tr><th>พนักงาน</th><th>ทีม</th><th>ช่วงเวลา</th><th>สถานะ</th></tr></thead>
+                  <tbody>
+                    ${employees.map(e => `
+                      <tr>
+                        <td><b>${e.name}</b></td>
+                        <td>${e.team}</td>
+                        <td>01–30 ก.ย. 2569</td>
+                        <td><span class="live">พร้อมใช้งาน</span></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            <section class="card" style="padding:24px">
+              <h3 style="margin:0;font-size:15px">ไฟล์ส่งออกสำหรับฝ่ายบุคคล</h3>
+              <p style="color:#8aa0ae;font-size:11px">ดาวน์โหลดไฟล์ข้อมูลตามโครงสร้าง</p>
+              <button class="quick" style="width:100%;margin-top:14px" onclick="exportCsv()">
+                <span><strong>ตารางกะประจำเดือน</strong><small>CSV · 186 รายการ</small></span><span>⇩</span>
+              </button>
+              <button class="quick" style="width:100%;margin-top:10px" onclick="exportCsv()">
+                <span><strong>OT และเบี้ยกะ</strong><small>CSV · กะที่อนุมัติแล้ว</small></span><span>⇩</span>
+              </button>
+            </section>
+          </div>
+        </div>`;
+    }
+
+    function driverView() {
+      return `
+        <div class="transport">
+          <section class="card" style="padding:24px">
+            <div class="panel-head" style="padding:0 0 18px">
+              <div>
+                <h3>ตารางรับส่งพนักงานวันนี้</h3>
+                <p>วันศุกร์ที่ 4 กันยายน 2569 · เส้นทาง A</p>
+              </div>
+              <span class="live">อัปเดต 08:42 น.</span>
+            </div>
+            <div class="grid role-stats" style="margin-bottom:20px">
+              <div class="card role-stat"><div class="metric-icon">♧</div><strong>12</strong><b>จุดรับส่ง</b><small>พนักงานวันนี้</small></div>
+              <div class="card role-stat"><div class="metric-icon">◷</div><strong>05:45</strong><b>รับคนเที่ยวแรก</b><small>Gate 1</small></div>
+              <div class="card role-stat"><div class="metric-icon">♢</div><strong>20:10</strong><b>ส่งคนเที่ยวสุดท้าย</b><small>จบเส้นทาง</small></div>
+            </div>
+            <table class="transport-table">
+              <thead><tr><th>พนักงาน</th><th>จุดรับ</th><th>Shift</th></tr></thead>
+              <tbody>
+                ${employees.slice(0, 4).map((e, i) => `
+                  <tr>
+                    <td><b>${e.name}</b></td>
+                    <td>${['Gate 1', 'Dorm A', 'Gate 2', 'Dorm B'][i]}</td>
+                    <td>${roleBadge(e.shifts[0])}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </section>
+          <section>
+            <div class="role-banner">
+              <p>สรุปงานสำหรับคนขับรถ</p>
+              <h3>เส้นทาง A is ready</h3>
+              <p>12 employees are assigned for pickup. No route changes since the last approved update.</p>
+              <button class="btn" style="margin-top:22px;background:var(--mint);color:#10394c" onclick="toast('Daily transport brief marked as read.')">รับทราบข้อมูล</button>
+            </div>
+            <div class="card access" style="margin-top:24px">
+              <h3 style="margin:0;font-size:15px">ขอบเขตการเข้าถึง</h3>
+              <p>✓ แสดงเฉพาะตารางกะล่าสุดที่อนุมัติแล้ว</p>
+              <p>✓ พนักงาน pickup and drop-off list</p>
+              <p>✓ ไม่มีสิทธิ์แก้ไขหรืออนุมัติ</p>
+            </div>
+          </section>
+        </div>`;
+    }
+
+    // Main App Logic
+    function render() {
+      const role = roles[activeRole];
+
+      $('profileAvatar').textContent = role.initials;
+      $('topAvatar').textContent = role.initials;
+      $('profileName').textContent = role.name;
+      $('profileRole').textContent = role.subtitle;
+      $('crumbView').textContent = activeRole === 'Supervisor' ? activeView[0].toUpperCase() + activeView.slice(1) : 'ภาพรวม';
+      $('topTitle').textContent = activeRole === 'Supervisor' && activeView === 'overview' ? 'สวัสดีตอนเช้า คุณกัญญา' : activeRole === 'Supervisor' ? activeView[0].toUpperCase() + activeView.slice(1) : role.short + ' view';
+      $('pageTitle').textContent = activeRole === 'Supervisor' ? (activeView === 'overview' ? 'ภาพรวมการผลิต' : activeView[0].toUpperCase() + activeView.slice(1) + ' พื้นที่ทำงาน') : role.short + ' พื้นที่ทำงาน';
+      $('pageSubtitle').textContent = activeRole === 'Supervisor' ? 'ติดตามทีมให้พร้อม ปลอดภัย และทำงานต่อเนื่องในกะถัดไป' : role.subtitle + ' พร้อมข้อมูลที่จำเป็นสำหรับวันนี้';
+
+      $('createBtn').style.display = activeRole === 'Supervisor' ? 'inline-block' : 'none';
+      $('exportBtn').style.display = activeRole === 'Supervisor' || activeRole === 'HR' ? 'inline-block' : 'none';
+
+      if (activeRole !== 'Supervisor') {
+        $('content').innerHTML = activeRole === 'Shift Operator' ? operatorView() : activeRole === 'HR' ? hrView() : driverView();
+        return;
+      }
+
+      if (activeView === 'overview') {
+        $('content').innerHTML = overview();
+      } else if (activeView === 'schedule') {
+        $('content').innerHTML = `
+          <section class="card" style="padding:0">
+            <div class="panel-head">
+              <div>
+                <h3>ตารางกะประจำเดือน</h3>
+                <p>กันยายน 2569 · เวอร์ชันล่าสุดที่อนุมัติแล้ว</p>
+              </div>
+              <div class="month-toolbar">
+                <button onclick="toast('เดือนก่อนหน้าอยู่ระหว่างพัฒนา')">‹</button>
+                <b style="font-size:11px;color:#547087">ก.ย. 2569</b>
+                <button onclick="toast('เดือนถัดไปอยู่ระหว่างพัฒนา')">›</button>
+              </div>
+            </div>
+            ${monthlyScheduleTable()}
+            <div class="panel-foot">
+              <span class="legend"><i class="day">D</i> กะกลางวัน</span>
+              <span class="legend"><i class="night">N</i> กะกลางคืน</span>
+              <span class="legend"><i class="morning">M</i> กะเช้า</span>
+              <span class="legend"><i class="off">O</i> หยุด</span>
+            </div>
+          </section>`;
+      } else if (activeView === 'requests') {
+        $('content').innerHTML = `
+          <section class="card">
+            <div class="panel-head">
+              <div>
+                <h3>คิวคำขอ</h3>
+                <p>ตรวจสอบการเปลี่ยนแปลงก่อนอัปเดตตารางกะที่อนุมัติแล้ว</p>
+              </div>
+            </div>
+            ${requests.map(requestRow).join('')}
+          </section>`;
+      } else {
+        $('content').innerHTML = `
+          <section class="card" style="padding:30px">
+            <h3>${activeView[0].toUpperCase() + activeView.slice(1)} พื้นที่ทำงาน</h3>
+            <p style="color:#8aa0ae">หน้าจอตัวอย่างนี้พร้อมต่อยอดในขั้นถัดไป</p>
+          </section>`;
+      }
+    }
+
+    function setView(view) {
+      activeView = view;
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+      render();
+      $('sidebar').classList.remove('open');
+    }
+
+    function updateRequest(id, status) {
+      const r = requests.find(x => x.id === id);
+      if (r) {
+        r.status = status;
+        toast(status === 'อนุมัติแล้ว' ? 'Request approved and schedule updated.' : 'Request rejected.');
+        render();
+      }
+    }
+
+    function exportCsv() {
+      const rows = [
+        ['พนักงาน', 'ทีม', 'Fri 04', 'Sat 05', 'Sun 06', 'Mon 07', 'Tue 08', 'Wed 09', 'Thu 10'],
+        ...employees.map(e => [e.name, e.team, ...e.shifts.map(s => shift[s][1])])
+      ];
+      const csv = rows.map(row => row.map(x => '"' + String(x).replaceAll('"', '""') + '"').join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = 'shiftflow-schedule.csv';
+      a.click();
+      toast('CSV export downloaded.');
+    }
+
+    function openModal() {
+      $('modalRoot').innerHTML = `
+        <div class="modal-backdrop">
+          <form class="modal" onsubmit="event.preventDefault();closeModal();toast('สร้างฉบับร่างกะแล้ว')">
+            <div style="display:flex;justify-content:space-between">
+              <div>
+                <small style="color:#78a0a8;font-weight:800;letter-spacing:.16em;text-transform:uppercase">จัดการตารางกะ</small>
+                <h3>สร้างกะใหม่</h3>
+              </div>
+              <button type="button" onclick="closeModal()">×</button>
+            </div>
+            <label>พนักงานปฏิบัติการ
+              <select>${employees.map(e => `<option>${e.name}</option>`).join('')}</select>
+            </label>
+            <label>วันที่
+              <input type="date" value="2026-09-07">
+            </label>
+            <label>ประเภทกะ
+              <select>
+                <option>D · กะกลางวัน</option>
+                <option>N · กะกลางคืน</option>
+                <option>M · กะเช้า</option>
+                <option>O · กะกลางวัน หยุด</option>
+              </select>
+            </label>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-light" onclick="closeModal()">ยกเลิก</button>
+              <button class="btn btn-dark">สร้างฉบับร่าง</button>
+            </div>
+          </form>
+        </div>`;
+    }
+
+    function closeModal() {
+      $('modalRoot').innerHTML = '';
+    }
+
+    // Event Listeners
+    $('roleSelect').addEventListener('change', e => {
+      activeRole = e.target.value;
+      activeView = 'overview';
+      render();
+    });
+
+    $('createBtn').addEventListener('click', openModal);
+    $('exportBtn').addEventListener('click', exportCsv);
+
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => setView(btn.dataset.view));
+    });
+
+    $('menuBtn').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+
+    // Initial Init
+    render();
+  </script>
+</body>
+</html>
