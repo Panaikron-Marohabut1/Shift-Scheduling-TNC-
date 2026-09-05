@@ -1,456 +1,69 @@
-﻿# Shift Schedule Management System
-
-## Project Proposal
-
-### Team Members
-
-| Student ID | Name |
-| --- | --- |
-| 6631503007 | Charuwan Kasaempan |
-| 6631503008 | Juladit Teekawiwat |
-| 6631503028 | Parichat Sriagsorn |
-| 6631503049 | Alisa Pansomkid |
-| 6631503126 | Panaikron Marohabut |
-
----
-
-## Executive Summary
-
-This project proposes a centralized Shift Schedule Management System designed to replace the current Excel-based scheduling process with a more structured, secure, and efficient digital workflow. The system will support schedule creation, approvals, schedule-change requests, business-rule validation, notifications, and HR data export in a single platform.
-
-By improving transparency, reducing manual work, and enabling role-based access, the system aims to support Production Department operations more effectively while ensuring employees, supervisors, and external users receive the latest approved schedule information.
-
----
-
-## 1. Background
-
-Currently, shift scheduling and shift-based work management in the Production Department rely primarily on Microsoft Excel and manual communication. Shift schedules are prepared on a monthly basis, and when changes are required, the Excel file must be manually updated and reviewed by the Supervisor before the revised schedule can be used.
-
-This process can become inefficient when multiple schedule changes occur. Employees and other relevant parties may not receive the latest version of the schedule at the same time, while external personnel such as contracted van drivers cannot directly access the internal Excel file.
-
-In addition, communication regarding schedule changes is often handled through phone calls or other manual channels. This increases coordination workload and creates a risk of misunderstandings or users referring to outdated information.
-
-Therefore, this project proposes a Shift Schedule Management System that centralizes shift scheduling, approval, and schedule-related requests in a single system. The system will provide authorized users with access to the latest schedule and support controlled schedule changes through predefined business rules and approval workflows.
-
----
-
-## 2. Problem Statement and Pain Points
-
-### 2.1 Manual Schedule Management Using Excel
-
-Shift schedules are currently maintained using Excel. When a shift needs to be changed, the schedule must be manually edited and reviewed before being distributed again.
-
-This process may:
-- Require repeated manual work
-- Consume time for Supervisors
-- Increase the risk of data-entry errors
-- Create multiple versions of the same schedule
-- Make it difficult to track schedule changes
-
-### 2.2 Lack of Real-Time Schedule Information
-
-When a schedule is updated, the revised file must be redistributed to relevant users. Different users may therefore have different versions of the schedule.
-
-This can cause confusion, particularly when employees, Supervisors, and external personnel rely on the schedule at the same time.
-
-The proposed system will provide a single source of truth, allowing authorized users to access the latest approved schedule from the same system.
-
-### 2.3 Reliance on Manual Communication
-
-Schedule changes and confirmations currently rely heavily on phone calls or other manual communication.
-
-This can increase coordination time and make it difficult to maintain a clear record of schedule-related requests.
-
-The proposed system will provide in-system requests, approval workflows, and notifications to reduce unnecessary manual coordination.
-
-### 2.4 Limited Access for External Users
-
-External personnel, such as contracted van drivers, may need access to specific schedule information but cannot directly access the organization's internal Excel file.
-
-The proposed system will provide restricted access for external users, allowing them to view only the information required for their responsibilities.
-
-### 2.5 Limited HR Data Integration
-
-The current Excel-based scheduling process does not directly support integration with HR-related data.
-
-This limits the ability to use shift information for future calculations such as:
-- Overtime (OT)
-- Shift allowances
-- Payroll-related information
-
-The proposed system will support structured data export for HR use. Full integration with the HR system may be considered as a future enhancement after the required HR data format and integration requirements have been confirmed.
-
----
-
-## 3. Project Goals and Objectives
-
-### 3.1 Goal
-
-The primary goal of this project is to develop a centralized Shift Schedule Management System that replaces manual Excel-based schedule management with a controlled, accessible, and up-to-date digital system.
-
-### 3.2 Objectives
-
-The system aims to:
-- Reduce the time and effort required to create and modify shift schedules.
-- Provide a centralized source of the latest approved schedule.
-- Reduce errors caused by manual schedule updates and duplicated files.
-- Provide an approval workflow for schedule changes.
-- Allow employees to submit shift-swap and day-off change requests through the system.
-- Reduce reliance on phone calls and manual communication.
-- Provide appropriate access to external users such as van drivers.
-- Allow HR staff to export schedule data for payroll and OT-related processes.
-- Support both web/PC and mobile access according to user roles.
-- Ensure schedule changes follow predefined business and safety rules.
-
----
-
-## 4. Project Scope
-
-### 4.1 In Scope
-
-The initial version of the system will include:
-- User authentication and role-based access control
-- Monthly shift schedule management
-- Shift creation, editing, and removal
-- Shift-swap requests
-- Day-off change requests
-- Supervisor approval and rejection
-- Cross-shift approval workflow
-- Business-rule validation
-- Schedule notifications
-- Monthly schedule overview
-- Mobile access for Shift Operators
-- Mobile access for Contractors / Van Drivers
-- HR data export
-- Schedule history / change records
-
-### 4.2 Out of Scope
-
-The following features are not included in the initial implementation:
-- Automatic salary calculation
-- Automatic OT payment calculation
-- Full integration with the organization's HR system
-- Payroll processing
-- Leave-management system
-- Transportation route optimization
-- GPS tracking of employees or vehicles
-
-These features may be considered for future development after the core shift-scheduling system has been implemented and evaluated.
-
----
-
-## 5. User Roles and Core Functions
-
-### 5.1 Shift Operator
-
-Shift Operators can:
-- View their assigned shift schedule
-- View the overall shift schedule according to their access permissions
-- View their upcoming shifts and days off
-- Submit shift-swap requests
-- Submit day-off change requests
-- Track the status of their requests
-- Receive notifications regarding schedule changes and approvals
-
-### 5.2 Shift Supervisor
-
-Shift Supervisors can:
-- View the monthly shift schedule
-- Add, edit, and remove shifts
-- Review employee schedule requests
-- Approve or reject shift-swap requests
-- Approve or reject day-off change requests
-- Review changes made within their assigned shift
-- Participate in cross-shift approval
-- View pending requests
-- Monitor schedule conflicts and validation warnings
-
-For cross-shift swaps, approval from the Supervisors responsible for both affected shifts will be required.
-
-### 5.3 HR
-
-HR users can:
-- Access approved schedule data
-- Search and filter schedule information
-- Export schedule data
-- Use exported data for payroll, OT, and shift-allowance processes
-
-The initial system will focus on data export rather than direct payroll calculation.
-
-### 5.4 Contractor / Van Driver
-
-Contractors or van drivers can:
-- View the latest approved daily schedule
-- View the list of employees assigned for transportation
-- View relevant pickup/drop-off information
-- Access the information through a mobile device
-- View the latest update time
-
-Contractors and van drivers cannot edit or approve shift schedules.
-
----
-
-## 6. User Workflows
-
-### 6.1 Schedule Management Workflow
-
-Supervisor Login → View Schedule → Add/Edit/Remove Shift → System Validation → Submit Change → Approval/Confirmation → Update Schedule → Notify Relevant Users
-
-The system will validate the change against predefined business rules before the schedule is updated.
-
-### 6.2 Shift-Swap Request Workflow
-
-Employee A → Select Shift → Select Employee B / Target Shift → System Validation → Submit Request → Supervisor Review → Approve / Reject → Update Schedule → Notify Relevant Users
-
-For cross-shift swaps:
-Employee Request → Supervisor of Shift A → Supervisor of Shift B → Both Approve → Update Schedule → Notify Relevant Users
-
-If either Supervisor rejects the request, the schedule will remain unchanged and the requesting employees will be notified.
-
-### 6.3 Day-Off Change Workflow
-
-Employee → Select Day Off → Submit Change Request → System Validation → Supervisor Review → Approve / Reject → Update Schedule → Notify Employee
-
-The system will only allow requests within the configured request period and according to applicable scheduling rules.
-
----
-
-## 7. Business Rules and Validation
-
-### 7.1 Request Submission Period
-
-The system will define a permitted period for submitting schedule-change requests.
-
-For example, a request may only be submitted within a specified number of days before the affected shift.
-
-The exact period should be confirmed during the requirements-gathering phase with Supervisors and relevant stakeholders.
-
-> Important: The current requirement states that schedule adjustments may not exceed 7 days before or after the original date. This rule should be confirmed with the actual business owner before implementation because "7 days before or after" can have different meanings depending on the scheduling process.
-
-### 7.2 Maximum Consecutive Working Days
-
-An employee must not be scheduled to work more than 6 consecutive days.
-
-The system should automatically validate the employee's schedule when a shift is created, edited, or swapped.
-
-If the change violates this rule, the system should prevent submission or display a validation warning according to the final business requirement.
-
-### 7.3 Shift Type Validation
-
-The system will support predefined shift types, such as:
-- D = Day
-- N = Night
-- M = Morning
-- O = Day Off
-
-Additional shift types may be added if required by the organization.
-
-### 7.4 Skill and Position Validation
-
-Before approving a shift swap, the system should verify whether the employee is qualified for the target shift based on defined criteria such as:
-- Position
-- Job role
-- Required skills
-- Shift eligibility
-- Other organizational requirements
-
-### 7.5 Cross-Shift Approval
-
-If a shift swap affects two different shifts, approval from both responsible Supervisors is required.
-
-The system must not update the final schedule until all required approvals have been completed.
-
-### 7.6 Duplicate and Schedule Conflict Validation
-
-The system should prevent or warn users about conflicts such as:
-- An employee being assigned to two shifts at the same time
-- Duplicate shift assignments
-- Invalid shift sequences
-- Exceeding the maximum consecutive working days
-- Assigning an employee to an unauthorized shift
-
----
-
-## 8. Notifications and Schedule Updates
-
-The system should notify relevant users when important schedule events occur, such as:
-- A shift-swap request is submitted
-- A request is approved
-- A request is rejected
-- A schedule is modified
-- A shift assignment is changed
-
-Notifications may initially be provided through in-system notifications. Additional channels such as email or messaging applications can be considered in future versions.
-
----
-
-## 9. Screen Layouts and UI Components
-
-### 9.1 Shift Supervisor – Web / PC Application
-
-The Supervisor dashboard will focus on schedule overview and management.
-
-Main components:
-- Monthly schedule grid
-- Employee list
-- Shift information
-- Day-off information
-- Pending request section
-- Add/Edit/Remove Shift buttons
-- Approve/Reject buttons
-- Search and filter functions
-- Validation warnings
-- Schedule change history
-
-### 9.2 Shift Operator – Mobile Application
-
-The Shift Operator mobile interface will focus on personal schedule management.
-
-Main components:
-- My Shift
-- Today's shift
-- Shift start/end time
-- Upcoming schedule
-- Days off
-- Request Shift Swap
-- Request Day-Off Change
-- Request status
-- Notifications
-
-### 9.3 Contractor / Van Driver – Web Application
-
-The Contractor / Van Driver interface will provide only the information necessary for transportation operations.
-
-Main components:
-- Today's Schedule
-- Current date
-- Shift information
-- Employee pickup/drop-off list
-- Latest update time
-- Data freshness indicator
-
-The interface will be read-only.
-
-### 9.4 HR – Web Application
-
-The HR interface will focus on accessing and exporting approved schedule data.
-
-Main components:
-- Schedule search
-- Date range filter
-- Employee filter
-- Shift filter
-- Export function
-- Downloadable schedule data
-
----
-
-## 10. Non-Functional Requirements
-
-In addition to the functional requirements, the system should consider the following non-functional requirements.
-
-### 10.1 Security
-- Role-based access control
-- Users can only access information appropriate to their roles
-- External users cannot modify schedules
-- Authentication is required before accessing protected information
-
-### 10.2 Availability
-The system should be accessible during normal working operations and should minimize downtime that could affect shift management.
-
-### 10.3 Usability
-The system should provide an easy-to-understand interface because users may access the system quickly during daily operations.
-
-### 10.4 Performance
-Common actions such as viewing schedules, submitting requests, and checking approvals should respond within an acceptable period under normal system load.
-
-### 10.5 Auditability
-The system should maintain records of important schedule changes, including:
-- Who made the change
-- What was changed
-- When the change was made
-- Approval status
-
-This will help Supervisors and administrators track schedule history.
-
----
-
-## 11. Expected Benefits
-
-The proposed system is expected to provide the following benefits:
-- Reduce time spent managing shift schedules
-- Reduce duplicated Excel files and manual updates
-- Provide a single source of truth for schedule information
-- Reduce schedule-related communication and coordination
-- Improve visibility of schedule changes
-- Allow employees to manage requests through the system
-- Simplify Supervisor approval and schedule management
-- Provide controlled access for external users
-- Make schedule data easier for HR to export and process
-- Provide a foundation for future workforce-management capabilities
-
----
-
-## 12. Future Enhancements
-
-After the initial system has been implemented, the following features may be considered:
-- Direct integration with the HR system
-- Automatic OT calculation
-- Automatic shift-allowance calculation
-- Payroll integration
-- Leave-management integration
-- Integration with transportation management
-- Automated notifications through email or messaging platforms
-- Schedule analytics and reporting
-- Automated shift assignment based on employee availability and qualifications
-
----
-
-## 13. Project Implementation Timeline
-
-The project will be developed over approximately 12 weeks.
-
-| Phase | Activities | Timeline |
-| --- | --- | --- |
-| Phase 1 | Requirements Analysis | Weeks 1–2 |
-| Phase 2 | UX/UI Design | Weeks 2–3 |
-| Phase 3 | System Design | Weeks 2–3 |
-| Phase 4 | Core Development | Weeks 4–7 |
-| Phase 5 | Workflow Development | Weeks 6–9 |
-| Phase 6 | HR Data Export | Weeks 7–9 |
-| Phase 7 | System Testing | Weeks 9–10 |
-| Phase 8 | User Acceptance Testing (UAT) | Weeks 10–11 |
-| Phase 9 | Deployment / Go-Live | Week 12 |
-| Phase 10 | Post-Implementation Improvement | After Go-Live |
-
----
-
-## 14. Stakeholder Analysis
-
-To ensure that the system addresses actual business needs, requirements should be validated with the following stakeholders during Phase 1:
-
-| Stakeholder | Main Concerns |
-| --- | --- |
-| Production Engineer / Schedule Planner | Schedule planning, operational constraints, workload |
-| Shift Supervisor | Approval, employee assignment, schedule conflicts |
-| Shift Operator | Personal schedule, shift swaps, day-off requests |
-| HR Staff | Schedule data, OT, shift allowances, payroll requirements |
-| IT Staff | Security, system integration, deployment, maintenance |
-| Contractor / Van Driver | Daily employee pickup/drop-off information and data freshness |
-
-Stakeholder interviews will be used to confirm the current workflow, identify actual pain points, and validate the business rules before development begins.
-
----
-
-## 15. Success Criteria
-
-The project will be considered successful if the implemented system can:
-- Allow authorized Supervisors to manage monthly shift schedules.
-- Allow employees to submit and track schedule-related requests.
-- Enforce predefined scheduling and validation rules.
-- Support the required approval workflow.
-- Provide users with access to the latest approved schedule.
-- Allow authorized external users to view relevant transportation information.
-- Allow HR to export approved schedule data.
-- Maintain a record of important schedule changes.
-- Successfully pass system testing and User Acceptance Testing (UAT).
+# Shift Scheduling (TNC) — Legal & Compliance Rules for AI Agents
+
+Read this before writing any code that touches user data or user actions.
+
+This document is an implementation baseline for the Shift Scheduling System. It is not legal advice. Confirm the organization, lawful bases, retention periods, notification channels, and approval authority before production deployment.
+
+## PDPA (Personal Data Protection Act)
+
+What it is: Thailand's personal-data protection framework governing the collection, use, disclosure, storage, security, and rights of data subjects.
+
+What it requires: consent where required · purpose limitation · data minimisation · transparency · appropriate security · access/correct/delete requests · controlled handling of sensitive data
+
+Rules for the agent:
+- If the system stores employee names, IDs, contact details, team membership, roles, or schedules, it must document the purpose, restrict access by role and team, and collect only the fields required for scheduling.
+- If the system stores leave or sick-leave information, it must treat health-related details as sensitive, minimise the displayed detail, restrict access to authorised users, and never expose medical details to contractors or unrelated employees.
+- If the system stores shift-swap, day-off, emergency sick-leave, or schedule-change requests, it must record the stated purpose and reason only when required, and must not request unnecessary personal information.
+- If the system uses employee data for scheduling, approvals, notifications, HR export, or audit, it must use that data only for the documented purpose and must not reuse it for unrelated purposes without a valid legal basis.
+- If the system sends notifications, it must disclose only the minimum information needed by the recipient and must not reveal another employee's leave, health, contact, or schedule details.
+- If the system provides schedule access to a Shift Operator, it must show only the operator's own data and authorised team data.
+- If the system provides access to a Supervisor, it must limit visibility to assigned teams and approval tasks.
+- If the system provides access to HR, it must expose only the schedule and staffing fields required for approved payroll, OT, or HR processing.
+- If the system provides access to a Contractor or Van Driver, it must expose only read-only transportation information required for the assigned operation.
+- If the system exports data for HR, it must apply access control, use an approved format and destination, minimise exported fields, and record who exported what and when.
+- If a data subject requests access, correction, deletion, or another applicable right, the system must route the request through an authorised process and preserve records needed for legal, payroll, safety, or audit obligations.
+- If data is corrected or deleted, the system must preserve the minimum audit record required to explain an approved schedule decision without retaining unnecessary personal data.
+- If the system has a security incident involving personal data, it must restrict further access, preserve evidence, notify the responsible administrator, and follow the organisation's incident-response and legal-notification process.
+- If an AI agent generates, edits, exports, or summarises schedule information, it must follow the same authorisation and minimisation rules as the underlying application and must not infer or disclose sensitive employee information.
+
+## Computer Crime Act §26
+
+What it is: A Thai computer-crime requirement relevant to maintaining evidence of access to and use of computer systems and data.
+
+What it requires: keep an access/traffic log ≥90 days, tied to a real user. Logs must be protected from unauthorised alteration and be retrievable for authorised investigation.
+
+Rules for the agent:
+- If the system has authentication, it must log successful and failed login attempts, logout events, account identifier, timestamp, and relevant source information.
+- If the system has role-based access, it must log access denials and privilege changes, including the real user and the administrator or process that made the change.
+- If the system has schedule records, it must log creation, update, cancellation, approval, rejection, and publication of schedule assignments.
+- If a schedule changes, the audit record must include the real user, timestamp, previous value, new value, reason or source, affected employee, and affected date or shift.
+- If the system has requests, it must log submission, review, approval, rejection, withdrawal, and final application of each request, including each required approver.
+- If the system has HR exports, it must log the real user, filters or scope, fields exported, timestamp, destination or download event, and result.
+- If the system sends notifications or exposes data through an API, it must log the requesting user or service identity, permitted scope, timestamp, and outcome where needed for investigation.
+- If an AI agent performs an action on behalf of a user, it must use an attributable authenticated identity and must not use a shared or anonymous account.
+- If an administrator or service account is used, the system must retain accountability for the responsible person or approved system process and must restrict shared credentials.
+- If logs are retained for less than 90 days, the system must block production use until the retention policy is corrected or formally approved as legally compliant.
+- If logs are accessed or changed, the system must restrict that access to authorised administrators or investigators and must record the access or change.
+- If a record is cancelled or revised, the system must not silently overwrite or delete the historical audit evidence.
+
+## Electronic Transactions Act §9 / 26 / 28
+
+What it is: The Thai legal framework supporting electronic records and electronic transactions, including the evidentiary treatment and reliability of electronic signatures and certification-authority duties.
+
+What it requires: valid e-signature test (§9) · presumed-reliable signature (§26) · CA duties (§28). An electronic approval must be attributable to the person approving, linked to the approved record, and preserved in a form that can be retrieved and inspected.
+
+Rules for the agent:
+- If a Supervisor approves or rejects a shift change, shift swap, leave request, or exception electronically, the system must record the approver's authenticated identity, decision, timestamp, request version, and decision reason where required.
+- If the user clicks "I agree" on a consent notice, data-use notice, policy, or legally relevant acknowledgement, the system must record the user's identity, exact notice version, text or content reference, timestamp, action, and relevant context.
+- If an approval changes the central schedule, the system must bind the approval to the exact schedule or request version and prevent an unapproved version from becoming effective.
+- If a cross-team or cross-shift swap requires two Supervisors, the system must record each approval separately and must not apply the change until all required approvals are complete.
+- If a request is rejected, the system must record the rejecting user, timestamp, request version, and rejection reason, and must show the reason only to authorised recipients.
+- If an approval is withdrawn, amended, or superseded, the system must preserve the original electronic record and create a new linked event rather than silently replacing it.
+- If the system relies on an electronic signature, it must use authenticated accounts, protect signing credentials, prevent unauthorised reuse, and provide a way to retrieve the signed record.
+- If the system uses a certificate authority or other trusted service, it must use an approved provider and retain the certificate, validation, and relevant service records required by the provider and applicable law.
+- If an AI agent prepares an approval, it must not approve, reject, or sign on the user's behalf unless the user explicitly authorises the action through an attributable authenticated interaction.
+- If an electronic record is exported or presented for review, it must retain the original approval metadata and enough context to verify the record's integrity and history.
+
+## Implementation Gate
+
+Do not implement a feature that collects, changes, approves, exports, or exposes employee data until its purpose, authorised roles, retention period, audit events, and approval requirements are defined. Unresolved legal or policy questions must be escalated to the system owner or qualified legal counsel.
