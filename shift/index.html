@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShiftFlow — ระบบจัดการตารางกะฝ่ายผลิต</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Backdrop for Mobile Drawer -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn mobile-menu-btn" onclick="toggleSidebar()" style="display:none" aria-label="เปิดเมนู">
+            <svg class="icon" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+          <div>
+            <div class="breadcrumb">
+              <span>ฝ่ายผลิต</span>
+              <span class="breadcrumb-sep">/</span>
+              <span id="breadcrumbView" style="color:var(--ink-secondary)">ภาพรวม</span>
+            </div>
+            <h2 class="topbar-title" id="topbarTitle">สวัสดีตอนเช้า, คุณกัญญา</h2>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Global Search -->
+          <div class="search-box">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="search-input" placeholder="ค้นหาพนักงาน, ทีม หรือกะงาน..." onkeyup="if(event.key==='Enter') showToast('ผลการค้นหา: ' + this.value)" />
+          </div>
+
+          <!-- Role Switcher (Prototype Demo Controller) -->
+          <div class="role-switch-pill" title="สลับบทบาทผู้ใช้งานเพื่อทดสอบแต่ละหน้าจอ">
+            <span class="role-switch-label">บทบาท:</span>
+            <select class="role-select" id="roleSelect" onchange="switchRole(this.value)">
+              <option value="Supervisor">หัวหน้างานกะ (Supervisor)</option>
+              <option value="Shift Operator">พนักงานปฏิบัติการ (Operator)</option>
+              <option value="HR">ฝ่ายบุคคล (HR Data & Export)</option>
+              <option value="Contractor / Van Driver">คนขับรถรับส่ง (Van Driver)</option>
+            </select>
+          </div>
+
+          <!-- Notification Bell Dropdown -->
+          <div class="notification-bell-wrap">
+            <button class="icon-btn" onclick="toggleNotifications()" aria-label="การแจ้งเตือน">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              <span class="unread-dot"></span>
+            </button>
+            <div class="notification-dropdown" id="notificationDropdown">
+              <div class="notification-header">
+                <strong>การแจ้งเตือนล่าสุด</strong>
+                <span class="pill pill-pending">2 รายการใหม่</span>
+              </div>
+              <div class="notification-list">
+                <div class="notification-item unread">
+                  <div>
+                    <p><strong>คำขอสลับกะใหม่:</strong> จารุวรรณ ขอสลับกะวันที่ 07 ก.ย.</p>
+                    <small>12 นาทีที่แล้ว · ตรวจสอบกฎผ่านแล้ว</small>
+                  </div>
+                </div>
+                <div class="notification-item unread">
+                  <div>
+                    <p><strong>สลับกะข้ามทีม:</strong> QC ↔ Maintenance รอคุณอนุมัติ</p>
+                    <small>1 ชั่วโมงที่แล้ว · หัวหน้า QC อนุมัติแล้ว</small>
+                  </div>
+                </div>
+                <div class="notification-item">
+                  <div>
+                    <p><strong>ประกาศตารางกะ:</strong> ตารางกะ ก.ย. 2569 ได้รับการเผยแพร่</p>
+                    <small>08:42 น. · Official Published</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- User Avatar Profile -->
+          <div class="avatar" id="topAvatar">KS</div>
+        </div>
+      </header>
+
+      <!-- Main Dynamic Content Container -->
+      <main class="page-container" id="pageContent"></main>
+    </div>
+  </div>
+
+  <!-- Modal Mount Point -->
+  <div id="modalRoot"></div>
+
+  <!-- Toast Notification Mount Point -->
+  <div class="toast-container" id="toastRoot"></div>
+
+  <!-- Responsive Helper Script for Mobile Menu toggle display -->
+  <style>
+    @media (max-width: 768px) {
+      .mobile-menu-btn {
+        display: grid !important;
+      }
+    }
+  </style>
+
+  <!-- Modular JavaScript Engine -->
+  <script src="app.js"></script>
+</body>
+</html>
