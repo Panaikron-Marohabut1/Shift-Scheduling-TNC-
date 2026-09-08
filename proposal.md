@@ -165,9 +165,9 @@ HR users can:
 - Use exported data for payroll, OT, and shift-allowance processes
 The initial system will focus on data export rather than direct payroll calculation.
 
-## 5.4 Contractor
+## 5.4 External Users
 
-Contractors or van drivers can:
+External Users can:
 
 - View the latest approved daily schedule
 - View the list of employees assigned for transportation
@@ -186,13 +186,17 @@ The system will validate the change against predefined business rules before the
 
 ## 6.2 Shift-Swap Request Workflow
 
-Employee A → Select Shift → Select Employee B / Target Shift → System Validation → Submit Request → Supervisor Review → Approve / Reject → Update Schedule → Notify Relevant Users
+For a Same-Shift Swap:
 
-For cross-shift swaps:
+Employee A → Select Date and Employee B in Same Shift → System Validation → Submit Request → Supervisor A Review → Approve / Reject → Update Schedule → Record Audit Log → Notify Relevant Employees
 
-Employee Request → Supervisor of Shift A → Supervisor of Shift B → Both Approve → Update Schedule → Notify Relevant Users
+Only Supervisor A is required to review and approve the request.
 
-If either Supervisor rejects the request, the schedule will remain unchanged and the requesting employees will be notified.
+For a Cross-Shift Swap:
+
+Employee A → Select Date and Employee B from Another Shift → System Validation → Submit Request → Supervisor A Review → Supervisor B Review → Both Approve → Update Schedule → Record Audit Log → Notify Relevant Employees
+
+Both Supervisor A and Supervisor B must approve the request before the schedule is updated.
 
 ## 6.3 Day-Off Change Workflow
 
@@ -267,7 +271,7 @@ Notifications may initially be provided through in-system notifications. Additio
 
 9. Screen Layouts and UI Components
 
-## 9.1 Shift Supervisor – Web / PC Application
+## 9.1 Shift Supervisor – Web Application
 
 The Supervisor dashboard will focus on schedule overview and management.
 
@@ -299,7 +303,7 @@ Main components:
 - Request status
 - Notifications
 
-## 9.3 Contractor / Van Driver – Web Application
+## 9.3 External Users – Web Application
 
 The Contractor / Van Driver interface will provide only the information necessary for transportation operations.
 
@@ -476,7 +480,7 @@ IT Staff
 
 Security, system integration, deployment, maintenance
 
-Contractor
+External Users
 
 Daily employee pickup/drop-off information and data freshness
 
