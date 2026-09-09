@@ -10,8 +10,10 @@ const state = {
   activeView: 'schedule',
   currentYear: 2026,
   currentMonth: 7, // 0-indexed: 7 = August (สิงหาคม 2569)
-  currentDay: 12, // 12 Aug 2026 (วันแม่แห่งชาติ / Special Holiday)
+  currentDay: 12, // Demo reference day for request validation
   selectedShiftFilter: 'ALL', // 'ALL', 'A', 'B'
+  employeeTeamFilter: 'ALL',
+  employeeSearch: '',
   scheduleDrafts: 0,
   unreadNotifications: 2,
   hrDateFilter: '2026-08',
@@ -43,6 +45,7 @@ const state = {
       nav: [
         { id: 'schedule', label: 'ตารางกะ (Shift Schedule)', icon: 'calendar' },
         { id: 'overview', label: 'ภาพรวมกำลังพล', icon: 'grid' },
+        { id: 'people', label: 'พนักงานและทีม', icon: 'users' },
         { id: 'requests', label: 'คิวคำขอตรวจสอบ', icon: 'check-square', badge: 3 },
         { id: 'history', label: 'ประวัติการเปลี่ยนแปลง', icon: 'history' }
       ]
@@ -53,9 +56,9 @@ const state = {
       title: 'Shift Employee (Shift A)',
       short: 'พนักงานปฏิบัติการ',
       nav: [
-        { id: 'my-shift', label: 'กะของฉัน', icon: 'user' },
         { id: 'team-schedule', label: 'ตารางกะรวม (Schedule)', icon: 'calendar' },
-        { id: 'my-requests', label: 'คำขอของฉัน', icon: 'inbox', badge: 1 }
+        { id: 'my-requests', label: 'คำขอของฉัน', icon: 'inbox', badge: 1 },
+        { id: 'my-history', label: 'ประวัติของฉัน', icon: 'history' }
       ]
     },
     HR: {
@@ -223,8 +226,9 @@ const state = {
     {
       id: 101,
       type: 'สลับกะ',
-      person: 'สมหวัง ศรีเฆมะ',
-      initials: 'สศ',
+      person: 'วราเทพ นิยากูล',
+      requesterId: '0140',
+      initials: 'วน',
       roleCategory: 'Shift Employee (Shift A)',
       targetPerson: 'สิทธิชัย เมฆาหลับ',
       targetRole: 'Shift Employee (Shift A)',
@@ -281,6 +285,7 @@ const state = {
 
   // Audit History Logs
   auditLogs: [
+    { id: 4, actor: 'วราเทพ นิยากูล', employeeId: '0140', avatar: 'วน', action: 'ยื่นคำขอสลับกะวันที่ 04 ส.ค. 2569', time: 'วันนี้ 08:35 น.' },
     { id: 1, actor: 'ณัฐพล ดวงประเสริฐ', avatar: 'นด', action: 'อนุมัติตารางกะประจำเดือนสิงหาคม 2569 (August 2026 Official)', time: 'วันนี้ 08:42 น.' },
     { id: 2, actor: 'ธุรนันท์ พรหมจรรย์', avatar: 'ธพ', action: 'ยื่นคำขอลาพักร้อน (V) วันที่ 04–05 ส.ค.', time: 'วันนี้ 08:18 น.' },
     { id: 3, actor: 'สุระศักดิ์ สงเคราะห์', avatar: 'สส', action: 'ยืนยันกะดึก OT ของวรเดกรและวัชรพงศ์', time: 'เมื่อวาน 17:30 น.' }
@@ -319,6 +324,7 @@ function getIcon(name, className = 'icon') {
     check: '<polyline points="20 6 9 17 4 12"></polyline>',
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
     alert: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
+    arrowLeft: '<line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>',
     arrowRight: '<line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline>',
     clock: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>',
     filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>'
@@ -439,38 +445,42 @@ function closeModal() {
 }
 
 // ==========================================================================
-// REDESIGNED SHIFT SCHEDULE VIEW: AUGUST 2026 (31 DAYS, SHIFT A & SHIFT B)
+// REDESIGNED SHIFT SCHEDULE VIEW: YEAR-ROUND MONTH NAVIGATION
 // ==========================================================================
 function renderScheduleView() {
-  const daysInMonth = 31;
+  const selectedMonthDate = new Date(state.currentYear, state.currentMonth, 1);
+  const daysInMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const monthLabel = selectedMonthDate.toLocaleDateString('th-TH', {
+    month: 'long',
+    year: 'numeric'
+  });
+  const monthShortLabel = selectedMonthDate.toLocaleDateString('th-TH', {
+    month: 'short'
+  });
 
-  // 5 Weeks in August 2026 (01 Aug = Sat, 31 Aug = Mon)
-  const weekGroups = [
-    { label: 'Week 1 (01–07 ส.ค.)', span: 7, start: 1, end: 7 },
-    { label: 'Week 2 (08–14 ส.ค.)', span: 7, start: 8, end: 14 },
-    { label: 'Week 3 (15–21 ส.ค.)', span: 7, start: 15, end: 21 },
-    { label: 'Week 4 (22–28 ส.ค.)', span: 7, start: 22, end: 28 },
-    { label: 'Week 5 (29–31 ส.ค.)', span: 3, start: 29, end: 31 }
-  ];
+  const weekGroups = Array.from({ length: Math.ceil(daysInMonth / 7) }, (_, index) => {
+    const start = index * 7 + 1;
+    const end = Math.min(start + 6, daysInMonth);
+    return {
+      label: `Week ${index + 1} (${String(start).padStart(2, '0')}–${String(end).padStart(2, '0')} ${monthShortLabel})`,
+      span: end - start + 1,
+      start,
+      end
+    };
+  });
 
   const weekdayName = d => {
-    // August 2026: 01 Aug = Saturday (Sat)
-    const dt = new Date(2026, 7, d);
+    const dt = new Date(state.currentYear, state.currentMonth, d);
     return dt.toLocaleDateString('en-US', { weekday: 'short' });
   };
 
   const isWeekend = d => {
-    // Weekends (Sat, Sun): 01-02, 08-09, 15-16, 22-23, 29-30
-    const day = new Date(2026, 7, d).getDay();
+    const day = new Date(state.currentYear, state.currentMonth, d).getDay();
     return day === 0 || day === 6;
   };
 
-  // Special Holiday: 12 August (วันแม่แห่งชาติ / Mother's Day)
-  const isHoliday = d => d === 12;
-
-  // Check if a day begins a new week (for clear vertical border separation)
-  const isWeekStart = d => [8, 15, 22, 29].includes(d);
+  const isWeekStart = d => d > 1 && (d - 1) % 7 === 0;
 
   // Grouped by Shift A & Shift B
   const shiftSections = [];
@@ -482,40 +492,50 @@ function renderScheduleView() {
   }
 
   const allEmployees = getAllEmployees();
+  const currentViewerId = ['Supervisor', 'Shift Operator'].includes(state.activeRole)
+    ? allEmployees.find(employee => employee.name === state.roles[state.activeRole].name)?.id
+    : null;
+  const today = new Date();
+  const isCurrentDate = d => d === today.getDate()
+    && state.currentMonth === today.getMonth()
+    && state.currentYear === today.getFullYear();
+  const currentDateLabel = `วันที่ ${today.toLocaleDateString('th-TH', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })}`;
 
   return `
     <div style="display:flex;flex-direction:column;gap:20px">
-      <!-- Clean Control & Filter Bar -->
-      <div class="card" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <h2 style="font-size:20px;font-weight:800;letter-spacing:-0.03em;color:var(--ink);margin:0">
-              ตารางกะฝ่ายผลิต — สิงหาคม ๒๕๖๙ (August 2026)
-            </h2>
-            <span class="pill pill-draft" style="font-size:10px">ระบบกะหมุนเวียน 2-on 2-off</span>
-          </div>
-          <p style="font-size:12px;color:var(--muted);margin-top:3px">
-            1 แถว = 1 พนักงาน · แสดง Shift "A" และ Shift "B" ตลอด 31 วัน พร้อมตรวจสอบกฎไม่เกิน 6 วันทำงานต่อเนื่อง
-          </p>
+      <!-- Focused schedule header -->
+      <div class="card schedule-header">
+        <div class="schedule-header-title">
+          <h2>ตารางกะฝ่ายผลิต</h2>
+          <span>${currentDateLabel}</span>
         </div>
 
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="schedule-header-controls">
+          <!-- Month navigation -->
+          <div class="schedule-month-picker" aria-label="เลือกเดือนของตารางกะ">
+            <button class="month-nav-btn" type="button" onclick="changeScheduleMonth(-1)" aria-label="เดือนก่อนหน้า">
+              ${getIcon('arrowLeft', 'icon-sm')}
+            </button>
+            <strong>${monthLabel}</strong>
+            <button class="month-nav-btn" type="button" onclick="changeScheduleMonth(1)" aria-label="เดือนถัดไป">
+              ${getIcon('arrowRight', 'icon-sm')}
+            </button>
+          </div>
+
           <!-- Filter Shift -->
-          <div class="role-switch-pill" style="padding:2px 8px">
-            <span style="font-size:10px;font-weight:700;color:var(--muted)">แสดงชุดกะ:</span>
+          <label class="schedule-filter role-switch-pill">
+            <span class="role-switch-label">ชุดกะ</span>
             <select class="role-select" onchange="filterScheduleShiftType(this.value)">
               <option value="ALL" ${state.selectedShiftFilter === 'ALL' ? 'selected' : ''}>ทั้ง 2 ชุดกะ (Shift A & B)</option>
               <option value="A" ${state.selectedShiftFilter === 'A' ? 'selected' : ''}>เฉพาะ Shift "A"</option>
               <option value="B" ${state.selectedShiftFilter === 'B' ? 'selected' : ''}>เฉพาะ Shift "B"</option>
             </select>
-          </div>
+          </label>
 
-          <!-- Month Indicator -->
-          <strong style="font-size:12px;color:var(--navy);padding:0 4px">สิงหาคม 2569</strong>
-
-          <span class="pill pill-approved" style="font-size:11px;padding:4px 10px">
-            ${getIcon('check', 'icon-sm')} อนุมัติแล้ว (Official Published)
-          </span>
         </div>
       </div>
 
@@ -542,14 +562,12 @@ function renderScheduleView() {
               <th class="sticky-col-1" style="background:#f8fafc"></th>
               <th class="sticky-col-2" style="background:#f8fafc"></th>
               ${days.map(d => {
-                const isToday = d === state.currentDay;
+                const isToday = isCurrentDate(d);
                 const weekend = isWeekend(d);
-                const holiday = isHoliday(d);
                 const weekStartClass = isWeekStart(d) ? 'week-start' : '';
                 
                 let thStyle = '';
-                if (holiday) thStyle = 'background:#cffafe;color:#0e7490;border:1px solid #67e8f9;';
-                else if (weekend) thStyle = 'background:#fef08a;color:#854d0e;';
+                if (weekend) thStyle = 'background:#fef08a;color:#854d0e;';
 
                 return `
                   <th class="${isToday ? 'today-col' : ''} ${weekStartClass}" style="min-width:34px;${thStyle}">
@@ -578,39 +596,39 @@ function renderScheduleView() {
               <!-- Employees in this Shift Section -->
               ${section.employees.map((emp, empIdx) => {
                 const isSupervisor = empIdx === 0;
+                const isCurrentViewer = emp.id === currentViewerId;
                 const workDays = emp.shifts.filter(s => s !== 'O' && !['V','B','S','H'].includes(s)).length;
                 const offDays = emp.shifts.filter(s => s === 'O').length;
                 const totalHours = workDays * 12; // 12-hour shifts
 
                 return `
-                  <tr style="${isSupervisor ? 'background:#f8fafc;font-weight:600' : ''}">
+                  <tr class="${isCurrentViewer ? 'current-user-row' : ''}" style="${isSupervisor && !isCurrentViewer ? 'background:#f8fafc;font-weight:600' : ''}">
                     <!-- Col 1: Employee Code & Name -->
-                    <td class="sticky-col-1" style="${isSupervisor ? 'background:#f8fafc !important' : ''}">
+                    <td class="sticky-col-1" style="${isSupervisor && !isCurrentViewer ? 'background:#f8fafc !important' : ''}">
                       <div class="person-chip">
                         ${isSupervisor ? `<span style="color:#b91c1c;font-weight:900;font-size:11px;margin-right:2px" title="Supervisor">S</span>` : ''}
                         <span style="font-family:monospace;font-size:10px;color:var(--muted);margin-right:4px">${emp.code}</span>
                         <div class="person-chip-name" style="${isSupervisor ? 'font-weight:800;color:var(--navy-2)' : ''}">
                           ${emp.name}
+                          ${isCurrentViewer ? '<span class="current-user-marker">คุณ</span>' : ''}
                         </div>
                       </div>
                     </td>
 
                     <!-- Col 2: Telephone Number -->
-                    <td class="sticky-col-2" style="${isSupervisor ? 'background:#f8fafc !important' : ''};font-family:monospace;font-size:10px;color:var(--ink-secondary)">
+                    <td class="sticky-col-2" style="${isSupervisor && !isCurrentViewer ? 'background:#f8fafc !important' : ''};font-family:monospace;font-size:10px;color:var(--ink-secondary)">
                       ${emp.phone}
                     </td>
 
                     <!-- 31 Days Shift Cells -->
                     ${days.map(d => {
                       const shiftCode = emp.shifts[d - 1] || 'O';
-                      const isToday = d === state.currentDay;
+                      const isToday = isCurrentDate(d);
                       const weekend = isWeekend(d);
-                      const holiday = isHoliday(d);
                       const weekStartClass = isWeekStart(d) ? 'week-start' : '';
                       
                       let tdBg = '';
-                      if (holiday) tdBg = 'background:#ecfeff;';
-                      else if (weekend) tdBg = 'background:#fefce8;';
+                      if (weekend) tdBg = 'background:#fefce8;';
 
                       return `
                         <td class="${isToday ? 'today-col' : ''} ${weekStartClass}" style="${tdBg}">
@@ -650,7 +668,6 @@ function renderScheduleView() {
           <div class="legend-item"><span class="shift-badge-cell O" style="width:26px;height:22px;font-size:10px">O</span> <span style="font-size:11px;color:var(--ink-secondary)">วันหยุดพักผ่อน</span></div>
           <div class="legend-item"><span class="shift-badge-cell leave" style="width:26px;height:22px;font-size:10px">V</span> <span style="font-size:11px;color:var(--ink-secondary)">ลาพักร้อน</span></div>
           <div class="legend-item"><span class="shift-badge-cell leave" style="width:26px;height:22px;font-size:10px">S</span> <span style="font-size:11px;color:var(--ink-secondary)">ลาป่วย</span></div>
-          <div class="legend-item"><span style="display:inline-block;width:16px;height:16px;background:#cffafe;border:1px solid #67e8f9;border-radius:4px"></span> <span style="font-size:11px;color:var(--ink-secondary)">12 ส.ค. วันแม่แห่งชาติ</span></div>
           <div class="legend-item"><span style="display:inline-block;width:16px;height:16px;background:#fef08a;border:1px solid #fde047;border-radius:4px"></span> <span style="font-size:11px;color:var(--ink-secondary)">วันเสาร์–อาทิตย์</span></div>
         </div>
       </div>
@@ -665,16 +682,28 @@ function renderScheduleView() {
 // Overview Dashboard (Supervisor)
 function renderOverviewView() {
   const pendingCount = state.requests.filter(r => r.status.includes('รอ')).length;
+  const todayLabel = new Date().toLocaleDateString('th-TH', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
   
   return `
-    <div class="metrics-grid" style="grid-template-columns:repeat(3, 1fr)">
+    <div class="page-header dashboard-page-header">
+      <div class="page-headline">
+        <h1>ภาพรวมกำลังพล</h1>
+        <p>สรุปกำลังพล คำขอ และสถานะกะที่ต้องติดตามวันนี้</p>
+      </div>
+      <span class="dashboard-date">วันที่ ${todayLabel}</span>
+    </div>
+
+    <div class="metrics-grid dashboard-metrics">
       <div class="metric-card" onclick="switchView('schedule')">
         <div class="metric-card-top">
           <div class="metric-icon-box mint">${getIcon('users')}</div>
-          <span class="pill pill-approved">เข้ากะ 83%</span>
         </div>
         <div class="metric-value">10 / 12 คน</div>
-        <div class="metric-label">กำลังปฏิบัติงานวันนี้ (สิงหาคม 2569)</div>
+        <div class="metric-label">กำลังปฏิบัติงานวันนี้</div>
         <div class="metric-sub">Shift "A" (5 คน) + Shift "B" (5 คน)</div>
       </div>
 
@@ -703,7 +732,7 @@ function renderOverviewView() {
     <div class="card">
       <div class="card-header">
         <div class="card-title">
-          <h3>สถานะกะการทำงานวันนี้ (12 สิงหาคม 2569) <span class="pill pill-live">กำลังใช้งาน</span></h3>
+          <h3>สถานะกะการทำงานวันนี้ <span class="pill pill-live">กำลังใช้งาน</span></h3>
           <p>สรุปกำลังพลของทั้ง Shift "A" และ Shift "B"</p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="switchView('schedule')">
@@ -744,10 +773,20 @@ function renderOverviewView() {
   `;
 }
 
+function getVisibleRequests() {
+  if (state.activeRole !== 'Shift Operator') return state.requests;
+
+  const employee = getAllEmployees().find(item => item.name === state.roles[state.activeRole].name);
+  return state.requests.filter(request => request.requesterId === employee?.id || request.person === employee?.name);
+}
+
 // Requests View with Interactive Testcase Sandbox Runner
 function renderRequestsView() {
+  const visibleRequests = getVisibleRequests();
+  const isOperatorView = state.activeRole === 'Shift Operator';
+
   return `
-    <div style="display:flex;flex-direction:column;gap:20px">
+    <div class="requests-page ${isOperatorView ? 'operator-requests' : ''}" style="display:flex;flex-direction:column;gap:20px">
       <!-- Interactive Testcase Sandbox Card -->
       <div class="card" style="padding:18px 24px;background:#f8fafc;border:1.5px solid #cbd5e1">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
@@ -820,14 +859,14 @@ function renderRequestsView() {
       <div class="card">
         <div class="card-header">
           <div class="card-title">
-            <h3>คิวคำขอตรวจสอบและอนุมัติ (Approval Queue)</h3>
-            <p>คำขอสลับกะ เปลี่ยนวันหยุด และขอลา — ตรวจสอบตามกฎความปลอดภัยและสิทธิ์คงเหลือ</p>
+            <h3>${isOperatorView ? 'คำขอของฉัน' : 'คิวคำขอตรวจสอบและอนุมัติ (Approval Queue)'}</h3>
+            <p>${isOperatorView ? 'ติดตามสถานะคำขอสลับกะ เปลี่ยนวันหยุด และการลาของคุณ' : 'คำขอสลับกะ เปลี่ยนวันหยุด และขอลา — ตรวจสอบตามกฎความปลอดภัยและสิทธิ์คงเหลือ'}</p>
           </div>
-          <span class="pill pill-pending">รอดำเนินการ ${state.requests.filter(r => r.status.includes('รอ')).length} รายการ</span>
+          <span class="pill pill-pending">${isOperatorView ? 'คำขอของฉัน' : `รอดำเนินการ ${visibleRequests.filter(r => r.status.includes('รอ')).length} รายการ`}</span>
         </div>
 
         <div>
-          ${state.requests.map(req => renderRequestCard(req, false)).join('')}
+          ${visibleRequests.length ? visibleRequests.map(req => renderRequestCard(req, false)).join('') : '<div class="request-empty-state">ยังไม่มีคำขอของคุณ</div>'}
         </div>
       </div>
     </div>
@@ -836,6 +875,7 @@ function renderRequestsView() {
 
 function renderRequestCard(req, isCompact = false) {
   const isPending = req.status.includes('รอ');
+  const canReview = state.activeRole === 'Supervisor';
   const isApproved = req.status === 'อนุมัติแล้ว';
   const isRejected = req.status === 'ไม่อนุมัติ';
 
@@ -886,7 +926,7 @@ function renderRequestCard(req, isCompact = false) {
         ` : ''}
       </div>
 
-      ${isPending ? `
+      ${isPending && canReview ? `
         <div class="request-actions">
           <button class="btn-icon-action btn-icon-reject" title="ปฏิเสธคำขอ (ระบุเหตุผล)" onclick="promptRejectRequest(${req.id})">
             ${getIcon('x', 'icon-sm')}
@@ -895,9 +935,48 @@ function renderRequestCard(req, isCompact = false) {
             ${getIcon('check', 'icon-sm')}
           </button>
         </div>
+      ` : state.activeRole === 'Shift Operator' ? `
+        <div class="request-view-action">
+          <button class="btn btn-secondary btn-sm" onclick="openRequestDetails(${req.id})">ดูรายละเอียด</button>
+        </div>
       ` : ''}
     </div>
   `;
+}
+
+function openRequestDetails(reqId) {
+  const req = state.requests.find(request => request.id === reqId);
+  if (!req) return;
+
+  const statusLabel = req.status === 'อนุมัติแล้ว'
+    ? 'อนุมัติแล้ว'
+    : req.status === 'ไม่อนุมัติ'
+      ? 'ไม่อนุมัติ'
+      : 'รอตรวจสอบ';
+  const statusClass = req.status === 'อนุมัติแล้ว'
+    ? 'pill-approved'
+    : req.status === 'ไม่อนุมัติ'
+      ? 'pill-rejected'
+      : 'pill-pending';
+
+  const bodyHtml = `
+    <div class="request-detail-view">
+      <div class="request-detail-status">
+        <span>สถานะคำขอ</span>
+        <span class="pill ${statusClass}">${statusLabel}</span>
+      </div>
+      <dl class="request-detail-list">
+        <div class="request-detail-row"><dt>ประเภทคำขอ</dt><dd>${req.type}</dd></div>
+        <div class="request-detail-row"><dt>วันที่เกี่ยวข้อง</dt><dd>${req.date}</dd></div>
+        <div class="request-detail-row request-detail-row-long"><dt>รายละเอียด</dt><dd>${req.reason}</dd></div>
+        <div class="request-detail-row"><dt>ส่งคำขอเมื่อ</dt><dd>${req.submittedAt}</dd></div>
+        <div class="request-detail-row"><dt>ผู้ตรวจสอบ</dt><dd>${req.approvers.map(approver => approver.role).join(', ')}</dd></div>
+        ${req.rejectReason ? `<div class="request-detail-row request-detail-row-long"><dt>เหตุผลที่ไม่อนุมัติ</dt><dd>${req.rejectReason}</dd></div>` : ''}
+      </dl>
+    </div>
+  `;
+
+  openModal('รายละเอียดคำขอ', bodyHtml, '<button class="btn btn-secondary" onclick="closeModal()">ปิด</button>');
 }
 
 function isSupervisorRole(name) {
@@ -978,8 +1057,9 @@ function resetTestcases() {
     {
       id: 101,
       type: 'สลับกะ',
-      person: 'สมหวัง ศรีเฆมะ',
-      initials: 'สศ',
+      person: 'วราเทพ นิยากูล',
+      requesterId: '0140',
+      initials: 'วน',
       roleCategory: 'Shift Employee (Shift A)',
       targetPerson: 'สิทธิชัย เมฆาหลับ',
       targetRole: 'Shift Employee (Shift A)',
@@ -1040,7 +1120,7 @@ function resetTestcases() {
 
 // Operator View
 function renderOperatorView() {
-  const currentEmp = state.shiftsData.morning.employees[0]; // Charuwan
+  const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
   const days = [
     { label: 'ศ. 04', date: '4 ก.ย.', code: 'M', status: 'เข้ากะวันนี้' },
     { label: 'ส. 05', date: '5 ก.ย.', code: 'M', status: 'ได้รับมอบหมาย' },
@@ -1157,7 +1237,6 @@ function renderHRView() {
       <div class="metric-card">
         <div class="metric-card-top">
           <div class="metric-icon-box mint">${getIcon('file-text')}</div>
-          <span class="pill pill-approved">100%</span>
         </div>
         <div class="metric-value">360 กะ</div>
         <div class="metric-label">กะที่อนุมัติแล้วประจำเดือน</div>
@@ -1354,19 +1433,122 @@ function renderDriverView() {
   `;
 }
 
+// Employee and Team Management (Supervisor)
+function renderPeopleView() {
+  const teams = ['ALL', 'Shift A', 'Shift B'];
+  const allEmployees = getAllEmployees();
+  const employees = allEmployees.filter(employee => {
+    const matchesTeam = state.employeeTeamFilter === 'ALL' || employee.shiftType === state.employeeTeamFilter;
+    const searchTerm = state.employeeSearch.trim().toLowerCase();
+    const matchesSearch = !searchTerm
+      || employee.name.toLowerCase().includes(searchTerm)
+      || employee.id.includes(searchTerm);
+    return matchesTeam && matchesSearch;
+  });
+  const teamCounts = ['Shift A', 'Shift B'].map(team => ({
+    team,
+    count: allEmployees.filter(employee => employee.shiftType === team).length
+  }));
+
+  return `
+    <div class="people-page">
+      <div class="people-summary" aria-label="สรุปจำนวนพนักงาน">
+        <div class="people-stat">
+          <span class="people-stat-label">พนักงานทั้งหมด</span>
+          <strong>${allEmployees.length}</strong>
+          <span>คน</span>
+        </div>
+        ${teamCounts.map(({ team, count }) => `
+          <div class="people-stat">
+            <span class="people-stat-label">${team}</span>
+            <strong>${count}</strong>
+            <span>คน</span>
+          </div>
+        `).join('')}
+      </div>
+
+      <section class="card people-list-card">
+        <div class="card-header people-list-header">
+          <div class="card-title">
+            <h3>รายชื่อพนักงาน</h3>
+            <p>แก้ไขข้อมูลหรือย้ายพนักงานระหว่างทีมจากรายการนี้</p>
+          </div>
+          <div class="people-list-tools">
+            <button class="btn btn-primary people-add-button" onclick="openEmployeeForm()">
+              ${getIcon('users', 'icon-sm')} เพิ่มพนักงาน
+            </button>
+            <div class="people-filters">
+            <label class="people-search">
+              <span class="sr-only">ค้นหาพนักงาน</span>
+              <input class="form-control" value="${state.employeeSearch}" placeholder="ค้นหาชื่อหรือรหัสพนักงาน" oninput="filterEmployeeSearch(this.value)">
+            </label>
+            <label class="people-team-filter">
+              <span>ทีม</span>
+              <select class="role-select" onchange="filterEmployeeTeam(this.value)">
+                ${teams.map(team => `<option value="${team}" ${state.employeeTeamFilter === team ? 'selected' : ''}>${team === 'ALL' ? 'ทั้งหมด' : team}</option>`).join('')}
+              </select>
+            </label>
+            </div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table people-table">
+            <thead>
+              <tr>
+                <th>รหัสพนักงาน</th>
+                <th>ชื่อ-นามสกุล</th>
+                <th>ทีม</th>
+                <th>ตำแหน่ง</th>
+                <th>เบอร์ติดต่อ</th>
+                <th class="table-action-heading">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${employees.length ? employees.map(employee => `
+                <tr>
+                  <td class="employee-code">${employee.id}</td>
+                  <td><strong>${employee.name}</strong></td>
+                  <td><span class="pill pill-draft">${employee.shiftType}</span></td>
+                  <td>${employee.roleCategory}</td>
+                  <td class="employee-phone">${employee.phone}</td>
+                  <td class="table-action-cell">
+                    <button class="btn btn-secondary people-edit-button" onclick="openEmployeeForm('${employee.id}')">แก้ไข</button>
+                  </td>
+                </tr>
+              `).join('') : `
+                <tr><td colspan="6" class="people-empty-state">ไม่พบพนักงานตามตัวกรอง</td></tr>
+              `}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 // History View
+function getVisibleAuditLogs() {
+  if (state.activeRole !== 'Shift Operator') return state.auditLogs;
+
+  const employee = getAllEmployees().find(item => item.name === state.roles[state.activeRole].name);
+  return state.auditLogs.filter(log => log.employeeId === employee?.id || log.actor === employee?.name);
+}
+
 function renderHistoryView() {
+  const isOperatorView = state.activeRole === 'Shift Operator';
+  const visibleLogs = getVisibleAuditLogs();
+
   return `
     <div class="card">
       <div class="card-header">
         <div class="card-title">
-          <h3>บันทึกประวัติการเปลี่ยนแปลงตารางกะ (Audit Log & History)</h3>
-          <p>ประวัติการสร้าง แก้ไข อนุมัติ และส่งออกข้อมูลย้อนหลังตามมาตรฐาน ISO/IT Audit</p>
+          <h3>${isOperatorView ? 'ประวัติการทำรายการของฉัน' : 'บันทึกประวัติการเปลี่ยนแปลงตารางกะ (Audit Log & History)'}</h3>
+          <p>${isOperatorView ? 'ตรวจสอบคำขอและการเปลี่ยนแปลงที่เกิดจากบัญชีของคุณ' : 'ประวัติการสร้าง แก้ไข อนุมัติ และส่งออกข้อมูลย้อนหลังตามมาตรฐาน ISO/IT Audit'}</p>
         </div>
       </div>
       <div class="card-body">
         <div class="audit-list">
-          ${state.auditLogs.map(log => `
+          ${visibleLogs.length ? visibleLogs.map(log => `
             <div class="audit-item" style="padding-bottom:12px;border-bottom:1px solid var(--line-subtle)">
               <div class="avatar">${log.avatar}</div>
               <div>
@@ -1374,7 +1556,7 @@ function renderHistoryView() {
                 <small style="color:var(--muted)">บันทึกเวลา: ${log.time} · System Verified</small>
               </div>
             </div>
-          `).join('')}
+          `).join('') : '<div class="request-empty-state">ยังไม่มีประวัติการทำรายการ</div>'}
         </div>
       </div>
     </div>
@@ -1389,13 +1571,31 @@ function openShiftEditor(empId, dayNum) {
   const emp = findEmployeeById(empId);
   if (!emp) return;
 
+  const currentViewer = state.activeRole === 'Shift Operator'
+    ? getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name)
+    : null;
+  const isOperatorRequest = state.activeRole === 'Shift Operator';
+  const isOwnRow = isOperatorRequest && currentViewer?.id === emp.id;
+  const requestMode = isOwnRow ? 'change' : 'swap';
   const currentShift = emp.shifts[dayNum - 1];
   const initialValidation = validateShiftAssignment(empId, dayNum, currentShift);
+  const modalTitle = isOperatorRequest
+    ? `${isOwnRow ? 'ขอเปลี่ยนกะของฉัน' : 'ขอสลับกะกับเพื่อนร่วมงาน'} · ${emp.name}`
+    : `ปรับแก้กะพนักงาน · ${emp.name}`;
+  const shiftLabel = isOperatorRequest
+    ? (isOwnRow ? 'กะที่ต้องการเปลี่ยน' : 'กะของเพื่อนร่วมงาน')
+    : 'ประเภทกะที่มอบหมาย';
+  const submitAction = isOperatorRequest
+    ? `submitOperatorShiftRequest('${empId}', ${dayNum}, '${requestMode}')`
+    : `saveShiftEdit('${empId}', ${dayNum})`;
+  const submitLabel = isOperatorRequest
+    ? (isOwnRow ? 'ส่งคำขอเปลี่ยนกะ' : 'ส่งคำขอสลับกะ')
+    : 'บันทึกการปรับกะ';
 
   const bodyHtml = `
-    <form id="shiftEditForm" onsubmit="event.preventDefault(); saveShiftEdit('${empId}', ${dayNum})">
+    <form id="shiftEditForm" onsubmit="event.preventDefault(); ${submitAction}">
       <div class="form-group">
-        <label>พนักงานในกะ</label>
+        <label>${isOperatorRequest && !isOwnRow ? 'เพื่อนร่วมงาน' : 'พนักงานในกะ'}</label>
         <input class="form-control" value="${emp.name} (${emp.roleCategory} · ${emp.shiftType})" disabled>
       </div>
 
@@ -1405,7 +1605,7 @@ function openShiftEditor(empId, dayNum) {
       </div>
 
       <div class="form-group">
-        <label>ประเภทกะที่มอบหมาย</label>
+        <label>${shiftLabel}</label>
         <select class="form-control" id="modalShiftSelect" onchange="runLiveShiftValidation('${empId}', ${dayNum}, this.value)">
           <option value="M" ${currentShift === 'M' ? 'selected' : ''}>M · กะเช้า (07:30–19:30)</option>
           <option value="MT" ${currentShift === 'MT' ? 'selected' : ''}>MT · กะเช้า + OT ส่งต่องาน</option>
@@ -1427,12 +1627,12 @@ function openShiftEditor(empId, dayNum) {
 
   const footerHtml = `
     <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
-    <button type="button" class="btn btn-primary" id="btnSaveShift" onclick="saveShiftEdit('${empId}', ${dayNum})">
-      บันทึกการปรับกะ
+    <button type="button" class="btn btn-primary" id="btnSaveShift" onclick="${submitAction}">
+      ${submitLabel}
     </button>
   `;
 
-  openModal(`ปรับแก้กะพนักงาน · ${emp.name}`, bodyHtml, footerHtml);
+  openModal(modalTitle, bodyHtml, footerHtml);
 }
 
 function renderValidationChecks(checks) {
@@ -1454,6 +1654,53 @@ function runLiveShiftValidation(empId, dayNum, shiftCode) {
   
   if (panel) panel.innerHTML = renderValidationChecks(validation.results);
   if (btn) btn.disabled = !validation.valid;
+}
+
+function submitOperatorShiftRequest(targetEmpId, dayNum, requestMode) {
+  const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
+  const targetEmp = findEmployeeById(targetEmpId);
+  const shiftCode = document.getElementById('modalShiftSelect')?.value;
+  if (!currentEmp || !targetEmp || !shiftCode) return;
+
+  const requestType = requestMode === 'change' ? 'ขอเปลี่ยนกะ' : 'ขอสลับกะ';
+  const requestId = Date.now();
+  const dateLabel = `${dayNum} ก.ย. 2569`;
+
+  state.requests.unshift({
+    id: requestId,
+    type: requestType,
+    person: currentEmp.name,
+    requesterId: currentEmp.id,
+    initials: currentEmp.initials,
+    roleCategory: currentEmp.roleCategory,
+    targetPerson: requestMode === 'swap' ? targetEmp.name : null,
+    targetRole: requestMode === 'swap' ? targetEmp.roleCategory : null,
+    date: dateLabel,
+    currentShift: currentEmp.shifts[dayNum - 1],
+    targetShift: shiftCode,
+    reason: requestMode === 'change'
+      ? `ขอเปลี่ยนกะของฉันเป็น ${shiftCode}`
+      : `ขอสลับกะกับ ${targetEmp.name}`,
+    isCrossShift: requestMode === 'swap' && currentEmp.shiftType !== targetEmp.shiftType,
+    approvers: [{ role: `Shift Supervisor (${currentEmp.shiftType})`, status: 'pending' }],
+    status: 'รอดำเนินการ',
+    submittedAt: 'เมื่อสักครู่',
+    quotaUsed: requestMode === 'swap' ? '1 / 2 ครั้ง' : '-'
+  });
+
+  state.auditLogs.unshift({
+    id: requestId,
+    actor: currentEmp.name,
+    employeeId: currentEmp.id,
+    avatar: currentEmp.initials,
+    action: `${requestType}วันที่ ${dateLabel}${requestMode === 'swap' ? ` กับ ${targetEmp.name}` : ''}`,
+    time: 'เมื่อสักครู่'
+  });
+
+  closeModal();
+  showToast(`ส่ง${requestType}เรียบร้อยแล้ว`);
+  state.activeView = 'my-requests';
+  renderApp();
 }
 
 function saveShiftEdit(empId, dayNum) {
@@ -1479,8 +1726,8 @@ function saveShiftEdit(empId, dayNum) {
 
 // 3-Step Swap Modal for Operator
 function openOperatorRequestModal(dateStr, currentShift) {
-  const currentEmp = state.shiftsData.morning.employees[0];
-  const eligibleColleagues = state.shiftsData.morning.employees.filter(e => e.id !== currentEmp.id);
+  const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
+  const eligibleColleagues = state.shiftsData.shiftA.employees.filter(employee => employee.id !== currentEmp.id);
 
   const bodyHtml = `
     <div style="display:flex;flex-direction:column;gap:14px">
@@ -1526,12 +1773,15 @@ function submitSwapRequest(dateStr, currentShift) {
   const reason = document.getElementById('swapReasonInput').value || 'มีความจำเป็นส่วนตัวขอสลับกะ';
   const targetEmp = findEmployeeById(targetEmpId);
 
+  const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
+
   state.requests.unshift({
     id: Date.now(),
     type: 'สลับกะ',
-    person: state.shiftsData.morning.employees[0].name,
-    initials: state.shiftsData.morning.employees[0].initials,
-    roleCategory: 'Shift Employee (Morning)',
+    person: currentEmp.name,
+    requesterId: currentEmp.id,
+    initials: currentEmp.initials,
+    roleCategory: currentEmp.roleCategory,
     targetPerson: targetEmp.name,
     targetRole: targetEmp.roleCategory,
     date: dateStr + ' 2569',
@@ -1543,6 +1793,15 @@ function submitSwapRequest(dateStr, currentShift) {
     status: 'รอดำเนินการ',
     submittedAt: 'เมื่อสักครู่',
     quotaUsed: '2 / 2 ครั้ง'
+  });
+
+  state.auditLogs.unshift({
+    id: Date.now(),
+    actor: currentEmp.name,
+    employeeId: currentEmp.id,
+    avatar: currentEmp.initials,
+    action: `ยื่นคำขอสลับกะวันที่ ${dateStr} 2569`,
+    time: 'เมื่อสักครู่'
   });
 
   closeModal();
@@ -1642,8 +1901,100 @@ function filterScheduleWeek(weekVal) {
   renderApp();
 }
 
+function changeScheduleMonth(monthDelta) {
+  const nextMonth = new Date(state.currentYear, state.currentMonth + monthDelta, 1);
+  state.currentYear = nextMonth.getFullYear();
+  state.currentMonth = nextMonth.getMonth();
+  renderApp();
+}
+
 function filterScheduleShiftType(shiftTypeVal) {
   state.selectedShiftFilter = shiftTypeVal;
+  renderApp();
+}
+
+function filterEmployeeSearch(searchValue) {
+  state.employeeSearch = searchValue;
+  renderApp();
+}
+
+function filterEmployeeTeam(teamValue) {
+  state.employeeTeamFilter = teamValue;
+  renderApp();
+}
+
+function openEmployeeForm(employeeId = '') {
+  const employee = employeeId ? findEmployeeById(employeeId) : null;
+  const title = employee ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงาน';
+  const bodyHtml = `
+    <form id="employeeForm" onsubmit="event.preventDefault(); saveEmployeeProfile('${employeeId}')">
+      <div class="form-group">
+        <label for="employeeCode">รหัสพนักงาน</label>
+        <input id="employeeCode" class="form-control" value="${employee?.id || ''}" required ${employee ? 'disabled' : ''}>
+      </div>
+      <div class="form-group">
+        <label for="employeeName">ชื่อ-นามสกุล</label>
+        <input id="employeeName" class="form-control" value="${employee?.name || ''}" required>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label for="employeeTeam">ทีม</label>
+          <select id="employeeTeam" class="form-control">
+            <option value="Shift A" ${employee?.shiftType === 'Shift A' ? 'selected' : ''}>Shift A</option>
+            <option value="Shift B" ${employee?.shiftType === 'Shift B' ? 'selected' : ''}>Shift B</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="employeeRole">ตำแหน่ง</label>
+          <select id="employeeRole" class="form-control">
+            <option value="Shift Employee" ${employee?.roleCategory === 'Shift Employee' ? 'selected' : ''}>Shift Employee</option>
+            <option value="Shift Supervisor" ${employee?.roleCategory === 'Shift Supervisor' ? 'selected' : ''}>Shift Supervisor</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="employeePhone">เบอร์ติดต่อ</label>
+        <input id="employeePhone" class="form-control" value="${employee?.phone || ''}" required>
+      </div>
+    </form>
+  `;
+  const footerHtml = `
+    <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" form="employeeForm">บันทึกข้อมูล</button>
+  `;
+  openModal(title, bodyHtml, footerHtml);
+}
+
+function saveEmployeeProfile(employeeId) {
+  const code = document.getElementById('employeeCode')?.value.trim();
+  const name = document.getElementById('employeeName')?.value.trim();
+  const team = document.getElementById('employeeTeam')?.value;
+  const roleCategory = document.getElementById('employeeRole')?.value;
+  const phone = document.getElementById('employeePhone')?.value.trim();
+  if (!code || !name || !team || !roleCategory || !phone) return;
+
+  const targetTeam = team === 'Shift A' ? state.shiftsData.shiftA : state.shiftsData.shiftB;
+  const employee = employeeId ? findEmployeeById(employeeId) : null;
+  if (employee) {
+    const currentTeam = employee.shiftType === 'Shift A' ? state.shiftsData.shiftA : state.shiftsData.shiftB;
+    currentTeam.employees = currentTeam.employees.filter(item => item.id !== employeeId);
+    Object.assign(employee, { name, phone, roleCategory, shiftType: team });
+    targetTeam.employees.push(employee);
+  } else {
+    targetTeam.employees.push({
+      id: code,
+      code,
+      name,
+      phone,
+      initials: name.slice(0, 2),
+      roleCategory,
+      shiftType: team,
+      shifts: Array(31).fill('O')
+    });
+  }
+
+  closeModal();
+  showToast(employee ? 'บันทึกข้อมูลพนักงานแล้ว' : 'เพิ่มพนักงานแล้ว', 'check');
   renderApp();
 }
 
@@ -1766,12 +2117,13 @@ function renderApp() {
     } else if (state.activeRole === 'Supervisor') {
       if (state.activeView === 'schedule') contentRoot.innerHTML = renderScheduleView();
       else if (state.activeView === 'overview') contentRoot.innerHTML = renderOverviewView();
+      else if (state.activeView === 'people') contentRoot.innerHTML = renderPeopleView();
       else if (state.activeView === 'requests') contentRoot.innerHTML = renderRequestsView();
       else if (state.activeView === 'history') contentRoot.innerHTML = renderHistoryView();
     } else if (state.activeRole === 'Shift Operator') {
-      if (state.activeView === 'my-shift') contentRoot.innerHTML = renderOperatorView();
-      else if (state.activeView === 'team-schedule') contentRoot.innerHTML = renderScheduleView();
+      if (state.activeView === 'team-schedule') contentRoot.innerHTML = renderScheduleView();
       else if (state.activeView === 'my-requests') contentRoot.innerHTML = renderRequestsView();
+      else if (state.activeView === 'my-history') contentRoot.innerHTML = renderHistoryView();
     } else if (state.activeRole === 'HR') {
       if (state.activeView === 'schedule') contentRoot.innerHTML = renderScheduleView();
       else if (state.activeView === 'hr-export') contentRoot.innerHTML = renderHRView();
