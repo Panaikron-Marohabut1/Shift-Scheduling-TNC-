@@ -9,7 +9,7 @@ Replace the current Microsoft Excel-based shift scheduling process and phone-bas
 
 This system must support continuous 24-hour / 7-day operations and reduce scheduling errors, administrative effort, and supervisor coordination overhead.
 
-**Current requirements specification:** [2026-09-02-01-shift-scheduling.md](01-spec/2026-09-02-01-shift-scheduling.md). The specification links the current MVP and compliance stories to functional, non-functional, and legal requirements; deferred Phase 1/2 stories are explicitly identified for later specification work. No backlog story IDs or priorities are changed by that document.
+**Current requirements specification:** [2026-09-02-01-requrement-spec.md] The specification links the current MVP and compliance stories to functional, non-functional, and legal requirements; deferred Phase 1/2 stories are explicitly identified for later specification work. No backlog story IDs or priorities are changed by that document.
 
 ---
 
@@ -20,7 +20,7 @@ This system must support continuous 24-hour / 7-day operations and reduce schedu
 | Shift Operator | View their own schedule, view authorized team schedules, and submit shift change, swap, or day-off requests. |
 | Shift Supervisor | Create, edit, and delete schedules, and approve or reject employee requests. |
 | HR | View and export schedule data for payroll and OT calculation. |
-| Contractor / Van Driver | View daily work schedules and employee pickup/drop-off information; read-only access. |
+| External User (Contractor / Van Driver) | View daily work schedules and employee pickup/drop-off information; read-only access. |
 
 ---
 

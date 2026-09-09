@@ -165,7 +165,7 @@ HR users can:
 - Use exported data for payroll, OT, and shift-allowance processes
 The initial system will focus on data export rather than direct payroll calculation.
 
-## 5.4 External Users
+## 5.4 External User (Contractor / Van Driver)
 
 External Users can:
 
