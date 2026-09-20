@@ -1,8 +1,49 @@
 /**
  * ShiftFlow — Interactive Application Logic & Business Rules Engine
- * Implements authoritative specs from .docs/02-design/prototype/index.md
+ * Implements authoritative specs from SRS (System Requirements Specification)
  * Redesigned Shift Schedule Layout: Clean, Modern, Shift-Grouped (Morning vs Night) & Week-Separated
+ *
+ * ---------------------------------------------------------------------------
+ * แก้ไขให้ตรงตาม SRS (ดูสรุปการแก้ไขท้ายไฟล์):
+ *  1) โครงสร้างทีม 4 ทีม (Shift A/B/C/D) x 7 ตำแหน่งต่อกะ (หัวหน้ากะ 1 + พนักงาน 6)
+ *  2) รหัสกะครบตามข้อ 3 ของ SRS (N, M, O, VG, VGh, M/O, N/O, O/M, O/N, M/N, N/M,
+ *     NT, MT, NTh, MTh, D, OT, V, B, S, H)
+ *  3) จำกัดคำขอสลับ/เปลี่ยนกะไม่เกิน 2 ครั้ง/เดือน (บังคับจริงในระบบ ไม่ใช่แค่ข้อความ)
+ *  4) เพิ่มบทบาทผู้จัดการฝ่ายผลิต (Manager) พร้อมหน้าตั้งค่าระบบ (ข้อ 8) และคิวอนุมัติขั้นสุดท้าย
+ *  5) ล็อกข้อมูลย้อนหลังเมื่อพ้นเดือนปัจจุบัน (ข้อ 10)
+ *  6) ดึงข้อมูลพนักงานอัตโนมัติ (รหัส/แผนก/เบอร์โทร) ลงในแบบฟอร์มคำขอ (ข้อ 9)
+ * ---------------------------------------------------------------------------
  */
+
+// --------------------------------------------------------------------------
+// Rotation Pattern Generator (2-on / 2-off, 8-day cycle: M,M,O,O,N,N,O,O)
+// Used to generate realistic 31-day rosters for Shift C & Shift D, and for
+// the additional 7th position added to Shift A & Shift B.
+// --------------------------------------------------------------------------
+function makeRotation(offset, days = 31, specialDays = {}) {
+  const cycle = ['M', 'M', 'O', 'O', 'N', 'N', 'O', 'O'];
+  const arr = Array.from({ length: days }, (_, d) => cycle[(d + offset) % cycle.length]);
+  Object.keys(specialDays).forEach(dayNum => {
+    arr[Number(dayNum) - 1] = specialDays[dayNum];
+  });
+  return arr;
+}
+
+// ==========================================================================
+// SCHEDULE DATA AVAILABILITY
+// ระบบมีข้อมูลตารางกะ "จริง" ที่นำเข้าจากไฟล์ Excel ต้นฉบับของโรงงาน
+// (Shift_Schedule_August_2026_Rev.05.xlsx) เฉพาะเดือนสิงหาคม 2569 เท่านั้น
+// เดือนอื่นๆ ยังไม่มีการนำเข้าข้อมูลจริง ระบบจึง "คาดการณ์" ตารางกะของเดือนอื่นให้
+// โดยต่อรอบการทำงาน 2 วันสลับ 2 วัน (2-on 2-off) ของพนักงานแต่ละคนจากเดือนสิงหาคม
+// ไปเรื่อยๆ แบบ "ยังไม่มีการสลับ/ปรับกะใดๆ เกิดขึ้นเลย" (ไม่ดึงรหัสสลับกะ M/N, O/M ฯลฯ
+// ที่เกิดขึ้นจริงแล้วในเดือนสิงหาคมมาปนด้วย) เพื่อให้มีฐานตารางกะที่สมเหตุสมผลสำหรับ
+// ทดสอบยื่น/อนุมัติคำขอในเดือนอื่นๆ ได้ — ส่วนเดือนสิงหาคมยังคงแสดงข้อมูลจริงเป๊ะๆ เหมือนเดิม
+// ==========================================================================
+const SCHEDULE_DATA_YEAR = 2026;
+const SCHEDULE_DATA_MONTH = 7; // 0-indexed: 7 = สิงหาคม (August)
+function hasScheduleDataForMonth(year, month) {
+  return year === SCHEDULE_DATA_YEAR && month === SCHEDULE_DATA_MONTH;
+}
 
 // Global App State
 const state = {
@@ -11,35 +52,55 @@ const state = {
   currentYear: 2026,
   currentMonth: 7, // 0-indexed: 7 = August (สิงหาคม 2569)
   currentDay: 12, // Demo reference day for request validation
-  selectedShiftFilter: 'ALL', // 'ALL', 'A', 'B'
+  selectedShiftFilter: 'ALL', // 'ALL', 'A', 'B', 'C', 'D'
   employeeTeamFilter: 'ALL',
   employeeSearch: '',
   scheduleDrafts: 0,
+  monthPickerOpen: false, // เปิด/ปิดหน้าต่างเลือกเดือน-ปีโดยตรง (แทนการกดลูกศรเลื่อนทีละเดือน)
+  // พนักงานปฏิบัติการ (Operator): false = หน้ากะของฉันแบบง่าย (ค่าเริ่มต้น), true = ตารางกะเต็มรูปแบบทุกทีม
+  operatorShowFullGrid: false,
+  // การแก้ไข/ทดสอบตารางกะในเดือนที่ยังไม่มีข้อมูลจริง เก็บแยกไว้ที่นี่
+  // (ไม่เขียนทับ shifts[] ของพนักงาน ซึ่งเป็นข้อมูลจริงของเดือนสิงหาคมเท่านั้น)
+  // รูปแบบ: { "<year>-<month>": { "<empId>": { "<day>": "<code>" } } }
+  scheduleOverrides: {},
   unreadNotifications: 2,
   hrDateFilter: '2026-08',
   driverAcknowledged: false,
   driverAckTime: null,
-  
-  // Backlog & Excel Shift Codes
+
+  // Backlog & Excel Shift Codes — ครบตามข้อ 3 ของ SRS (Shift Codes & Definitions)
   shiftDefs: {
-    M: { label: 'กะเช้า (Morning)', time: '07:30–19:30', family: 'M', ot: false, leave: false },
-    MT: { label: 'กะเช้า + OT', time: '07:30–19:30 + OT', family: 'M', ot: true, leave: false },
-    N: { label: 'กะดึก (Night)', time: '19:30–07:30', family: 'N', ot: false, leave: false },
-    NT: { label: 'กะดึก + OT', time: '19:30–07:30 + OT', family: 'N', ot: true, leave: false },
-    'N/M': { label: 'สลับดึก/เช้า', time: 'Shift Swap', family: 'N', ot: false, leave: false },
-    'M/O': { label: 'เช้า/หยุด', time: 'Adjustment', family: 'M', ot: false, leave: false },
-    'O/N': { label: 'หยุด/ดึก', time: 'Adjustment', family: 'N', ot: false, leave: false },
-    O: { label: 'วันหยุด (Off)', time: 'พักผ่อน', family: 'O', ot: false, leave: false },
-    V: { label: 'ลาพักร้อน (Vacation)', time: 'Leave', family: 'V', ot: false, leave: true },
-    S: { label: 'ลาป่วย (Sick Leave)', time: 'Leave', family: 'S', ot: false, leave: true },
-    H: { label: 'วันหยุดนักขัตฯ', time: 'Holiday', family: 'H', ot: false, leave: false }
+    M: { label: 'กะเช้า (Morning)', time: '07:30–19:30 (+รับ-ส่งกะถึง 20:00, OT x1.5)', family: 'M', ot: false, half: false, leave: false },
+    MT: { label: 'กะเช้า + OT', time: '07:30–19:30 (+รับ-ส่งกะถึง 20:00, OT x3.0)', family: 'M', ot: true, half: false, leave: false },
+    MTh: { label: 'กะเช้า + OT ครึ่งวัน', time: '07:30–13:30 (OT ครึ่งวัน)', family: 'M', ot: true, half: true, leave: false },
+    N: { label: 'กะดึก (Night)', time: '19:30–07:30 (+รับ-ส่งกะถึง 08:00, OT x1.5)', family: 'N', ot: false, half: false, leave: false },
+    NT: { label: 'กะดึก + OT', time: '19:30–07:30 (+รับ-ส่งกะถึง 08:00, OT x3.0)', family: 'N', ot: true, half: false, leave: false },
+    NTh: { label: 'กะดึก + OT ครึ่งวัน', time: '19:30–01:30 (OT ครึ่งวัน)', family: 'N', ot: true, half: true, leave: false },
+    OT: { label: 'ทำงานล่วงเวลา (OT เพิ่มเติม)', time: 'Overtime', family: 'OT', ot: true, half: false, leave: false },
+    'N/M': { label: 'ปกติเช้า เปลี่ยนเป็นดึก', time: 'Shift Swap: M → N', family: 'swap', ot: false, half: false, leave: false },
+    'M/N': { label: 'ปกติดึก เปลี่ยนเป็นเช้า', time: 'Shift Swap: N → M', family: 'swap', ot: false, half: false, leave: false },
+    'M/O': { label: 'ปกติหยุด มาทำงานเช้า', time: 'Adjustment: O → M', family: 'swap', ot: false, half: false, leave: false },
+    'N/O': { label: 'ปกติหยุด มาทำงานดึก', time: 'Adjustment: O → N', family: 'swap', ot: false, half: false, leave: false },
+    'O/M': { label: 'ปกติเช้า เปลี่ยนเป็นหยุด', time: 'Adjustment: M → O', family: 'swap', ot: false, half: false, leave: false },
+    'O/N': { label: 'ปกติดึก เปลี่ยนเป็นหยุด', time: 'Adjustment: N → O', family: 'swap', ot: false, half: false, leave: false },
+    // รหัสปรับกะหลายขั้นตอน พบในตารางกะจริงเดือนสิงหาคม 2569 (Rev.05) — ใช้บันทึกกรณีปรับกะมากกว่า 1 ครั้งในช่วงเวลาเดียวกัน
+    'O/M/N': { label: 'ปรับกะหลายขั้นตอน (หยุด → เช้า → ดึก)', time: 'Multi-step Adjustment: O → M → N', family: 'swap', ot: false, half: false, leave: false },
+    'O/M/S': { label: 'ปรับกะ + ลาป่วย (หยุด → เช้า → ลาป่วย)', time: 'Adjustment + Sick Leave: O → M → S', family: 'swap', ot: false, half: false, leave: false },
+    D: { label: 'เวลาทำการปกติ (Day)', time: '08:00–17:00 (กรณีหยุดเดินเครื่อง/ไม่เหมาะกับงานกะ)', family: 'D', ot: false, half: false, leave: false },
+    O: { label: 'วันหยุด (Off)', time: 'พักผ่อนประจำสัปดาห์', family: 'O', ot: false, half: false, leave: false },
+    V: { label: 'ลาพักร้อน (Vacation)', time: 'สูงสุด 18 วัน/ปี (ตามสิทธิ์รายบุคคล)', family: 'leave', ot: false, half: false, leave: true },
+    B: { label: 'ลากิจ', time: 'เฉพาะเหตุที่บริษัทอนุญาต ไม่เกิน 6 วัน/ปี', family: 'leave', ot: false, half: false, leave: true },
+    S: { label: 'ลาป่วย (Sick Leave)', time: 'สูงสุด 30 วัน/ปี', family: 'leave', ot: false, half: false, leave: true },
+    H: { label: 'วันหยุดนักขัตฤกษ์', time: 'Holiday', family: 'leave', ot: false, half: false, leave: true },
+    VG: { label: 'ลาอื่นๆ', time: 'Leave (Other)', family: 'leave', ot: false, half: false, leave: true },
+    VGh: { label: 'ลาอื่นๆ ครึ่งวัน', time: 'Leave (Other, Half-day)', family: 'leave', ot: false, half: true, leave: true }
   },
 
   // Role Profiles
   roles: {
     Supervisor: {
-      initials: 'NP',
-      name: 'ณัฐพล ดวงประเสริฐ',
+      initials: 'ณด',
+      name: 'ณัฐพล ดวงประสิทธิ์',
       title: 'Shift Supervisor (Shift A)',
       short: 'หัวหน้างาน',
       nav: [
@@ -51,12 +112,12 @@ const state = {
       ]
     },
     'Shift Operator': {
-      initials: 'VN',
-      name: 'วราเทพ นิยากูล',
+      initials: 'วน',
+      name: 'วราเทพ นิยากุล',
       title: 'Shift Employee (Shift A)',
       short: 'พนักงานปฏิบัติการ',
       nav: [
-        { id: 'team-schedule', label: 'ตารางกะรวม (Schedule)', icon: 'calendar' },
+        { id: 'team-schedule', label: 'กะของฉัน', icon: 'calendar' },
         { id: 'my-requests', label: 'คำขอของฉัน', icon: 'inbox', badge: 1 },
         { id: 'my-history', label: 'ประวัติของฉัน', icon: 'history' }
       ]
@@ -72,165 +133,209 @@ const state = {
         { id: 'hr-audit', label: 'ตรวจสอบ OT และประวัติ', icon: 'file-text' }
       ]
     },
+    Engineer: {
+      initials: 'EN',
+      name: 'ปกรณ์ วิศวกรรมกิจ',
+      title: 'Production Engineer (Self-Service Config)',
+      short: 'วิศวกรฝ่ายผลิต',
+      nav: [
+        { id: 'annual-schedule', label: 'ตารางรายปี (Annual Schedule)', icon: 'calendar' },
+        { id: 'engineer-settings', label: 'ตั้งค่าระบบ (Settings)', icon: 'grid' }
+      ]
+    },
+    Manager: {
+      initials: 'MG',
+      name: 'ธนากร ผู้จัดการดี',
+      title: 'Manager (ฝ่ายผลิต)',
+      short: 'ผู้จัดการฝ่ายผลิต',
+      nav: [
+        { id: 'manager-approvals', label: 'คิวอนุมัติขั้นสุดท้าย', icon: 'inbox' }
+      ]
+    },
     'Contractor / Van Driver': {
       initials: 'VD',
       name: 'สมชาย ประเสริฐ (คนขับรถ)',
-      title: 'พนักงานขับรถตู้รับส่ง (สายหลัก)',
-      short: 'คนขับรถรับส่ง',
+      title: 'พนักงานขับรถตู้รับส่ง (สายหลัก) — External User',
+      short: 'ผู้ใช้ภายนอก (External User)',
       nav: []
     }
   },
 
-  // Shift A & Shift B Roster Data (August 2026: 31 Days, 2-on 2-off rotating pattern)
+  // Shift A / B / C / D Roster Data — ข้อมูลจริงประจำเดือนสิงหาคม 2569 (Rev.05) นำเข้าจากไฟล์ Shift_Schedule_August_2026_Rev.05.xlsx
   shiftsData: {
     shiftA: {
-      id: 'shiftA',
-      name: 'Shift "A"',
-      thaiName: 'กะชุด A',
-      supervisorId: '0130',
+      id: "shiftA",
+      name: "Shift \"A\"",
+      thaiName: "กะชุด A",
+      supervisorId: "130",
       employees: [
         {
-          id: '0130',
-          code: '0130',
-          name: 'ณัฐพล ดวงประเสริฐ',
-          phone: '081-575-5353',
-          initials: 'นด',
-          roleCategory: 'Shift Supervisor',
-          shiftType: 'Shift A',
-          shifts: ['O', 'V', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'N', 'N', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N']
+          id: "130", code: "130", name: "ณัฐพล ดวงประสิทธิ์", phone: "081-575-5353", initials: "ณด",
+          roleCategory: "Shift Supervisor", shiftType: "Shift A",
+          shifts: ["O", "V", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N"]
         },
         {
-          id: '0140',
-          code: '0140',
-          name: 'วราเทพ นิยากูล',
-          phone: '096-959-6293',
-          initials: 'วน',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift A',
-          shifts: ['O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'N', 'N', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'V', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N']
+          id: "140", code: "140", name: "วราเทพ นิยากุล", phone: "096-959-6293", initials: "วน",
+          roleCategory: "Shift Employee", shiftType: "Shift A",
+          shifts: ["O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "V", "O", "O", "M", "M", "O", "O", "N", "N"]
         },
         {
-          id: '0110',
-          code: '0110',
-          name: 'สมหวัง ศรีเฆมะ',
-          phone: '098-251-7614',
-          initials: 'สศ',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift A',
-          shifts: ['O', 'M', 'M', 'MT', 'MT', 'N', 'N', 'O', 'O', 'N', 'N', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'V', 'V', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N']
+          id: "110", code: "110", name: "สมหวัง ศรีเมฆ", phone: "098-251-7614", initials: "สศ",
+          roleCategory: "Shift Employee", shiftType: "Shift A",
+          shifts: ["O", "M", "M", "MT", "MT", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "V", "V", "O", "O", "M", "M", "O", "O", "N", "N"]
         },
         {
-          id: '0147',
-          code: '0147',
-          name: 'สิทธิชัย เมฆาหลับ',
-          phone: '094-425-5864',
-          initials: 'สม',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift A',
-          shifts: ['MT', 'S', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'N/M', 'N/M', 'O', 'O', 'V', 'V', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N']
+          id: "147", code: "147", name: "สิทธิชัย เนตรหลับ", phone: "094-425-5864", initials: "สเ",
+          roleCategory: "Shift Employee", shiftType: "Shift A",
+          shifts: ["MT", "S", "M", "O", "O", "N", "N", "O", "O", "N/M", "N/M", "O", "O", "V", "V", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N"]
         },
         {
-          id: '0198',
-          code: '0198',
-          name: 'ปภวิชญ์ สมุทรเขตร',
-          phone: '088-261-4190',
-          initials: 'ปส',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift A',
-          shifts: ['O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'N/O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'O/N', 'V', 'O', 'O', 'M', 'M', 'O', 'M/O', 'N', 'O/N']
+          id: "198", code: "198", name: "ปภวิชญ์ สมุทรเขต", phone: "088-261-4190", initials: "ปส",
+          roleCategory: "Shift Employee", shiftType: "Shift A",
+          shifts: ["O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "N/O", "N", "N", "O", "O", "M", "M", "O", "O", "O/N", "V", "O", "O", "M", "M", "O", "M/O", "N", "O/N"]
         },
         {
-          id: '0218',
-          code: '0218',
-          name: 'นันทวัฒน์ รัตนศรี',
-          phone: '085-162-7756',
-          initials: 'นร',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift A',
-          shifts: ['MT', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'N/M', 'N/M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'V', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N']
-        }
+          id: "218", code: "218", name: "นันทวัฒน์ รัตนศรี", phone: "085-1627756", initials: "นร",
+          roleCategory: "Shift Employee", shiftType: "Shift A",
+          shifts: ["MT", "M", "M", "O", "O", "N", "N", "O", "O", "N/M", "N/M", "O", "O", "N", "N", "O", "O", "M", "V", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N"]
+        },
       ]
     },
     shiftB: {
-      id: 'shiftB',
-      name: 'Shift "B"',
-      thaiName: 'กะชุด B',
-      supervisorId: '0138',
+      id: "shiftB",
+      name: "Shift \"B\"",
+      thaiName: "กะชุด B",
+      supervisorId: "138",
       employees: [
         {
-          id: '0138',
-          code: '0138',
-          name: 'สุระศักดิ์ สงเคราะห์',
-          phone: '065-246-3145',
-          initials: 'สส',
-          roleCategory: 'Shift Supervisor',
-          shiftType: 'Shift B',
-          shifts: ['N/M', 'MT', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O']
+          id: "138", code: "138", name: "สุระศักดิ์ สงหลำ", phone: "065-2463145", initials: "สส",
+          roleCategory: "Shift Supervisor", shiftType: "Shift B",
+          shifts: ["M/N", "MT", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O"]
         },
         {
-          id: '0164',
-          code: '0164',
-          name: 'ธุรนันท์ พรหมจรรย์',
-          phone: '062-899-8171',
-          initials: 'ธพ',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift B',
-          shifts: ['N', 'O', 'O', 'V', 'V', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'NT', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O']
+          id: "164", code: "164", name: "ยุรนันท์ พรหมจรรย์", phone: "062-698-8171", initials: "ยพ",
+          roleCategory: "Shift Employee", shiftType: "Shift B",
+          shifts: ["N", "O", "O", "V", "V", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "NT", "N", "N", "O", "O", "M", "M", "O", "O"]
         },
         {
-          id: '0177',
-          code: '0177',
-          name: 'วรเดกร ชิมศิริ',
-          phone: '063-659-4695',
-          initials: 'วช',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift B',
-          shifts: ['N', 'O', 'O', 'M', 'M', 'MT', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'M/O', 'O', 'N', 'N', 'O', 'MT', 'M', 'O/M', 'NT', 'NT', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O']
+          id: "177", code: "177", name: "วยสกร พิมคีรี", phone: "063-659-4695", initials: "วพ",
+          roleCategory: "Shift Employee", shiftType: "Shift B",
+          shifts: ["N", "O", "O", "M", "M", "MT", "O", "N", "N", "O", "O", "M", "M", "M/O", "O", "N", "N", "O", "MT", "M", "O/M", "NT", "NT", "N", "N", "O", "O", "M", "M", "O", "O"]
         },
         {
-          id: '0181',
-          code: '0181',
-          name: 'กัณฑ์เอนก สุวัณณกุล',
-          phone: '086-287-7832',
-          initials: 'กส',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift B',
-          shifts: ['M', 'MT', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'MT', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'O/M', 'N/O', 'O']
+          id: "181", code: "181", name: "กัณฑ์เอนก สุวัฒนกุล", phone: "086-287-7832", initials: "กส",
+          roleCategory: "Shift Employee", shiftType: "Shift B",
+          shifts: ["M", "MT", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "MT", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "O/M", "O", "N/O"]
         },
         {
-          id: '0201',
-          code: '0201',
-          name: 'เสกสรรค์ ศิริโภย',
-          phone: '094-962-9632',
-          initials: 'สศ',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift B',
-          shifts: ['N', 'O', 'O', 'M', 'M', 'O', 'O', 'O/N', 'N', 'O', 'M/O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'O']
+          id: "201", code: "201", name: "เสกสรรค์ ภิริโย", phone: "094-962-9532", initials: "เภ",
+          roleCategory: "Shift Employee", shiftType: "Shift B",
+          shifts: ["N", "O", "O", "M", "M", "O", "O", "O/N", "N", "O", "M/O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O"]
         },
         {
-          id: '0205',
-          code: '0205',
-          name: 'วัชรพงศ์ ช่องกา',
-          phone: '064-979-6650',
-          initials: 'วช',
-          roleCategory: 'Shift Employee',
-          shiftType: 'Shift B',
-          shifts: ['M', 'O', 'O', 'M', 'M', 'MT', 'O', 'N', 'N', 'O', 'O', 'M', 'M', 'MT', 'NT', 'N', 'N', 'O', 'O', 'M', 'M', 'O', 'NT', 'N', 'N', 'O', 'O', 'M', 'M', 'MT', 'O']
-        }
+          id: "205", code: "205", name: "วัชรพงศ์ ซ้องกา", phone: "064-878-6650", initials: "วซ",
+          roleCategory: "Shift Employee", shiftType: "Shift B",
+          shifts: ["M", "O", "O", "M", "M", "MT", "O", "N", "N", "O", "O", "M", "M", "MT", "NT", "N", "N", "O", "O", "M", "M", "O", "NT", "N", "N", "O", "O", "M", "M", "MT", "O"]
+        },
       ]
-    }
+    },
+    shiftC: {
+      id: "shiftC",
+      name: "Shift \"C\"",
+      thaiName: "กะชุด C",
+      supervisorId: "123",
+      employees: [
+        {
+          id: "123", code: "123", name: "โรจนะ ยังสุข", phone: "087-135-6475", initials: "โย",
+          roleCategory: "Shift Supervisor", shiftType: "Shift C",
+          shifts: ["O", "M/N", "M/N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M"]
+        },
+        {
+          id: "137", code: "137", name: "ศิริพงษ์ ประชาโชติ", phone: "086-376-9083", initials: "ศป",
+          roleCategory: "Shift Employee", shiftType: "Shift C",
+          shifts: ["O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "V", "V", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M"]
+        },
+        {
+          id: "166", code: "166", name: "ไวยวิทย์ ขยายวงค์", phone: "090-621-7251", initials: "ไข",
+          roleCategory: "Shift Employee", shiftType: "Shift C",
+          shifts: ["O", "N", "N", "O", "O", "M", "M", "O", "O", "M/N", "M/N", "O", "O", "O/M", "O/M", "O", "O", "N", "N", "O", "M/O", "M", "M", "M/O", "O", "N", "N", "O", "O", "M", "M"]
+        },
+        {
+          id: "161", code: "161", name: "กิตติกร ทิพย์เคลือบ", phone: "094-984-6868", initials: "กท",
+          roleCategory: "Shift Employee", shiftType: "Shift C",
+          shifts: ["MT", "M", "B", "O", "O", "M", "M", "N/O", "O", "M/N", "O/M/N", "O", "O", "V", "V", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M"]
+        },
+        {
+          id: "207", code: "207", name: "ปรเมษฐ นันอุมาลี", phone: "064-052-7512", initials: "ปน",
+          roleCategory: "Shift Employee", shiftType: "Shift C",
+          shifts: ["O", "M/N", "M/N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "MT", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M"]
+        },
+        {
+          id: "214", code: "214", name: "ภาณุวัฒน์ ชำนิประโคน", phone: "095-497-7497", initials: "ภช",
+          roleCategory: "Shift Employee", shiftType: "Shift C",
+          shifts: ["O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "O/M/S", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "N/O", "O", "V", "M"]
+        },
+      ]
+    },
+    shiftD: {
+      id: "shiftD",
+      name: "Shift \"D\"",
+      thaiName: "กะชุด D",
+      supervisorId: "71",
+      employees: [
+        {
+          id: "71", code: "71", name: "วีรพล พุทธตาล", phone: "061-935-6628", initials: "วพ",
+          roleCategory: "Shift Supervisor", shiftType: "Shift D",
+          shifts: ["M", "O", "O", "M/N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O"]
+        },
+        {
+          id: "118", code: "118", name: "ไพศาล ฉายาชวลิต", phone: "081-176-3650", initials: "ไฉ",
+          roleCategory: "Shift Employee", shiftType: "Shift D",
+          shifts: ["M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "MT", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O"]
+        },
+        {
+          id: "180", code: "180", name: "อลงกรณ์ หวังแซงกลาง", phone: "094-064-9618", initials: "อห",
+          roleCategory: "Shift Employee", shiftType: "Shift D",
+          shifts: ["M", "MT", "O", "M/N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "MT", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O"]
+        },
+        {
+          id: "206", code: "206", name: "สุลักษณ์ ศรีธาราม", phone: "092-117-9292", initials: "สศ",
+          roleCategory: "Shift Employee", shiftType: "Shift D",
+          shifts: ["M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "NT", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O"]
+        },
+        {
+          id: "169", code: "169", name: "ธนัท บูรพาเจริญ", phone: "092-949-8478", initials: "ธบ",
+          roleCategory: "Shift Employee", shiftType: "Shift D",
+          shifts: ["M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "M/O", "S", "M", "O", "O", "S", "N", "O", "O", "M", "M", "O", "O", "O/N", "V", "O", "O"]
+        },
+        {
+          id: "36", code: "36", name: "ชูชีพ จูทารี", phone: "084-0853337", initials: "ชจ",
+          roleCategory: "Shift Employee", shiftType: "Shift D",
+          shifts: ["M", "O", "O", "M/N", "N", "O", "O", "M", "M", "O", "O", "N", "O/N", "O", "M/O", "M", "M", "O", "O", "N", "N", "N/O", "O", "O/M", "M", "O", "O", "N", "N", "O", "O"]
+        },
+        {
+          id: "213", code: "213", name: "ศุภวิชญ์ เภตราเสถียร", phone: "099-028-7190", initials: "ศเ",
+          roleCategory: "Shift Employee", shiftType: "Shift D",
+          shifts: ["M", "O", "O", "M/N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O", "M", "M", "O", "O", "N", "N", "O", "O"]
+        },
+        {
+          id: "102", code: "102", name: "มงคล ประทุมยศ", phone: "089-544-9602", initials: "มป",
+          roleCategory: "Shift Employee", shiftType: "Shift D",
+          shifts: ["O", "O", "D", "D", "D", "D", "D", "O", "O", "D", "D", "O", "D", "D", "O", "O", "D", "D", "D", "D", "D", "O", "O", "D", "D", "D", "D", "D", "O", "O", "D"]
+        },
+      ]
+    },
   },
-
   // Requests Queue Data
   requests: [
     {
       id: 101,
       type: 'สลับกะ',
-      person: 'วราเทพ นิยากูล',
-      requesterId: '0140',
+      person: 'วราเทพ นิยากุล',
+      requesterId: '140',
       initials: 'วน',
       roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: 'สิทธิชัย เมฆาหลับ',
+      targetPerson: 'สิทธิชัย เนตรหลับ',
       targetRole: 'Shift Employee (Shift A)',
       date: '04 ส.ค. 2569',
       currentShift: 'M',
@@ -245,8 +350,9 @@ const state = {
     {
       id: 102,
       type: 'เปลี่ยนวันหยุด',
-      person: 'ธุรนันท์ พรหมจรรย์',
-      initials: 'ธพ',
+      person: 'ยุรนันท์ พรหมจรรย์',
+      requesterId: '164',
+      initials: 'ยพ',
       roleCategory: 'Shift Employee (Shift B)',
       targetPerson: null,
       targetRole: null,
@@ -264,9 +370,10 @@ const state = {
       id: 103,
       type: 'สลับกะข้ามทีม (Shift A ↔ Shift B)',
       person: 'นันทวัฒน์ รัตนศรี',
+      requesterId: '218',
       initials: 'นร',
       roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: 'กัณฑ์เอนก สุวัณณกุล',
+      targetPerson: 'กัณฑ์เอนก สุวัฒนกุล',
       targetRole: 'Shift Employee (Shift B)',
       date: '10 ส.ค. 2569',
       currentShift: 'N',
@@ -285,23 +392,247 @@ const state = {
 
   // Audit History Logs
   auditLogs: [
-    { id: 4, actor: 'วราเทพ นิยากูล', employeeId: '0140', avatar: 'วน', action: 'ยื่นคำขอสลับกะวันที่ 04 ส.ค. 2569', time: 'วันนี้ 08:35 น.' },
-    { id: 1, actor: 'ณัฐพล ดวงประเสริฐ', avatar: 'นด', action: 'อนุมัติตารางกะประจำเดือนสิงหาคม 2569 (August 2026 Official)', time: 'วันนี้ 08:42 น.' },
-    { id: 2, actor: 'ธุรนันท์ พรหมจรรย์', avatar: 'ธพ', action: 'ยื่นคำขอลาพักร้อน (V) วันที่ 04–05 ส.ค.', time: 'วันนี้ 08:18 น.' },
-    { id: 3, actor: 'สุระศักดิ์ สงเคราะห์', avatar: 'สส', action: 'ยืนยันกะดึก OT ของวรเดกรและวัชรพงศ์', time: 'เมื่อวาน 17:30 น.' }
-  ]
+    { id: 4, actor: 'วราเทพ นิยากุล', employeeId: '140', avatar: 'วน', action: 'ยื่นคำขอสลับกะวันที่ 04 ส.ค. 2569', time: 'วันนี้ 08:35 น.' },
+    { id: 1, actor: 'ณัฐพล ดวงประสิทธิ์', avatar: 'ณด', action: 'อนุมัติตารางกะประจำเดือนสิงหาคม 2569 (August 2026 Official)', time: 'วันนี้ 08:42 น.' },
+    { id: 2, actor: 'ยุรนันท์ พรหมจรรย์', avatar: 'ยพ', action: 'ยื่นคำขอลาพักร้อน (V) วันที่ 04–05 ส.ค.', time: 'วันนี้ 08:18 น.' },
+    { id: 3, actor: 'สุระศักดิ์ สงหลำ', avatar: 'สส', action: 'ยืนยันกะดึก OT ของยุรนันท์และวัชรพงศ์', time: 'เมื่อวาน 17:30 น.' }
+  ],
+
+  // Schedule Publishing (Feature List) — เก็บเดือนที่เผยแพร่แล้วเป็น "YYYY-M"
+  publishedMonths: ['2026-7'],
+
+  // Engineer Self-Service Config (ข้อ 8 SRS) — mock editable configuration (ดูแลโดยบทบาทวิศวกรฝ่ายผลิต)
+  managerConfig: {
+    shiftTimes: {
+      M: '07:30–19:30 (รับ-ส่งกะถึง 20:00)',
+      MT: '07:30–19:30 + OT x3.0',
+      N: '19:30–07:30 (รับ-ส่งกะถึง 08:00)',
+      NT: '19:30–07:30 + OT x3.0',
+      D: '08:00–17:00'
+    },
+    // มาตรฐาน 1 หัวหน้ากะ + 5 พนักงาน/ทีม (Shift A/B/C) — Shift D มีตำแหน่งเสริมกะ Day เพิ่มเติมตามหน้างานจริง
+    standardHeadcount: { supervisor: 1, operator: 5 },
+    swapRequestMonthlyLimit: 2,
+    // ตามบันทึกในตารางกะจริง: "ห้ามทำงานติดต่อเกิน 7 วัน"
+    maxConsecutiveWorkDays: 7
+  },
+
+  // ปีที่กำลังดูอยู่ในหน้า "ตารางรายปี" ของบทบาทวิศวกรฝ่ายผลิต
+  annualScheduleYear: 2026,
+  // ผังตารางรายปีของบริษัท (ดูแลโดยบทบาทวิศวกรฝ่ายผลิต) — เก็บแยกตามปี ค.ศ.
+  // key = ปี ค.ศ. (เช่น 2026), value = { teamFamily, holidays }
+  annualScheduleConfig: {
+    2026: {
+      teamFamily: { 'Shift A': 'M', 'Shift B': 'N', 'Shift C': 'N', 'Shift D': 'M' },
+      holidays: ['01 ม.ค. 2569', '08 เม.ย. 2569', '13–15 เม.ย. 2569', '01 พ.ค. 2569', '12 ส.ค. 2569 (วันแม่แห่งชาติ)', '05 ธ.ค. 2569']
+    }
+  }
 };
 
-// Helper to get all employees
+// Helper to get all employees (ครบทั้ง 4 ทีม)
 function getAllEmployees() {
   return [
     ...state.shiftsData.shiftA.employees,
-    ...state.shiftsData.shiftB.employees
+    ...state.shiftsData.shiftB.employees,
+    ...state.shiftsData.shiftC.employees,
+    ...state.shiftsData.shiftD.employees
   ];
 }
 
 function findEmployeeById(id) {
   return getAllEmployees().find(e => e.id === id);
+}
+
+function getTeamKeyByLabel(label) {
+  const map = { 'Shift A': 'shiftA', 'Shift B': 'shiftB', 'Shift C': 'shiftC', 'Shift D': 'shiftD' };
+  return map[label];
+}
+
+// จำนวนคำขอสลับ/เปลี่ยนกะของพนักงานในเดือนปัจจุบัน (สูงสุด 2 ครั้ง/เดือน ตามข้อ 6 SRS)
+function countMonthlySwapRequests(employeeId) {
+  if (!employeeId) return 0;
+  return state.requests.filter(r => {
+    const isSwapType = r.type && (r.type.includes('สลับกะ') || r.type.includes('เปลี่ยนกะ'));
+    const isSameEmployee = r.requesterId === employeeId;
+    const isActive = r.status !== 'ไม่อนุมัติ'; // rejected requests don't consume quota
+    return isSwapType && isSameEmployee && isActive;
+  }).length;
+}
+
+// ==========================================================================
+// ตารางกะ "คาดการณ์" สำหรับเดือนที่ยังไม่มีข้อมูลจริง
+// ต่อรอบ 2 วันทำงานสลับ 2 วันหยุด (คาบ 8 วัน) ของพนักงานแต่ละคนจากเดือนสิงหาคม
+// โดยไม่ดึงรหัสสลับกะ/ลา/OT ที่เกิดขึ้นจริงแล้วในเดือนสิงหาคมมาปนด้วย
+// ==========================================================================
+const ROTATION_CYCLE_DAYS = 8;
+const _basePatternCache = {};
+
+function getEmployeeBasePattern(emp) {
+  if (_basePatternCache[emp.id]) return _basePatternCache[emp.id];
+
+  const leaveCodes = new Set(['V', 'B', 'S', 'H', 'VG', 'VGh']);
+  const votes = Array.from({ length: ROTATION_CYCLE_DAYS }, () => ({}));
+
+  emp.shifts.forEach((code, idx) => {
+    const pos = idx % ROTATION_CYCLE_DAYS;
+    let family = null;
+
+    if (code === 'O') {
+      family = 'O';
+    } else if (code.includes('/')) {
+      // รหัสสลับ/ปรับกะ เช่น "N/M" หรือ "O/M/N" — หาค่า "ต้นฉบับ/ปกติ" จากส่วนที่ไม่ใช่รหัสลา
+      const parts = code.split('/');
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (!leaveCodes.has(parts[i]) && state.shiftDefs[parts[i]]) {
+          const fam = state.shiftDefs[parts[i]].family;
+          if (fam === 'M' || fam === 'N' || fam === 'O' || fam === 'D') { family = fam; break; }
+        }
+      }
+    } else if (!leaveCodes.has(code) && state.shiftDefs[code]) {
+      const fam = state.shiftDefs[code].family;
+      if (fam === 'M' || fam === 'N' || fam === 'O' || fam === 'D') family = fam;
+    }
+
+    if (family) votes[pos][family] = (votes[pos][family] || 0) + 1;
+  });
+
+  const pattern = votes.map(v => {
+    const entries = Object.entries(v);
+    if (!entries.length) return 'O';
+    entries.sort((a, b) => b[1] - a[1]);
+    return entries[0][0];
+  });
+
+  _basePatternCache[emp.id] = pattern;
+  return pattern;
+}
+
+function daysBetweenDates(a, b) {
+  return Math.round((a.getTime() - b.getTime()) / 86400000);
+}
+
+// ==========================================================================
+// ตารางรายปีของบริษัท (ดูแลโดยบทบาทวิศวกรฝ่ายผลิต — Engineer)
+// กำหนด "ทิศทาง" การหมุนเวียนกะของแต่ละทีม (เริ่มกะเช้าก่อน หรือกะดึกก่อน) และ
+// วันหยุดนักขัตฤกษ์ แยกเก็บเป็นรายปี แก้ไขย้อนหลัง/ล่วงหน้าได้ทุกปีโดยไม่จำกัด
+// การตั้งค่านี้เป็นเพียง "ผังรายปี" ระดับทีม ไม่ยุ่งกับกะรายวันของพนักงานรายคน และ
+// จะมีผลเฉพาะเดือนที่ยังไม่มีข้อมูลจริง (เดือนที่มีข้อมูลจริงคือสิงหาคม 2569 จะไม่ถูกเขียนทับ)
+// ==========================================================================
+
+// ทิศทางตามธรรมชาติของแต่ละทีม อ้างอิงจากข้อมูลจริงเดือนสิงหาคม 2569
+// (Shift A, D เริ่มกะเช้าก่อน (M) / Shift B, C เริ่มกะดึกก่อน (N))
+const NATURAL_TEAM_FAMILY = { 'Shift A': 'M', 'Shift B': 'N', 'Shift C': 'N', 'Shift D': 'M' };
+const ANNUAL_SCHEDULE_TEAMS = ['Shift A', 'Shift B', 'Shift C', 'Shift D'];
+
+function getDefaultAnnualConfig() {
+  return {
+    teamFamily: { ...NATURAL_TEAM_FAMILY },
+    holidays: []
+  };
+}
+
+// ดึงค่าตั้งค่ารายปี ถ้าปีนั้นยังไม่เคยมีการตั้งค่ามาก่อนจะสร้างค่าเริ่มต้นให้อัตโนมัติ
+// (ทิศทางตามธรรมชาติ + ไม่มีวันหยุด) เพื่อให้วิศวกรเข้ามาแก้ไขปีไหนก็ได้ทันที
+function getAnnualConfig(year) {
+  if (!state.annualScheduleConfig[year]) {
+    state.annualScheduleConfig[year] = getDefaultAnnualConfig();
+  }
+  return state.annualScheduleConfig[year];
+}
+
+function getHolidaysForYear(year) {
+  return getAnnualConfig(year).holidays;
+}
+
+function getTeamFamilyForYear(shiftType, year) {
+  const cfg = getAnnualConfig(year);
+  return (cfg.teamFamily && cfg.teamFamily[shiftType]) || NATURAL_TEAM_FAMILY[shiftType] || 'M';
+}
+
+function flipShiftFamily(code) {
+  if (code === 'M') return 'N';
+  if (code === 'N') return 'M';
+  return code;
+}
+
+// จุดเข้าถึงรหัสกะเดียวสำหรับทั้งแอป: เดือนสิงหาคม 2569 = ข้อมูลจริง,
+// เดือนอื่น = ค่าที่แก้ไขไว้ (ถ้ามี) หรือค่าคาดการณ์จากรอบการทำงานของพนักงานคนนั้น
+// (ปรับทิศทางเช้า/ดึกตามผังตารางรายปีที่วิศวกรฝ่ายผลิตตั้งค่าไว้สำหรับปีนั้นๆ ด้วย)
+function getShiftCodeForDate(emp, year, month, day) {
+  if (!emp) return 'O';
+  if (hasScheduleDataForMonth(year, month)) {
+    return emp.shifts[day - 1] || 'O';
+  }
+  const key = `${year}-${month}`;
+  const override = state.scheduleOverrides[key] && state.scheduleOverrides[key][emp.id] && state.scheduleOverrides[key][emp.id][day];
+  if (override) return override;
+
+  const pattern = getEmployeeBasePattern(emp);
+  const diff = daysBetweenDates(new Date(year, month, day), new Date(SCHEDULE_DATA_YEAR, SCHEDULE_DATA_MONTH, 1));
+  const pos = ((diff % ROTATION_CYCLE_DAYS) + ROTATION_CYCLE_DAYS) % ROTATION_CYCLE_DAYS;
+  let code = pattern[pos];
+
+  const naturalFamily = NATURAL_TEAM_FAMILY[emp.shiftType];
+  const yearFamily = getTeamFamilyForYear(emp.shiftType, year);
+  if (naturalFamily && yearFamily && naturalFamily !== yearFamily) {
+    code = flipShiftFamily(code);
+  }
+  return code;
+}
+
+function setShiftOverride(empId, year, month, day, code) {
+  const key = `${year}-${month}`;
+  if (!state.scheduleOverrides[key]) state.scheduleOverrides[key] = {};
+  if (!state.scheduleOverrides[key][empId]) state.scheduleOverrides[key][empId] = {};
+  state.scheduleOverrides[key][empId][day] = code;
+}
+
+function isMonthLocked(year, month) {
+  const today = new Date();
+  if (year < today.getFullYear()) return true;
+  if (year === today.getFullYear() && month < today.getMonth()) return true;
+  return false;
+}
+
+// ข้อ 6.2/6.3 Project Proposal: สร้างลำดับการอนุมัติ — ทีมเดียวกัน = Supervisor → Manager (2 ขั้น)
+// ข้ามทีม = Supervisor A → Supervisor B → Manager (3 ขั้น)
+function buildApprovalChain(aEmp, bEmp) {
+  const isCrossTeam = bEmp && aEmp.shiftType !== bEmp.shiftType;
+  const teamAKey = getTeamKeyByLabel(aEmp.shiftType);
+  const supA = teamAKey ? state.shiftsData[teamAKey].employees.find(e => e.id === state.shiftsData[teamAKey].supervisorId) : null;
+
+  const chain = [{ role: `Shift Supervisor A (${supA ? supA.name.split(' ')[0] : aEmp.shiftType})`, status: 'pending' }];
+
+  if (isCrossTeam) {
+    const teamBKey = getTeamKeyByLabel(bEmp.shiftType);
+    const supB = teamBKey ? state.shiftsData[teamBKey].employees.find(e => e.id === state.shiftsData[teamBKey].supervisorId) : null;
+    chain.push({ role: `Shift Supervisor B (${supB ? supB.name.split(' ')[0] : bEmp.shiftType})`, status: 'pending' });
+  }
+
+  chain.push({ role: 'ผู้จัดการอนุมัติ (Manager Review)', status: 'pending' });
+  return { chain, isCrossTeam };
+}
+
+function isMonthPublished(year, month) {
+  return state.publishedMonths.includes(`${year}-${month}`);
+}
+
+function publishSchedule() {
+  const key = `${state.currentYear}-${state.currentMonth}`;
+  if (state.publishedMonths.includes(key)) {
+    showToast('ตารางกะเดือนนี้เผยแพร่แล้ว');
+    return;
+  }
+  state.publishedMonths.push(key);
+  state.auditLogs.unshift({
+    id: Date.now(),
+    actor: state.roles[state.activeRole]?.name || state.activeRole,
+    avatar: state.roles[state.activeRole]?.initials || '--',
+    action: `เผยแพร่ตารางกะประจำเดือน ${state.currentMonth + 1}/${state.currentYear} (Schedule Publishing)`,
+    time: 'เมื่อสักครู่'
+  });
+  showToast('เผยแพร่ตารางกะเรียบร้อยแล้ว ✓');
+  renderApp();
 }
 
 // SVG Icon Library
@@ -323,11 +654,15 @@ function getIcon(name, className = 'icon') {
     shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>',
     check: '<polyline points="20 6 9 17 4 12"></polyline>',
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
     alert: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
     arrowLeft: '<line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>',
     arrowRight: '<line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline>',
+    chevronDown: '<polyline points="6 9 12 15 18 9"></polyline>',
     clock: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>',
-    filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>'
+    filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
+    settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>'
   };
 
   const svgInner = icons[name] || icons.grid;
@@ -335,6 +670,129 @@ function getIcon(name, className = 'icon') {
 }
 
 // Business Rules Validation Engine (§7 & E04: 2-on 2-off rotating & Max 6 days)
+// --------------------------------------------------------------------------
+// Shift Family Helpers & Swap/OT Transition Rules
+// ตามข้อกำหนดการเปลี่ยน/สลับกะ: "Con 4 check for swap"
+//  1) ถ้าวันเดิมเป็นวันหยุด (O) → เปลี่ยนได้เลย
+//  2) ก่อน-หลังวันที่เปลี่ยน ภายใน 6 วัน ต้องมีวันหยุดอย่างน้อย 1 วัน
+//  3) ถ้าเปลี่ยน "เป็นกะดึก" (→N) ตรวจสอบวันหยุดก่อน-หลังภายใน 6 วัน (M→N / N→N อนุญาต)
+//  4) ถ้าเปลี่ยน "เป็นกะเช้า" (→M) ตรวจสอบว่าวันก่อนหน้าเป็นกะดึกหรือไม่
+//     (M→M อนุญาต, N→M ไม่อนุญาตถ้าไม่มีวันหยุดคั่น เพราะพักผ่อนไม่พอ)
+// --------------------------------------------------------------------------
+function getShiftFamily(code) {
+  const def = state.shiftDefs[code];
+  if (!def) return 'OTHER';
+  if (code === 'O') return 'O';
+  if (def.leave) return 'LEAVE';
+  if (code === 'D') return 'D';
+  if (['M', 'MT', 'MTh'].includes(code)) return 'M';
+  if (['N', 'NT', 'NTh'].includes(code)) return 'N';
+  return 'OTHER';
+}
+
+function isLeaveCode(code) {
+  return getShiftFamily(code) === 'LEAVE';
+}
+
+function checkShiftTransitionRules(emp, targetDay, targetShiftCode) {
+  const results = [];
+  let hasHardBlock = false;
+
+  const targetFamily = getShiftFamily(targetShiftCode);
+  const currentCodeOnDay = getShiftCodeForDate(emp, state.currentYear, state.currentMonth, targetDay);
+  const currentFamily = getShiftFamily(currentCodeOnDay);
+  const prevCode = targetDay > 1 ? getShiftCodeForDate(emp, state.currentYear, state.currentMonth, targetDay - 1) : null;
+  const prevFamily = prevCode ? getShiftFamily(prevCode) : null;
+
+  // เงื่อนไข 1: สถานะวันเดิม
+  if (currentFamily === 'O') {
+    results.push({ rule: 'เงื่อนไข 1: สถานะวันเดิม', status: 'pass', msg: 'วันดังกล่าวเดิมเป็นวันหยุด (O) — เปลี่ยนกะได้ทันที' });
+  } else {
+    results.push({ rule: 'เงื่อนไข 1: สถานะวันเดิม', status: 'pass', msg: `วันดังกล่าวเดิมเป็นกะ ${currentCodeOnDay} — ตรวจสอบเงื่อนไขทิศทางกะด้านล่าง` });
+  }
+
+  // เงื่อนไข 3/4: ทิศทางการสลับกะ (Morning ↔ Night Matrix)
+  if (targetFamily === 'N') {
+    results.push({ rule: 'เงื่อนไข 3: เปลี่ยนเป็นกะดึก (M→N / N→N)', status: 'pass', msg: 'อนุญาตให้เปลี่ยน/สลับเป็นกะดึกได้ — ตรวจสอบวันหยุดตามรอบ 6 วันด้านล่างประกอบ' });
+  } else if (targetFamily === 'M') {
+    if (prevFamily === 'N') {
+      results.push({
+        rule: 'เงื่อนไข 4: เปลี่ยนเป็นกะเช้า หลังกะดึก (N→M)',
+        status: 'fail',
+        msg: `วันก่อนหน้า (วันที่ ${targetDay - 1}) เป็นกะดึก (${prevCode}) — ห้ามสลับเป็นกะเช้าทันที ต้องมีวันหยุดคั่นอย่างน้อย 1 วันก่อนเข้ากะเช้า`
+      });
+      hasHardBlock = true;
+    } else {
+      results.push({ rule: 'เงื่อนไข 4: เปลี่ยนเป็นกะเช้า (M→M)', status: 'pass', msg: 'วันก่อนหน้าไม่ใช่กะดึก — อนุญาตให้เปลี่ยน/สลับเป็นกะเช้าได้' });
+    }
+  }
+
+  return { hasHardBlock, results };
+}
+
+// ตรวจสอบทั้งสองฝั่งเมื่อมีการ "สลับกะ" ระหว่างพนักงาน 2 คน (ต้อง check both operator)
+// A ได้รับกะเดิมของ B และ B ได้รับกะเดิมของ A
+function validateSwapBothSides(empAId, empBId, day) {
+  const empA = findEmployeeById(empAId);
+  const empB = findEmployeeById(empBId);
+  if (!empA || !empB) return { valid: false, sideA: null, sideB: null };
+
+  const aOldCode = getShiftCodeForDate(empA, state.currentYear, state.currentMonth, day);
+  const bOldCode = getShiftCodeForDate(empB, state.currentYear, state.currentMonth, day);
+
+  const sideA = validateShiftAssignment(empAId, day, bOldCode);
+  const sideB = validateShiftAssignment(empBId, day, aOldCode);
+
+  return {
+    valid: sideA.valid && sideB.valid,
+    sideA,
+    sideB,
+    aOldCode,
+    bOldCode,
+    aNewCode: bOldCode, // A รับกะเดิมของ B
+    bNewCode: aOldCode  // B รับกะเดิมของ A
+  };
+}
+
+// ตรวจสอบคำขอ OT โดยเฉพาะ: เช็ควันทำงานติดต่อกัน 6 วัน + เคยทำกะดึกมาก่อนหรือไม่ + มีวันหยุดคั่นก่อนหน้าหรือไม่
+// → ต้องผ่านหัวหน้ากะตรวจสอบ (Supervisor Review) แล้วผู้จัดการอนุมัติ (Manager Approve)
+function validateOTRequest(empId, day, otShiftCode) {
+  const emp = findEmployeeById(empId);
+  if (!emp) return { valid: false, results: [], requiresManagerSpecialReview: false };
+
+  const base = validateShiftAssignment(empId, day, otShiftCode);
+  const results = [...base.results];
+  let hasHardBlock = !base.valid;
+
+  const prevCode = day > 1 ? getShiftCodeForDate(emp, state.currentYear, state.currentMonth, day - 1) : null;
+  const prevFamily = prevCode ? getShiftFamily(prevCode) : null;
+  const otFamily = getShiftFamily(otShiftCode);
+
+  // ตรวจสอบว่าทำกะดึกมาก่อนหรือไม่ (สำคัญมากถ้าขอ OT กะเช้า)
+  if (otFamily === 'M' && prevFamily === 'N') {
+    results.push({ rule: 'ตรวจสอบกะดึกวันก่อนหน้า (OT กะเช้า)', status: 'fail', msg: `พบว่าทำกะดึกในวันก่อนหน้า (วันที่ ${day - 1}) — ไม่อนุญาตให้ทำ OT กะเช้าต่อทันที ต้องพักก่อนอย่างน้อย 1 วัน` });
+    hasHardBlock = true;
+  } else {
+    results.push({ rule: 'ตรวจสอบกะดึกวันก่อนหน้า', status: 'pass', msg: 'ไม่พบการทำกะดึกในวันก่อนหน้าที่กระทบต่อการทำ OT' });
+  }
+
+  // ตรวจสอบวันหยุดก่อนหน้า (ความพร้อม/ความเหนื่อยล้าก่อนทำ OT)
+  if (prevFamily === 'O') {
+    results.push({ rule: 'ตรวจสอบวันหยุดก่อนหน้า', status: 'pass', msg: `วันก่อนหน้า (วันที่ ${day - 1}) เป็นวันหยุด — พร้อมสำหรับการทำ OT` });
+  } else {
+    results.push({ rule: 'ตรวจสอบวันหยุดก่อนหน้า', status: 'warn', msg: `วันก่อนหน้าไม่ใช่วันหยุด (เป็นกะ ${prevCode || '-'}) — โปรดพิจารณาความเหนื่อยล้าก่อนอนุมัติ` });
+  }
+
+  // กรณีพิเศษ: ขอ OT ระหว่างสัปดาห์ลาพักร้อน (Question for Operator)
+  const currentCodeOnDay = getShiftCodeForDate(emp, state.currentYear, state.currentMonth, day);
+  const onVacation = currentCodeOnDay === 'V';
+  if (onVacation) {
+    results.push({ rule: 'กรณีพิเศษ: ขอ OT ระหว่างลาพักร้อน', status: 'warn', msg: 'พนักงานอยู่ในช่วงลาพักร้อน (V) — การขอ OT ระหว่างวันลาต้องได้รับอนุมัติพิเศษจากผู้จัดการเป็นกรณีๆ ไป (ไม่บล็อกอัตโนมัติ)' });
+  }
+
+  return { valid: !hasHardBlock, results, requiresManagerSpecialReview: onVacation };
+}
+
 function validateShiftAssignment(empId, targetDay, targetShiftCode) {
   const emp = findEmployeeById(empId);
   if (!emp) return { valid: false, errors: ['ไม่พบข้อมูลพนักงาน'] };
@@ -342,14 +800,23 @@ function validateShiftAssignment(empId, targetDay, targetShiftCode) {
   const results = [];
   let hasHardBlock = false;
 
-  // Rule 1: Max 6 consecutive working days (ต้องไม่เกิน 6 วัน และต้องมีวันหยุดพักผ่อน)
-  const shiftsCopy = [...emp.shifts];
+  // เงื่อนไข 1/3/4: ทิศทางการเปลี่ยนกะ (Morning ↔ Night transition matrix)
+  const transitionCheck = checkShiftTransitionRules(emp, targetDay, targetShiftCode);
+  results.push(...transitionCheck.results);
+  if (transitionCheck.hasHardBlock) hasHardBlock = true;
+
+  // เงื่อนไข 2: Max 6 consecutive working days (ต้องไม่เกิน 6 วัน และต้องมีวันหยุดพักผ่อน)
+  const daysInTargetMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
+  const shiftsCopy = Array.from({ length: daysInTargetMonth }, (_, i) =>
+    getShiftCodeForDate(emp, state.currentYear, state.currentMonth, i + 1)
+  );
   shiftsCopy[targetDay - 1] = targetShiftCode;
-  
+
+  const leaveCodes = ['V', 'B', 'S', 'H', 'VG', 'VGh'];
   let maxConsecutive = 0;
   let currentStreak = 0;
   for (let s of shiftsCopy) {
-    if (s !== 'O' && !['V', 'B', 'S', 'H'].includes(s)) {
+    if (s !== 'O' && !leaveCodes.includes(s)) {
       currentStreak++;
       if (currentStreak > maxConsecutive) maxConsecutive = currentStreak;
     } else {
@@ -357,18 +824,19 @@ function validateShiftAssignment(empId, targetDay, targetShiftCode) {
     }
   }
 
-  if (maxConsecutive > 6) {
-    results.push({ rule: 'วันทำงานติดต่อกันสูงสุด (Max 6 Days)', status: 'fail', msg: `เกินเกณฑ์ 6 วันติดต่อกัน (นับได้ ${maxConsecutive} วัน) — ฝ่าฝืนกฎความปลอดภัยและกฎหมายแรงงาน` });
+  const maxDays = state.managerConfig.maxConsecutiveWorkDays;
+  if (maxConsecutive > maxDays) {
+    results.push({ rule: `วันทำงานติดต่อกันสูงสุด (Max ${maxDays} Days)`, status: 'fail', msg: `เกินเกณฑ์ ${maxDays} วันติดต่อกัน (นับได้ ${maxConsecutive} วัน) — ฝ่าฝืนกฎความปลอดภัยและกฎหมายแรงงาน` });
     hasHardBlock = true;
-  } else if (maxConsecutive >= 4) {
-    results.push({ rule: 'วันทำงานติดต่อกัน', status: 'warn', msg: `ทำงานต่อเนื่อง ${maxConsecutive}/6 วัน (ใกล้ครบกำหนด ต้องจัดวันหยุดชดเชย)` });
+  } else if (maxConsecutive >= maxDays - 2) {
+    results.push({ rule: 'วันทำงานติดต่อกัน', status: 'warn', msg: `ทำงานต่อเนื่อง ${maxConsecutive}/${maxDays} วัน (ใกล้ครบกำหนด ต้องจัดวันหยุดชดเชย)` });
   } else {
-    results.push({ rule: 'รอบการเข้ากะ (2-on 2-off Pattern)', status: 'pass', msg: `สอดคล้องกับรอบหมุนเวียน (ทำงานต่อเนื่อง ${maxConsecutive}/6 วัน)` });
+    results.push({ rule: 'รอบการเข้ากะ (2-on 2-off Pattern)', status: 'pass', msg: `สอดคล้องกับรอบหมุนเวียน (ทำงานต่อเนื่อง ${maxConsecutive}/${maxDays} วัน)` });
   }
 
-  // Rule 2: Shift A vs Shift B Qualification
-  if (['MT', 'NT'].includes(targetShiftCode)) {
-    results.push({ rule: 'ชั่วโมงล่วงเวลา (OT Check)', status: 'pass', msg: 'มีชั่วโมง OT ส่งต่องานกะ (เพิ่ม 2 ชม. เข้า Payroll)' });
+  // Rule 2: OT / Shift Family Check
+  if (['MT', 'NT', 'MTh', 'NTh', 'OT'].includes(targetShiftCode)) {
+    results.push({ rule: 'ชั่วโมงล่วงเวลา (OT Check)', status: 'pass', msg: 'มีชั่วโมง OT ส่งต่องานกะ (บันทึกเข้า Payroll ตามอัตรา x1.5 / x3.0)' });
   } else {
     results.push({ rule: 'สังกัดชุดกะ', status: 'pass', msg: `ตรงตามรหัสพนักงาน ${emp.code} (${emp.shiftType})` });
   }
@@ -376,9 +844,19 @@ function validateShiftAssignment(empId, targetDay, targetShiftCode) {
   // Rule 3: Allowed Change Window (±7 Days)
   const diff = Math.abs(targetDay - state.currentDay);
   if (diff > 7) {
-    results.push({ rule: 'กรอบเวลาการขอปรับเปลี่ยน (±7 วัน)', status: 'warn', msg: `วันที่ ${targetDay} ส.ค. อยู่นอกกรอบ ±7 วันจากปัจจุบัน (${state.currentDay} ส.ค.)` });
+    results.push({ rule: 'กรอบเวลาการขอปรับเปลี่ยน (±7 วัน)', status: 'warn', msg: `วันที่ ${targetDay} อยู่นอกกรอบ ±7 วันจากปัจจุบัน (${state.currentDay})` });
   } else {
     results.push({ rule: 'กรอบเวลายื่นเรื่อง', status: 'pass', msg: 'อยู่ภายในกรอบเวลาที่ระบบอนุญาต (±7 วัน)' });
+  }
+
+  // Rule 4: Monthly swap/change quota (สูงสุด 2 ครั้ง/เดือน ตามข้อ 6 SRS)
+  const usedQuota = countMonthlySwapRequests(empId);
+  const quotaLimit = state.managerConfig.swapRequestMonthlyLimit;
+  if (usedQuota >= quotaLimit) {
+    results.push({ rule: `สิทธิ์คำขอสลับ/เปลี่ยนกะ (สูงสุด ${quotaLimit} ครั้ง/เดือน)`, status: 'fail', msg: `ใช้สิทธิ์ไปแล้ว ${usedQuota}/${quotaLimit} ครั้ง — ระบบไม่อนุญาตให้ยื่นคำขอเพิ่มในเดือนนี้` });
+    hasHardBlock = true;
+  } else {
+    results.push({ rule: 'สิทธิ์คำขอสลับ/เปลี่ยนกะ', status: 'pass', msg: `ใช้สิทธิ์ไปแล้ว ${usedQuota}/${quotaLimit} ครั้งในเดือนนี้` });
   }
 
   return {
@@ -404,17 +882,36 @@ function showToast(message, icon = 'check') {
   }, 3200);
 }
 
+// แปลงรหัสกะ → คลาส CSS ที่ปลอดภัย (รองรับรหัสผสม เช่น N/M, M/O ที่มี "/" ซึ่งใช้เป็นชื่อคลาสตรงๆ ไม่ได้)
+function getBadgeClass(code) {
+  const def = state.shiftDefs[code];
+  if (!def) return 'O';
+  switch (def.family) {
+    case 'leave': return 'leave';
+    case 'swap': return 'swap';
+    case 'D': return 'D';
+    case 'OT': return 'OT';
+    case 'M': return code.startsWith('M') ? code.replace('Th', 'T') === 'MT' ? 'MT' : 'M' : 'M';
+    case 'N': return code.startsWith('N') ? code.replace('Th', 'T') === 'NT' ? 'NT' : 'N' : 'N';
+    case 'O': return 'O';
+    default: return 'O';
+  }
+}
+
 // Render Shift Badge Component (Clean & Scannable for Excel-Grid)
-function renderShiftBadge(code, isInteractive = false, dayNum = null, empId = null) {
+function renderShiftBadge(code, isInteractive = false, dayNum = null, empId = null, isProjected = false) {
   const def = state.shiftDefs[code] || state.shiftDefs.O;
-  const isLeave = ['V', 'B', 'S', 'H'].includes(code);
-  const badgeClass = isLeave ? 'leave' : code;
+  const badgeClass = getBadgeClass(code);
+  const halfMarker = def.half ? ' ot-half' : '';
+  const otMarker = def.ot && !def.half ? ' ot-marker' : '';
+  const projectedMarker = isProjected ? ' projected-cell' : '';
   const interactiveAttr = isInteractive ? `onclick="openShiftEditor('${empId}', ${dayNum})"` : '';
-  
+  const projectedNote = isProjected ? ' · คาดการณ์จากรอบการทำงานปกติ (ยังไม่มีข้อมูลจริง)' : '';
+
   return `
-    <span class="shift-badge-cell ${badgeClass}" 
-          ${interactiveAttr} 
-          title="${def.label} (${def.time}) · คลิกเพื่อแก้ไข">
+    <span class="shift-badge-cell ${badgeClass}${otMarker}${halfMarker}${projectedMarker}"
+          ${interactiveAttr}
+          title="${def.label} (${def.time})${projectedNote} · ${isInteractive ? 'คลิกเพื่อแก้ไข' : 'ล็อกแล้ว ไม่สามารถแก้ไขได้'}">
       ${code}
     </span>
   `;
@@ -482,14 +979,14 @@ function renderScheduleView() {
 
   const isWeekStart = d => d > 1 && (d - 1) % 7 === 0;
 
-  // Grouped by Shift A & Shift B
+  // Grouped by Shift A / B / C / D (ข้อ 2 SRS: 4 ทีมหลัก)
   const shiftSections = [];
-  if (state.selectedShiftFilter === 'ALL' || state.selectedShiftFilter === 'A') {
-    shiftSections.push(state.shiftsData.shiftA);
-  }
-  if (state.selectedShiftFilter === 'ALL' || state.selectedShiftFilter === 'B') {
-    shiftSections.push(state.shiftsData.shiftB);
-  }
+  const filterMap = { A: 'shiftA', B: 'shiftB', C: 'shiftC', D: 'shiftD' };
+  Object.keys(filterMap).forEach(key => {
+    if (state.selectedShiftFilter === 'ALL' || state.selectedShiftFilter === key) {
+      shiftSections.push(state.shiftsData[filterMap[key]]);
+    }
+  });
 
   const allEmployees = getAllEmployees();
   const currentViewerId = ['Supervisor', 'Shift Operator'].includes(state.activeRole)
@@ -505,6 +1002,15 @@ function renderScheduleView() {
     year: 'numeric'
   })}`;
 
+  // ข้อ 10 SRS: ล็อกข้อมูลย้อนหลังเมื่อพ้นเดือนปัจจุบัน
+  const monthLocked = isMonthLocked(state.currentYear, state.currentMonth);
+  const monthPublished = isMonthPublished(state.currentYear, state.currentMonth);
+  const hasData = hasScheduleDataForMonth(state.currentYear, state.currentMonth);
+  const canPublish = (state.activeRole === 'Supervisor' || state.activeRole === 'Manager') && !monthLocked && hasData;
+  // HR: ดึงข้อมูล (view/export) ได้เท่านั้น ห้ามแก้ไขตารางกะใดๆ ทั้งสิ้น
+  const isReadOnlyRole = state.activeRole === 'HR';
+  const canInteractSchedule = !monthLocked && !isReadOnlyRole;
+
   return `
     <div style="display:flex;flex-direction:column;gap:20px">
       <!-- Focused schedule header -->
@@ -512,7 +1018,18 @@ function renderScheduleView() {
         <div class="schedule-header-title">
           <h2>ตารางกะฝ่ายผลิต</h2>
           <span>${currentDateLabel}</span>
+          ${!hasData ? `<span class="pill pill-draft" title="เดือนนี้ยังไม่มีข้อมูลจริง ระบบคาดการณ์ตารางกะจากรอบการทำงานปกติของแต่ละคนให้ ยังไม่มีการสลับ/ปรับกะใดๆ เกิดขึ้น">${getIcon('alert', 'icon-sm')} ตารางคาดการณ์ (ยังไม่มีข้อมูลจริง)</span>` : isReadOnlyRole ? `<span class="pill pill-draft" title="บทบาท HR ดึงข้อมูลได้อย่างเดียว ไม่สามารถแก้ไขตารางกะได้">${getIcon('lock', 'icon-sm')} โหมดดูข้อมูลอย่างเดียว (Read-only)</span>` : monthLocked ? `<span class="pill pill-draft" title="ข้อมูลเดือนนี้ถูกล็อกแล้ว ไม่สามารถแก้ไขได้ (ตามข้อ 10 SRS)">${getIcon('lock', 'icon-sm')} ข้อมูลถูกล็อก</span>` : `<span class="pill pill-approved">${getIcon('check', 'icon-sm')} แก้ไขได้</span>`}
+          ${hasData ? (monthPublished ? `<span class="pill pill-live">${getIcon('check', 'icon-sm')} เผยแพร่แล้ว (Published)</span>` : `<span class="pill pill-pending">ฉบับร่าง (Draft)</span>`) : ''}
+          ${canPublish && !monthPublished ? `<button class="btn btn-mint btn-sm" onclick="publishSchedule()">${getIcon('check', 'icon-sm')} เผยแพร่ตารางกะ (Publish)</button>` : ''}
         </div>
+        ${!hasData ? `
+          <div class="validation-panel" style="margin-top:10px">
+            <div class="validation-check-item warn">
+              ${getIcon('alert', 'icon-sm')}
+              <span><strong>${monthLabel} ยังไม่มีข้อมูลตารางกะจริง</strong> — ระบบนำรอบการทำงาน 2 วันสลับ 2 วันของพนักงานแต่ละคนจากเดือนสิงหาคม 2569 มาคาดการณ์ให้ล่วงหน้า โดยยังไม่มีการสลับ/ปรับกะ/ลาใดๆ เกิดขึ้นในเดือนนี้ ${!monthLocked ? 'สามารถคลิกที่ช่องกะเพื่อทดลองแก้ไข หรือยื่นคำขอสลับกะ/ขอลาได้ตามปกติ' : 'เดือนนี้ถูกล็อก (อยู่ในอดีต) จึงดูได้อย่างเดียว'}</span>
+            </div>
+          </div>
+        ` : ''}
 
         <div class="schedule-header-controls">
           <!-- Month navigation -->
@@ -520,19 +1037,55 @@ function renderScheduleView() {
             <button class="month-nav-btn" type="button" onclick="changeScheduleMonth(-1)" aria-label="เดือนก่อนหน้า">
               ${getIcon('arrowLeft', 'icon-sm')}
             </button>
-            <strong>${monthLabel}</strong>
+            <button class="month-picker-trigger" type="button" onclick="toggleMonthPicker()" aria-label="เลือกเดือนและปีโดยตรง" aria-expanded="${state.monthPickerOpen}">
+              ${getIcon('calendar', 'icon-sm')}
+              <strong>${monthLabel}</strong>
+              ${getIcon('chevronDown', 'icon-xs')}
+            </button>
             <button class="month-nav-btn" type="button" onclick="changeScheduleMonth(1)" aria-label="เดือนถัดไป">
               ${getIcon('arrowRight', 'icon-sm')}
             </button>
+
+            ${state.monthPickerOpen ? `
+              <div class="month-picker-backdrop" onclick="toggleMonthPicker(false)"></div>
+              <div class="month-picker-popover" role="dialog" aria-label="เลือกเดือนและปี">
+                <div class="month-picker-popover-head">
+                  <select aria-label="เลือกปี" onchange="jumpToScheduleMonth(this.value, ${state.currentMonth})">
+                    ${Array.from({ length: 5 }, (_, i) => SCHEDULE_DATA_YEAR - 1 + i).map(y => `
+                      <option value="${y}" ${y === state.currentYear ? 'selected' : ''}>${y + 543}</option>
+                    `).join('')}
+                  </select>
+                  <button type="button" class="icon-btn" onclick="toggleMonthPicker(false)" aria-label="ปิด">${getIcon('x', 'icon-sm')}</button>
+                </div>
+                <div class="month-picker-grid">
+                  ${Array.from({ length: 12 }, (_, m) => m).map(m => {
+                    const isActive = m === state.currentMonth;
+                    const hasData = hasScheduleDataForMonth(state.currentYear, m);
+                    return `
+                      <button type="button" class="month-picker-chip ${isActive ? 'active' : ''} ${hasData ? 'has-data' : ''}"
+                        onclick="jumpToScheduleMonth(${state.currentYear}, ${m})"
+                        title="${hasData ? 'มีข้อมูลตารางกะจริง' : 'ยังไม่มีข้อมูล'}">
+                        ${thaiMonthName(m, 'short')}
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+                <button type="button" class="month-picker-today-btn" onclick="jumpToScheduleDataMonth()">
+                  ${getIcon('check', 'icon-sm')} ไปเดือนที่มีข้อมูลจริง (${thaiMonthName(SCHEDULE_DATA_MONTH, 'long')} ${SCHEDULE_DATA_YEAR + 543})
+                </button>
+              </div>
+            ` : ''}
           </div>
 
           <!-- Filter Shift -->
           <label class="schedule-filter role-switch-pill">
             <span class="role-switch-label">ชุดกะ</span>
             <select class="role-select" onchange="filterScheduleShiftType(this.value)">
-              <option value="ALL" ${state.selectedShiftFilter === 'ALL' ? 'selected' : ''}>ทั้ง 2 ชุดกะ (Shift A & B)</option>
+              <option value="ALL" ${state.selectedShiftFilter === 'ALL' ? 'selected' : ''}>ทั้ง 4 ชุดกะ (Shift A–D)</option>
               <option value="A" ${state.selectedShiftFilter === 'A' ? 'selected' : ''}>เฉพาะ Shift "A"</option>
               <option value="B" ${state.selectedShiftFilter === 'B' ? 'selected' : ''}>เฉพาะ Shift "B"</option>
+              <option value="C" ${state.selectedShiftFilter === 'C' ? 'selected' : ''}>เฉพาะ Shift "C"</option>
+              <option value="D" ${state.selectedShiftFilter === 'D' ? 'selected' : ''}>เฉพาะ Shift "D"</option>
             </select>
           </label>
 
@@ -565,7 +1118,7 @@ function renderScheduleView() {
                 const isToday = isCurrentDate(d);
                 const weekend = isWeekend(d);
                 const weekStartClass = isWeekStart(d) ? 'week-start' : '';
-                
+
                 let thStyle = '';
                 if (weekend) thStyle = 'background:#fef08a;color:#854d0e;';
 
@@ -583,13 +1136,13 @@ function renderScheduleView() {
           </thead>
           <tbody>
             ${shiftSections.map(section => `
-              <!-- Shift Section Header Banner Row (Shift A / Shift B) -->
+              <!-- Shift Section Header Banner Row (Shift A / B / C / D) -->
               <tr style="background:#0f273d;color:#ffffff">
                 <td colspan="2" class="sticky-col-1" style="background:#0f273d !important;color:#ffffff;font-weight:800;font-size:12px;padding:8px 16px;z-index:20">
                   ${section.name} (${section.thaiName})
                 </td>
                 <td colspan="${daysInMonth + 3}" style="background:#0f273d !important;color:#cbd5e1;font-size:10px;text-align:left;padding-left:12px">
-                  รอบการทำงานแบบ 2 วันสลับ 2 วัน (2-on 2-off Rotation) · กะละ 12 ชั่วโมง
+                  รอบการทำงานแบบ 2 วันสลับ 2 วัน (2-on 2-off Rotation) · กะละ 12 ชั่วโมง · ${section.employees.length} ตำแหน่ง (หัวหน้ากะ 1 + พนักงาน ${section.employees.length - 1})
                 </td>
               </tr>
 
@@ -597,9 +1150,12 @@ function renderScheduleView() {
               ${section.employees.map((emp, empIdx) => {
                 const isSupervisor = empIdx === 0;
                 const isCurrentViewer = emp.id === currentViewerId;
-                const workDays = emp.shifts.filter(s => s !== 'O' && !['V','B','S','H'].includes(s)).length;
-                const offDays = emp.shifts.filter(s => s === 'O').length;
-                const totalHours = workDays * 12; // 12-hour shifts
+                const leaveCodes = ['V', 'B', 'S', 'H', 'VG', 'VGh'];
+                const monthCodes = days.map(d => getShiftCodeForDate(emp, state.currentYear, state.currentMonth, d));
+                const workDays = monthCodes.filter(s => s !== 'O' && !leaveCodes.includes(s)).length;
+                const offDays = monthCodes.filter(s => s === 'O').length;
+                const otDays = monthCodes.filter(s => state.shiftDefs[s] && state.shiftDefs[s].ot).length;
+                const totalHours = workDays * 12 + otDays * 0.5; // 12-hour shifts + 30 min handover per OT day
 
                 return `
                   <tr class="${isCurrentViewer ? 'current-user-row' : ''}" style="${isSupervisor && !isCurrentViewer ? 'background:#f8fafc;font-weight:600' : ''}">
@@ -620,19 +1176,19 @@ function renderScheduleView() {
                       ${emp.phone}
                     </td>
 
-                    <!-- 31 Days Shift Cells -->
+                    <!-- Days Shift Cells -->
                     ${days.map(d => {
-                      const shiftCode = emp.shifts[d - 1] || 'O';
                       const isToday = isCurrentDate(d);
                       const weekend = isWeekend(d);
                       const weekStartClass = isWeekStart(d) ? 'week-start' : '';
-                      
+
                       let tdBg = '';
                       if (weekend) tdBg = 'background:#fefce8;';
 
+                      const shiftCode = hasData ? (emp.shifts[d - 1] || 'O') : getShiftCodeForDate(emp, state.currentYear, state.currentMonth, d);
                       return `
                         <td class="${isToday ? 'today-col' : ''} ${weekStartClass}" style="${tdBg}">
-                          ${renderShiftBadge(shiftCode, true, d, emp.id)}
+                          ${renderShiftBadge(shiftCode, canInteractSchedule, d, emp.id, !hasData)}
                         </td>
                       `;
                     }).join('')}
@@ -658,16 +1214,22 @@ function renderScheduleView() {
       <!-- Clean Minimal Structured Legend Box -->
       <div class="card" style="padding:16px 20px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-sm)">
         <div style="font-size:11px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px">
-          คำอธิบายสัญลักษณ์และประเภทกะ (Shift Legend)
+          คำอธิบายสัญลักษณ์และประเภทกะ (Shift Legend — ครบตามข้อ 3 SRS)
         </div>
-        <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
-          <div class="legend-item"><span class="shift-badge-cell M" style="width:26px;height:22px;font-size:10px">M</span> <span style="font-size:11px;color:var(--ink-secondary)">กะเช้า (07:30–19:30)</span></div>
-          <div class="legend-item"><span class="shift-badge-cell MT" style="width:26px;height:22px;font-size:10px">MT</span> <span style="font-size:11px;color:var(--ink-secondary)">กะเช้า + OT</span></div>
-          <div class="legend-item"><span class="shift-badge-cell N" style="width:26px;height:22px;font-size:10px">N</span> <span style="font-size:11px;color:var(--ink-secondary)">กะดึก (19:30–07:30)</span></div>
-          <div class="legend-item"><span class="shift-badge-cell NT" style="width:26px;height:22px;font-size:10px">NT</span> <span style="font-size:11px;color:var(--ink-secondary)">กะดึก + OT</span></div>
-          <div class="legend-item"><span class="shift-badge-cell O" style="width:26px;height:22px;font-size:10px">O</span> <span style="font-size:11px;color:var(--ink-secondary)">วันหยุดพักผ่อน</span></div>
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div class="legend-item"><span class="shift-badge-cell M" style="width:26px;height:22px;font-size:10px">M</span> <span style="font-size:11px;color:var(--ink-secondary)">กะเช้า</span></div>
+          <div class="legend-item"><span class="shift-badge-cell MT ot-marker" style="width:26px;height:22px;font-size:10px">MT</span> <span style="font-size:11px;color:var(--ink-secondary)">กะเช้า + OT</span></div>
+          <div class="legend-item"><span class="shift-badge-cell MT ot-half" style="width:26px;height:22px;font-size:9px">MTh</span> <span style="font-size:11px;color:var(--ink-secondary)">กะเช้า + OT ครึ่งวัน</span></div>
+          <div class="legend-item"><span class="shift-badge-cell N ot-marker" style="width:26px;height:22px;font-size:10px">N</span> <span style="font-size:11px;color:var(--ink-secondary)">กะดึก</span></div>
+          <div class="legend-item"><span class="shift-badge-cell NT ot-marker" style="width:26px;height:22px;font-size:10px">NT</span> <span style="font-size:11px;color:var(--ink-secondary)">กะดึก + OT</span></div>
+          <div class="legend-item"><span class="shift-badge-cell D" style="width:26px;height:22px;font-size:10px">D</span> <span style="font-size:11px;color:var(--ink-secondary)">เวลาทำการปกติ</span></div>
+          <div class="legend-item"><span class="shift-badge-cell O" style="width:26px;height:22px;font-size:9px">O</span> <span style="font-size:11px;color:var(--ink-secondary)">วันหยุด</span></div>
+          <div class="legend-item"><span class="shift-badge-cell swap" style="width:26px;height:22px;font-size:8px">N/M</span> <span style="font-size:11px;color:var(--ink-secondary)">สลับ/ปรับกะ (M↔N↔O)</span></div>
           <div class="legend-item"><span class="shift-badge-cell leave" style="width:26px;height:22px;font-size:10px">V</span> <span style="font-size:11px;color:var(--ink-secondary)">ลาพักร้อน</span></div>
+          <div class="legend-item"><span class="shift-badge-cell leave" style="width:26px;height:22px;font-size:10px">B</span> <span style="font-size:11px;color:var(--ink-secondary)">ลากิจ</span></div>
           <div class="legend-item"><span class="shift-badge-cell leave" style="width:26px;height:22px;font-size:10px">S</span> <span style="font-size:11px;color:var(--ink-secondary)">ลาป่วย</span></div>
+          <div class="legend-item"><span class="shift-badge-cell leave" style="width:26px;height:22px;font-size:10px">H</span> <span style="font-size:11px;color:var(--ink-secondary)">วันหยุดนักขัตฤกษ์</span></div>
+          <div class="legend-item"><span class="shift-badge-cell leave" style="width:26px;height:22px;font-size:8px">VG</span> <span style="font-size:11px;color:var(--ink-secondary)">ลาอื่นๆ</span></div>
           <div class="legend-item"><span style="display:inline-block;width:16px;height:16px;background:#fef08a;border:1px solid #fde047;border-radius:4px"></span> <span style="font-size:11px;color:var(--ink-secondary)">วันเสาร์–อาทิตย์</span></div>
         </div>
       </div>
@@ -687,12 +1249,16 @@ function renderOverviewView() {
     month: 'long',
     year: 'numeric'
   });
-  
+  const allEmployees = getAllEmployees();
+  const teamSizes = ['shiftA', 'shiftB', 'shiftC', 'shiftD'].map(key => state.shiftsData[key].employees.length);
+  const totalOnDutyToday = allEmployees.length; // simplified — all rostered
+  const crossShiftPending = state.requests.filter(r => r.isCrossShift && r.status.includes('รอ')).length;
+
   return `
     <div class="page-header dashboard-page-header">
       <div class="page-headline">
         <h1>ภาพรวมกำลังพล</h1>
-        <p>สรุปกำลังพล คำขอ และสถานะกะที่ต้องติดตามวันนี้</p>
+        <p>สรุปกำลังพล คำขอ และสถานะกะที่ต้องติดตามวันนี้ · ทั้งหมด ${allEmployees.length} คน (4 ทีม)</p>
       </div>
       <span class="dashboard-date">วันที่ ${todayLabel}</span>
     </div>
@@ -702,9 +1268,9 @@ function renderOverviewView() {
         <div class="metric-card-top">
           <div class="metric-icon-box mint">${getIcon('users')}</div>
         </div>
-        <div class="metric-value">10 / 12 คน</div>
-        <div class="metric-label">กำลังปฏิบัติงานวันนี้</div>
-        <div class="metric-sub">Shift "A" (5 คน) + Shift "B" (5 คน)</div>
+        <div class="metric-value">${allEmployees.length} คน</div>
+        <div class="metric-label">กำลังพลรวมทั้งระบบ</div>
+        <div class="metric-sub">Shift A (${teamSizes[0]}) · B (${teamSizes[1]}) · C (${teamSizes[2]}) · D (${teamSizes[3]})</div>
       </div>
 
       <div class="metric-card" onclick="switchView('requests')">
@@ -722,8 +1288,8 @@ function renderOverviewView() {
           <div class="metric-icon-box red">${getIcon('alert')}</div>
           <span class="pill pill-rejected">Cross-Shift</span>
         </div>
-        <div class="metric-value">01 รายการ</div>
-        <div class="metric-label">คำขอสลับข้ามชุดกะ (Shift A ↔ B)</div>
+        <div class="metric-value">${String(crossShiftPending).padStart(2, '0')} รายการ</div>
+        <div class="metric-label">คำขอสลับข้ามชุดกะ</div>
         <div class="metric-sub">รอการยืนยันจากหัวหน้ากะทั้ง 2 ฝ่าย</div>
       </div>
     </div>
@@ -733,13 +1299,13 @@ function renderOverviewView() {
       <div class="card-header">
         <div class="card-title">
           <h3>สถานะกะการทำงานวันนี้ <span class="pill pill-live">กำลังใช้งาน</span></h3>
-          <p>สรุปกำลังพลของทั้ง Shift "A" และ Shift "B"</p>
+          <p>สรุปกำลังพลของทั้ง 4 ทีมกะ (A / B / C / D)</p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="switchView('schedule')">
           ดูตารางเต็มเดือน ${getIcon('arrowRight', 'icon-sm')}
         </button>
       </div>
-      
+
       <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
         <!-- Shift A Summary -->
         <div style="padding:16px 20px;border:1px solid #fde68a;background:#fffbeb;border-radius:var(--radius-md);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
@@ -749,7 +1315,7 @@ function renderOverviewView() {
             </div>
             <div>
               <strong style="font-size:14px;color:#92400e">Shift "A" (กะเช้า: 07:30–19:30)</strong>
-              <p style="font-size:12px;color:#b45309;margin:2px 0 0">หัวหน้ากะ: ณัฐพล ดวงประเสริฐ · พนักงานเข้ากะ 5/6 คน</p>
+              <p style="font-size:12px;color:#b45309;margin:2px 0 0">หัวหน้ากะ: ณัฐพล ดวงประสิทธิ์ · พนักงานทั้งทีม ${teamSizes[0]} คน</p>
             </div>
           </div>
           <span class="pill pill-approved" style="background:#fef3c7;color:#92400e;border-color:#fde68a;font-size:11px;padding:4px 10px">Active Now</span>
@@ -763,10 +1329,38 @@ function renderOverviewView() {
             </div>
             <div>
               <strong style="font-size:14px;color:#3730a3">Shift "B" (กะดึก: 19:30–07:30)</strong>
-              <p style="font-size:12px;color:#4338ca;margin:2px 0 0">หัวหน้ากะ: สุระศักดิ์ สงเคราะห์ · พนักงานพร้อมเข้ากะ 5/6 คน</p>
+              <p style="font-size:12px;color:#4338ca;margin:2px 0 0">หัวหน้ากะ: สุระศักดิ์ สงหลำ · พนักงานทั้งทีม ${teamSizes[1]} คน</p>
             </div>
           </div>
           <span class="pill pill-draft" style="color:#3730a3;font-size:11px;padding:4px 10px">Starts 19:30</span>
+        </div>
+
+        <!-- Shift C Summary -->
+        <div style="padding:16px 20px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:var(--radius-md);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:40px;height:40px;border-radius:var(--radius-md);background:#e0f2fe;color:#0369a1;display:grid;place-items:center">
+              ${getIcon('sun')}
+            </div>
+            <div>
+              <strong style="font-size:14px;color:#0369a1">Shift "C" (กะเช้า: 07:30–19:30)</strong>
+              <p style="font-size:12px;color:#0369a1;margin:2px 0 0">หัวหน้ากะ: โรจนะ ยังสุข · พนักงานทั้งทีม ${teamSizes[2]} คน</p>
+            </div>
+          </div>
+          <span class="pill pill-draft" style="color:#0369a1;font-size:11px;padding:4px 10px">Standby</span>
+        </div>
+
+        <!-- Shift D Summary -->
+        <div style="padding:16px 20px;border:1px solid #f5d0fe;background:#fdf4ff;border-radius:var(--radius-md);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:40px;height:40px;border-radius:var(--radius-md);background:#fae8ff;color:#86198f;display:grid;place-items:center">
+              ${getIcon('moon')}
+            </div>
+            <div>
+              <strong style="font-size:14px;color:#86198f">Shift "D" (กะดึก: 19:30–07:30)</strong>
+              <p style="font-size:12px;color:#86198f;margin:2px 0 0">หัวหน้ากะ: วีรพล พุทธตาล · พนักงานทั้งทีม ${teamSizes[3]} คน</p>
+            </div>
+          </div>
+          <span class="pill pill-draft" style="color:#86198f;font-size:11px;padding:4px 10px">Standby</span>
         </div>
       </div>
     </div>
@@ -793,7 +1387,7 @@ function renderRequestsView() {
           <div>
             <div style="display:flex;align-items:center;gap:8px">
               <span class="avatar avatar-sm" style="background:var(--navy);color:#ffffff">⚡</span>
-              <strong style="font-size:14px;color:var(--navy)">Interactive Test Cases Sandbox (ทดสอบ Flow ข้อ 4)</strong>
+              <strong style="font-size:14px;color:var(--navy)">Interactive Test Cases Sandbox (ทดสอบ Flow ข้อ 4 & ข้อ 6)</strong>
             </div>
             <p style="font-size:11px;color:var(--muted);margin-top:2px">
               คลิกปุ่มด้านล่างเพื่อจำลองเหตุการณ์จริงตามโจทย์: Quota เกินกำหนด (US-023), Dual Approval 2 ฝ่าย (US-024) และ Reject พร้อมระบุเหตุผล (US-033)
@@ -810,14 +1404,14 @@ function renderRequestsView() {
             <div>
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <strong style="font-size:12px;color:var(--ink)">Testcase 1: Quota สลับกะ (US-023)</strong>
-                <span class="pill pill-draft" style="color:#b45309">โควตา $\le$ 2 ครั้ง/เดือน</span>
+                <span class="pill pill-draft" style="color:#b45309">โควตา $\le$ ${state.managerConfig.swapRequestMonthlyLimit} ครั้ง/เดือน</span>
               </div>
               <p style="font-size:11px;color:var(--muted);margin-top:4px">
-                ทดสอบกรณียื่นสลับกะครบ 2/2 ครั้งแล้ว และพยายามส่งคำขอครั้งที่ 3 (ระบบจะบล็อคทันที)
+                ทดสอบกรณียื่นสลับกะครบ ${state.managerConfig.swapRequestMonthlyLimit}/${state.managerConfig.swapRequestMonthlyLimit} ครั้งแล้ว และพยายามส่งคำขอเพิ่ม (ระบบจะบล็อคทันที)
               </p>
             </div>
             <button class="btn btn-secondary btn-sm" style="width:100%;font-weight:700" onclick="simulateQuotaExceeded()">
-              ▶ จำลองพนักงานใช้โควตาเกิน 2 ครั้ง
+              ▶ จำลองพนักงานใช้โควตาเกิน ${state.managerConfig.swapRequestMonthlyLimit} ครั้ง
             </button>
           </div>
 
@@ -875,13 +1469,18 @@ function renderRequestsView() {
 
 function renderRequestCard(req, isCompact = false) {
   const isPending = req.status.includes('รอ');
-  const canReview = state.activeRole === 'Supervisor';
+  const nextApprover = req.approvers ? req.approvers.find(a => a.status !== 'approved') : null;
+  const canReview = nextApprover
+    ? (state.activeRole === 'Manager' ? nextApprover.role.includes('ผู้จัดการ') || nextApprover.role.includes('Manager')
+      : state.activeRole === 'Supervisor' ? nextApprover.role.includes('Supervisor') || nextApprover.role.includes('หัวหน้ากะ')
+      : false)
+    : state.activeRole === 'Supervisor';
   const isApproved = req.status === 'อนุมัติแล้ว';
   const isRejected = req.status === 'ไม่อนุมัติ';
 
-  const statusPill = isApproved 
+  const statusPill = isApproved
     ? '<span class="pill pill-approved">✓ อนุมัติเรียบร้อย</span>'
-    : isRejected 
+    : isRejected
     ? '<span class="pill pill-rejected">✕ ไม่อนุมัติ</span>'
     : '<span class="pill pill-pending">⏳ รอดำเนินการ</span>';
 
@@ -897,7 +1496,7 @@ function renderRequestCard(req, isCompact = false) {
         <div class="request-card-desc">
           <strong>${req.date}</strong> · ${req.reason}
         </div>
-        
+
         ${req.rejectReason ? `
           <div style="margin-top:6px;padding:6px 10px;background:#fee2e2;border-radius:var(--radius-sm);color:#991b1b;font-size:11px">
             <strong>เหตุผลที่ไม่อนุมัติ:</strong> ${req.rejectReason}
@@ -910,18 +1509,24 @@ function renderRequestCard(req, isCompact = false) {
           ${req.quotaUsed !== '-' ? `<span>สิทธิ์สลับกะเดือนนี้: <strong>${req.quotaUsed}</strong></span>` : ''}
         </div>
 
-        <!-- Cross-Shift Dual Approval Stepper (US-024) -->
-        ${req.isCrossShift ? `
+        <!-- Multi-step Approval Stepper (Cross-Shift US-024, Supervisor→Manager for OT, or 3-step Supervisor A/B→Manager) -->
+        ${req.approvers && req.approvers.length > 1 ? `
           <div class="approval-stepper" style="margin-top:10px">
-            <div class="stepper-step ${req.approvers[0].status === 'approved' ? 'done' : 'active'}">
-              ${req.approvers[0].status === 'approved' ? getIcon('check', 'icon-sm') : getIcon('clock', 'icon-sm')}
-              ${req.approvers[0].role} (${req.approvers[0].status === 'approved' ? 'อนุมัติแล้ว' : 'รอดำเนินการ'})
-            </div>
-            <span class="stepper-arrow">›</span>
-            <div class="stepper-step ${req.approvers[1].status === 'approved' ? 'done' : req.approvers[0].status === 'approved' ? 'active' : ''}">
-              ${req.approvers[1].status === 'approved' ? getIcon('check', 'icon-sm') : getIcon('clock', 'icon-sm')}
-              ${req.approvers[1].role} (${req.approvers[1].status === 'approved' ? 'อนุมัติครบแล้ว' : 'รอยืนยันฝ่ายที่ 2'})
-            </div>
+            ${req.approvers.map((a, i) => {
+              const priorAllApproved = req.approvers.slice(0, i).every(p => p.status === 'approved');
+              const stepClass = a.status === 'approved' ? 'done' : (priorAllApproved ? 'active' : '');
+              const isLast = i === req.approvers.length - 1;
+              const label = a.status === 'approved'
+                ? (isLast ? 'อนุมัติครบแล้ว' : 'อนุมัติแล้ว')
+                : (priorAllApproved ? 'รอดำเนินการ' : `รอขั้นที่ ${i}`);
+              return `
+                <div class="stepper-step ${stepClass}">
+                  ${a.status === 'approved' ? getIcon('check', 'icon-sm') : getIcon('clock', 'icon-sm')}
+                  ${a.role} (${label})
+                </div>
+                ${!isLast ? '<span class="stepper-arrow">›</span>' : ''}
+              `;
+            }).join('')}
           </div>
         ` : ''}
       </div>
@@ -980,37 +1585,37 @@ function openRequestDetails(reqId) {
 }
 
 function isSupervisorRole(name) {
-  return ['ณัฐพล ดวงประเสริฐ', 'สุระศักดิ์ สงเคราะห์'].includes(name);
+  return getAllEmployees().some(e => e.name === name && e.roleCategory === 'Shift Supervisor');
 }
 
 // Interactive Testcase Handlers
 function simulateQuotaExceeded() {
-  const currentQuota = 2; // already 2/2 used
-  
+  const limit = state.managerConfig.swapRequestMonthlyLimit;
+
   const bodyHtml = `
     <div style="display:flex;flex-direction:column;gap:14px">
       <div style="padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius-md);color:#991b1b">
         <strong style="display:block;font-size:12px">⚠️ ตรวจพบข้อจำกัดโควตา (US-023 Quota Exceeded)</strong>
         <p style="font-size:11px;margin-top:4px">
-          พนักงาน <strong>วราเทพ นิยากูล</strong> ได้ใช้สิทธิ์สลับกะในเดือนสิงหาคม 2569 ไปแล้ว <strong>2 / 2 ครั้ง</strong> (ครบโควตาสูงสุดที่ระบบอนุญาต)
+          พนักงาน <strong>วราเทพ นิยากุล</strong> ได้ใช้สิทธิ์สลับกะในเดือนสิงหาคม 2569 ไปแล้ว <strong>${limit} / ${limit} ครั้ง</strong> (ครบโควตาสูงสุดที่ระบบอนุญาต)
         </p>
       </div>
 
       <div class="form-group">
         <label>พนักงานผู้ยื่นคำขอ</label>
-        <input class="form-control" value="วราเทพ นิยากูล (Shift Employee · Shift A)" disabled>
+        <input class="form-control" value="วราเทพ นิยากุล (Shift Employee · Shift A)" disabled>
       </div>
 
       <div class="form-group">
         <label>สิทธิ์คงเหลือเดือนนี้</label>
-        <input class="form-control" value="0 / 2 ครั้ง (ใช้สิทธิ์ครบแล้ว)" style="color:#b91c1c;font-weight:700" disabled>
+        <input class="form-control" value="0 / ${limit} ครั้ง (ใช้สิทธิ์ครบแล้ว)" style="color:#b91c1c;font-weight:700" disabled>
       </div>
 
       <div class="validation-panel">
         <div class="validation-panel-title">ผลการตรวจสอบสิทธิ์อัตโนมัติ</div>
         <div class="validation-check-item fail">
           ${getIcon('x', 'icon-sm')}
-          <span><strong>สิทธิ์สลับกะ:</strong> เกินโควตาสูงสุด 2 ครั้ง/เดือน — ระบบไม่อนุญาตให้ส่งคำขอเพิ่ม</span>
+          <span><strong>สิทธิ์สลับกะ:</strong> เกินโควตาสูงสุด ${limit} ครั้ง/เดือน — ระบบไม่อนุญาตให้ส่งคำขอเพิ่ม</span>
         </div>
       </div>
     </div>
@@ -1023,7 +1628,7 @@ function simulateQuotaExceeded() {
     </button>
   `;
 
-  openModal('ทดสอบระบบโควตา: วราเทพ นิยากูล (US-023)', bodyHtml, footerHtml);
+  openModal('ทดสอบระบบโควตา: วราเทพ นิยากุล (US-023)', bodyHtml, footerHtml);
 }
 
 function simulateDualApprovalStep() {
@@ -1042,7 +1647,7 @@ function simulateDualApprovalStep() {
 
   state.auditLogs.unshift({
     id: Date.now(),
-    actor: 'สุระศักดิ์ สงเคราะห์ (Shift Supervisor B)',
+    actor: 'สุระศักดิ์ สงหลำ (Shift Supervisor B)',
     avatar: 'สส',
     action: `อนุมัติคำขอสลับกะข้ามทีม (ฝ่ายที่ 2 ครบสมบูรณ์) ของ ${req.person}`,
     time: 'เมื่อสักครู่'
@@ -1057,11 +1662,11 @@ function resetTestcases() {
     {
       id: 101,
       type: 'สลับกะ',
-      person: 'วราเทพ นิยากูล',
-      requesterId: '0140',
+      person: 'วราเทพ นิยากุล',
+      requesterId: '140',
       initials: 'วน',
       roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: 'สิทธิชัย เมฆาหลับ',
+      targetPerson: 'สิทธิชัย เนตรหลับ',
       targetRole: 'Shift Employee (Shift A)',
       date: '04 ส.ค. 2569',
       currentShift: 'M',
@@ -1076,8 +1681,9 @@ function resetTestcases() {
     {
       id: 102,
       type: 'เปลี่ยนวันหยุด',
-      person: 'ธุรนันท์ พรหมจรรย์',
-      initials: 'ธพ',
+      person: 'ยุรนันท์ พรหมจรรย์',
+      requesterId: '164',
+      initials: 'ยพ',
       roleCategory: 'Shift Employee (Shift B)',
       targetPerson: null,
       targetRole: null,
@@ -1095,9 +1701,10 @@ function resetTestcases() {
       id: 103,
       type: 'สลับกะข้ามทีม (Shift A ↔ Shift B)',
       person: 'นันทวัฒน์ รัตนศรี',
+      requesterId: '218',
       initials: 'นร',
       roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: 'กัณฑ์เอนก สุวัณณกุล',
+      targetPerson: 'กัณฑ์เอนก สุวัฒนกุล',
       targetRole: 'Shift Employee (Shift B)',
       date: '10 ส.ค. 2569',
       currentShift: 'N',
@@ -1121,36 +1728,73 @@ function resetTestcases() {
 // Operator View
 function renderOperatorView() {
   const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
-  const days = [
-    { label: 'ศ. 04', date: '4 ก.ย.', code: 'M', status: 'เข้ากะวันนี้' },
-    { label: 'ส. 05', date: '5 ก.ย.', code: 'M', status: 'ได้รับมอบหมาย' },
-    { label: 'อา. 06', date: '6 ก.ย.', code: 'MT', status: 'กะเช้า + OT' },
-    { label: 'จ. 07', date: '7 ก.ย.', code: 'O', status: 'วันหยุดพักผ่อน' },
-    { label: 'อ. 08', date: '8 ก.ย.', code: 'M', status: 'ได้รับมอบหมาย' },
-    { label: 'พ. 09', date: '9 ก.ย.', code: 'M', status: 'ได้รับมอบหมาย' },
-    { label: 'พฤ. 10', date: '10 ก.ย.', code: 'O', status: 'วันหยุด' }
-  ];
+  const daysInMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
+  const monthLabel = new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  const todayNum = Math.min(state.currentDay, daysInMonth);
+
+  const hasData = hasScheduleDataForMonth(state.currentYear, state.currentMonth);
+
+  // ทีมหัวหน้ากะที่รับผิดชอบพนักงานคนนี้ (ดึงจากข้อมูลจริง ไม่ Hardcode ชื่อ)
+  const teamSupervisor = currentEmp
+    ? getAllEmployees().find(e => e.roleCategory === 'Shift Supervisor' && e.shiftType === currentEmp.shiftType)
+    : null;
+
+  const todayCode = currentEmp ? getShiftCodeForDate(currentEmp, state.currentYear, state.currentMonth, todayNum) : 'O';
+  const todayDef = state.shiftDefs[todayCode] || state.shiftDefs.O;
+  const todayDateStr = new Date(state.currentYear, state.currentMonth, todayNum).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // นับวันทำงานต่อเนื่องจริงจากข้อมูลกะ (นับย้อนหลังจากวันนี้จนกว่าจะเจอวันหยุด)
+  let consecutiveDays = 0;
+  if (currentEmp) {
+    for (let d = todayNum; d >= 1; d--) {
+      const code = getShiftCodeForDate(currentEmp, state.currentYear, state.currentMonth, d);
+      const def = state.shiftDefs[code];
+      if (!def || def.family === 'off' || code === 'O' || def.leave) break;
+      consecutiveDays++;
+    }
+  }
+
+  // สร้างแถบ 7 วัน โดยเริ่มจากวันนี้ (ไม่เกินจำนวนวันจริงในเดือน)
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = todayNum + i;
+    if (d > daysInMonth) break;
+    const code = currentEmp ? getShiftCodeForDate(currentEmp, state.currentYear, state.currentMonth, d) : 'O';
+    const def = state.shiftDefs[code] || state.shiftDefs.O;
+    const dt = new Date(state.currentYear, state.currentMonth, d);
+    days.push({
+      dayNum: d,
+      label: `${dt.toLocaleDateString('th-TH', { weekday: 'short' })} ${String(d).padStart(2, '0')}`,
+      code,
+      status: def.label
+    });
+  }
+
+  // คำขอที่รอดำเนินการของพนักงานคนนี้จริง (ไม่ใช้ตัวอย่างสมมติ)
+  const myPendingRequests = currentEmp
+    ? state.requests.filter(r => r.requesterId === currentEmp.id && r.status !== 'อนุมัติแล้ว').slice(0, 3)
+    : [];
 
   return `
     <div class="grid-2col">
       <div style="display:flex;flex-direction:column;gap:20px">
         <div class="operator-hero-card">
-          <div class="operator-hero-date">วันศุกร์ที่ 4 กันยายน 2569 · สังกัด Morning Shift</div>
-          <div class="operator-hero-shift">กะเช้า (Morning Shift)</div>
-          <p style="color:#cbd5e1;font-size:13px">หัวหน้ากะผู้รับผิดชอบ: คุณกัญญา ศรีสวัสดิ์ (Shift Supervisor)</p>
-          
+          <div class="operator-hero-date">วัน${todayDateStr} · สังกัด ${currentEmp?.shiftType || '-'}</div>
+          <div class="operator-hero-shift">${todayDef.label} (${todayCode})</div>
+          <p style="color:#cbd5e1;font-size:13px">หัวหน้ากะผู้รับผิดชอบ: ${teamSupervisor ? `คุณ${teamSupervisor.name}` : 'ไม่ระบุ'} (Shift Supervisor)</p>
+
           <div class="operator-hero-meta">
             <div class="operator-meta-col">
               <small>เวลาปฏิบัติงาน</small>
-              <strong>07:30 – 19:30</strong>
+              <strong>${todayDef.time || '-'}</strong>
             </div>
             <div class="operator-meta-col">
-              <small>จุดรายงานตัว</small>
-              <strong>Gate 2 (07:15 น.)</strong>
+              <small>รหัสพนักงาน</small>
+              <strong>${currentEmp?.code || currentEmp?.id || '-'}</strong>
             </div>
             <div class="operator-meta-col">
               <small>วันทำงานต่อเนื่อง</small>
-              <strong>วันที่ 3 / 6 วัน</strong>
+              <strong>วันที่ ${consecutiveDays} / ${state.managerConfig.maxConsecutiveWorkDays} วัน</strong>
             </div>
           </div>
         </div>
@@ -1158,20 +1802,23 @@ function renderOperatorView() {
         <div class="card">
           <div class="card-header">
             <div class="card-title">
-              <h3>ตารางกะของฉัน 7 วันข้างหน้า</h3>
-              <p>คลิกที่การ์ดวันเพื่อยื่นคำขอสลับกะหรือเปลี่ยนวันหยุด</p>
+              <h3>ตารางกะของฉัน 7 วันข้างหน้า (${monthLabel})</h3>
+              <p>คลิกที่การ์ดวันเพื่อยื่นคำขอสลับกะกับเพื่อนร่วมงานที่มีสิทธิ์</p>
             </div>
           </div>
           <div class="card-body">
             <div class="seven-day-strip">
-              ${days.map((d, i) => `
-                <div class="day-card ${i === 0 ? 'today' : ''}" onclick="openOperatorRequestModal('${d.date}', '${d.code}')">
+              ${days.map(d => `
+                <div class="day-card ${d.dayNum === todayNum ? 'today' : ''}" onclick="openColleagueSwapModal(findEmployeeById('${currentEmp?.id}'), null, ${d.dayNum})">
                   <div class="day-card-date">${d.label}</div>
                   ${renderShiftBadge(d.code)}
                   <small style="font-size:9px;color:var(--muted);margin-top:2px">${d.status}</small>
                 </div>
               `).join('')}
             </div>
+            <button class="btn btn-secondary" style="width:100%;margin-top:14px" onclick="toggleOperatorFullGrid(true)">
+              ${getIcon('calendar', 'icon-sm')} ดูตารางกะเต็มรูปแบบของทุกทีม
+            </button>
           </div>
         </div>
       </div>
@@ -1185,20 +1832,38 @@ function renderOperatorView() {
             </div>
           </div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:12px">
-            <button class="btn btn-secondary" style="width:100%;height:44px;justify-content:flex-start" onclick="openOperatorRequestModal('07 ก.ย.', 'M')">
+            <button class="btn btn-secondary" style="width:100%;height:44px;justify-content:flex-start" onclick="openColleagueSwapModal(findEmployeeById('${currentEmp?.id}'), null, ${todayNum})">
               <div class="avatar avatar-sm" style="background:var(--mint-light);color:var(--mint-text)">${getIcon('users', 'icon-sm')}</div>
               <div style="text-align:left;flex:1;margin-left:8px">
                 <strong style="display:block;font-size:12px">ยื่นขอสลับกะ (Shift Swap)</strong>
-                <small style="color:var(--muted);font-size:10px">เลือกเพื่อนร่วมงานในกะ (สิทธิ์เหลือ 1/2 ครั้ง)</small>
+                <small style="color:var(--muted);font-size:10px">เลือกเพื่อนร่วมงานต่างทีม (สิทธิ์เหลือ ${Math.max(0, state.managerConfig.swapRequestMonthlyLimit - countMonthlySwapRequests(currentEmp?.id))}/${state.managerConfig.swapRequestMonthlyLimit} ครั้ง)</small>
               </div>
               ${getIcon('arrowRight', 'icon-sm')}
             </button>
 
-            <button class="btn btn-secondary" style="width:100%;height:44px;justify-content:flex-start" onclick="showToast('เปิดแบบฟอร์มขอเปลี่ยนวันหยุด')">
+            <button class="btn btn-secondary" style="width:100%;height:44px;justify-content:flex-start" onclick="openDayOffChangeModal('${currentEmp?.id}')">
               <div class="avatar avatar-sm" style="background:#fffbeb;color:#b45309">${getIcon('calendar', 'icon-sm')}</div>
               <div style="text-align:left;flex:1;margin-left:8px">
                 <strong style="display:block;font-size:12px">ขอเปลี่ยนวันหยุด (Day-Off Change)</strong>
                 <small style="color:var(--muted);font-size:10px">ย้ายวันหยุดตามกรอบ ±7 วัน</small>
+              </div>
+              ${getIcon('arrowRight', 'icon-sm')}
+            </button>
+
+            <button class="btn btn-secondary" style="width:100%;height:44px;justify-content:flex-start" onclick="openLeaveRequestModal('${currentEmp?.id}')">
+              <div class="avatar avatar-sm" style="background:#eef2ff;color:#4338ca">${getIcon('inbox', 'icon-sm')}</div>
+              <div style="text-align:left;flex:1;margin-left:8px">
+                <strong style="display:block;font-size:12px">ขอลา (Leave Request)</strong>
+                <small style="color:var(--muted);font-size:10px">V / B / S / H — เลือกคนแทนได้ทันที</small>
+              </div>
+              ${getIcon('arrowRight', 'icon-sm')}
+            </button>
+
+            <button class="btn btn-secondary" style="width:100%;height:44px;justify-content:flex-start" onclick="openPublicHolidayModal('${currentEmp?.id}')">
+              <div class="avatar avatar-sm" style="background:#ecfdf5;color:#047857">${getIcon('check', 'icon-sm')}</div>
+              <div style="text-align:left;flex:1;margin-left:8px">
+                <strong style="display:block;font-size:12px">สิทธิ์วันหยุดนักขัตฤกษ์ (Public Holiday)</strong>
+                <small style="color:var(--muted);font-size:10px">เลือกหยุดหรือทำงานเป็น OT</small>
               </div>
               ${getIcon('arrowRight', 'icon-sm')}
             </button>
@@ -1212,15 +1877,21 @@ function renderOperatorView() {
               <p>ติดตามผลการอนุมัติแบบเรียลไทม์</p>
             </div>
           </div>
-          <div class="card-body">
-            <div style="padding:12px;border-radius:var(--radius-md);background:var(--bg-subtle);border:1px solid var(--line)">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <strong style="font-size:12px">สลับกะ · 07 ก.ย. 2569</strong>
-                <span class="pill pill-pending">รอหัวหน้ากะอนุมัติ</span>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+            ${myPendingRequests.length ? myPendingRequests.map(r => `
+              <div style="padding:12px;border-radius:var(--radius-md);background:var(--bg-subtle);border:1px solid var(--line)">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <strong style="font-size:12px">${r.type} · ${r.date}</strong>
+                  <span class="pill pill-pending">${r.status}</span>
+                </div>
+                ${r.targetPerson ? `<p style="font-size:11px;color:var(--ink-secondary);margin-top:4px">สลับกะกับ ${r.targetPerson}</p>` : ''}
+                <small style="display:block;color:var(--muted);margin-top:6px;font-size:10px">ยื่นเมื่อ ${r.submittedAt}</small>
               </div>
-              <p style="font-size:11px;color:var(--ink-secondary);margin-top:4px">สลับกะกับ Parichat Sriagsorn</p>
-              <small style="display:block;color:var(--muted);margin-top:6px;font-size:10px">ยื่นเมื่อ 12 นาทีที่แล้ว · ตรวจสอบกฎความปลอดภัยผ่านเรียบร้อย</small>
-            </div>
+            `).join('') : `
+              <div style="padding:12px;border-radius:var(--radius-md);background:var(--bg-subtle);border:1px solid var(--line);text-align:center;color:var(--muted);font-size:12px">
+                ไม่มีคำขอที่รอดำเนินการในขณะนี้
+              </div>
+            `}
           </div>
         </div>
       </div>
@@ -1231,6 +1902,7 @@ function renderOperatorView() {
 // HR View
 function renderHRView() {
   const allEmps = getAllEmployees();
+  const otEligible = allEmps.filter(e => e.shifts.some(s => state.shiftDefs[s] && state.shiftDefs[s].ot)).length;
 
   return `
     <div class="metrics-grid">
@@ -1238,9 +1910,9 @@ function renderHRView() {
         <div class="metric-card-top">
           <div class="metric-icon-box mint">${getIcon('file-text')}</div>
         </div>
-        <div class="metric-value">360 กะ</div>
+        <div class="metric-value">${allEmps.length * 30} กะ</div>
         <div class="metric-label">กะที่อนุมัติแล้วประจำเดือน</div>
-        <div class="metric-sub">Morning + Night Shift (30 วัน)</div>
+        <div class="metric-sub">4 ทีม x 30 วัน</div>
       </div>
 
       <div class="metric-card">
@@ -1248,9 +1920,9 @@ function renderHRView() {
           <div class="metric-icon-box amber">${getIcon('clock')}</div>
           <span class="pill pill-pending">พร้อมคิดเงิน</span>
         </div>
-        <div class="metric-value">12 รายการ</div>
-        <div class="metric-label">กะที่มีชั่วโมงล่วงเวลา (OT)</div>
-        <div class="metric-sub">MT / NT ส่งต่องานกะ</div>
+        <div class="metric-value">${otEligible} คน</div>
+        <div class="metric-label">พนักงานที่มีชั่วโมงล่วงเวลา (OT)</div>
+        <div class="metric-sub">MT / NT / MTh / NTh / OT ส่งต่องานกะ</div>
       </div>
 
       <div class="metric-card">
@@ -1266,11 +1938,11 @@ function renderHRView() {
       <div class="metric-card">
         <div class="metric-card-top">
           <div class="metric-icon-box mint">${getIcon('users')}</div>
-          <span class="pill pill-approved">2 Shifts</span>
+          <span class="pill pill-approved">4 Shifts</span>
         </div>
-        <div class="metric-value">12 คน</div>
-        <div class="metric-label">จำนวนพนักงานรวมทั้ง 2 กะ</div>
-        <div class="metric-sub">Supervisors (2) + Employees (10)</div>
+        <div class="metric-value">${allEmps.length} คน</div>
+        <div class="metric-label">จำนวนพนักงานรวมทั้ง 4 กะ</div>
+        <div class="metric-sub">Supervisors (4) + Operators (${allEmps.length - 4})</div>
       </div>
     </div>
 
@@ -1325,10 +1997,34 @@ function renderHRView() {
           <div style="padding:16px;border:1px solid var(--line);border-radius:var(--radius-md)">
             <div style="display:flex;justify-content:space-between;align-items:center">
               <div>
-                <strong style="display:block;font-size:13px">ตารางกะทั้ง 2 กะรายเดือน</strong>
-                <small style="color:var(--muted)">CSV Data Format · Morning + Night Shift</small>
+                <strong style="display:block;font-size:13px">ตารางกะทั้ง 4 กะรายเดือน</strong>
+                <small style="color:var(--muted)">CSV Data Format · Shift A / B / C / D</small>
               </div>
               <button class="btn btn-primary btn-sm" onclick="exportMonthlyCSV()">
+                ${getIcon('download', 'icon-sm')} ส่งออก CSV
+              </button>
+            </div>
+          </div>
+
+          <div style="padding:16px;border:1px solid var(--line);border-radius:var(--radius-md)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <strong style="display:block;font-size:13px">ประวัติการลา (Leave Records)</strong>
+                <small style="color:var(--muted)">V / B / S / H / VG / VGh — สำหรับฝ่ายบุคคล</small>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="exportLeaveRecordsCSV()">
+                ${getIcon('download', 'icon-sm')} ส่งออก CSV
+              </button>
+            </div>
+          </div>
+
+          <div style="padding:16px;border:1px solid var(--line);border-radius:var(--radius-md)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <strong style="display:block;font-size:13px">ประวัติการทำ OT (OT Records)</strong>
+                <small style="color:var(--muted)">MT / NT / MTh / NTh / OT — สำหรับฝ่ายบุคคล</small>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="exportOTRecordsCSV()">
                 ${getIcon('download', 'icon-sm')} ส่งออก CSV
               </button>
             </div>
@@ -1360,7 +2056,7 @@ function renderDriverView() {
         <div class="card-header">
           <div class="card-title">
             <h3>รายชื่อพนักงานและจุดรับส่งวันนี้ (แยกตามกะ)</h3>
-            <p>วันศุกร์ที่ 4 กันยายน 2569 · รถตู้ทะเบียน ฮฮ-8899 กทม.</p>
+            <p>วัน${new Date(state.currentYear, state.currentMonth, Math.min(state.currentDay, new Date(state.currentYear, state.currentMonth + 1, 0).getDate())).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · รถตู้ทะเบียน ฮฮ-8899 กทม.</p>
           </div>
         </div>
 
@@ -1435,7 +2131,7 @@ function renderDriverView() {
 
 // Employee and Team Management (Supervisor)
 function renderPeopleView() {
-  const teams = ['ALL', 'Shift A', 'Shift B'];
+  const teams = ['ALL', 'Shift A', 'Shift B', 'Shift C', 'Shift D'];
   const allEmployees = getAllEmployees();
   const employees = allEmployees.filter(employee => {
     const matchesTeam = state.employeeTeamFilter === 'ALL' || employee.shiftType === state.employeeTeamFilter;
@@ -1445,14 +2141,14 @@ function renderPeopleView() {
       || employee.id.includes(searchTerm);
     return matchesTeam && matchesSearch;
   });
-  const teamCounts = ['Shift A', 'Shift B'].map(team => ({
+  const teamCounts = ['Shift A', 'Shift B', 'Shift C', 'Shift D'].map(team => ({
     team,
     count: allEmployees.filter(employee => employee.shiftType === team).length
   }));
 
   return `
     <div class="people-page">
-      <div class="people-summary" aria-label="สรุปจำนวนพนักงาน">
+      <div class="people-summary" aria-label="สรุปจำนวนพนักงาน" style="grid-template-columns:repeat(5, 1fr)">
         <div class="people-stat">
           <span class="people-stat-label">พนักงานทั้งหมด</span>
           <strong>${allEmployees.length}</strong>
@@ -1471,7 +2167,7 @@ function renderPeopleView() {
         <div class="card-header people-list-header">
           <div class="card-title">
             <h3>รายชื่อพนักงาน</h3>
-            <p>แก้ไขข้อมูลหรือย้ายพนักงานระหว่างทีมจากรายการนี้</p>
+            <p>แก้ไขข้อมูลหรือย้ายพนักงานระหว่างทีมจากรายการนี้ (มาตรฐาน 7 ตำแหน่งต่อกะ)</p>
           </div>
           <div class="people-list-tools">
             <button class="btn btn-primary people-add-button" onclick="openEmployeeForm()">
@@ -1564,6 +2260,323 @@ function renderHistoryView() {
 }
 
 // ==========================================================================
+// ANNUAL SCHEDULE (ตารางรายปี) — บทบาทวิศวกรฝ่ายผลิตเท่านั้น
+// จัดผังการหมุนเวียนกะรายทีมและวันหยุดนักขัตฤกษ์เป็น "รายปี" แก้ไขปีไหนก็ได้
+// ไม่มีการแก้ไข/สลับกะรายบุคคลหรือรายวันในหน้านี้ (ทุกช่องกะเป็นตัวอย่าง ไม่คลิกได้)
+// ==========================================================================
+function renderAnnualScheduleView() {
+  const year = state.annualScheduleYear;
+  const cfg = getAnnualConfig(year);
+
+  // พนักงานตัวแทนของแต่ละทีม ใช้คำนวณตัวเลขสรุปในภาพรวมเท่านั้น (ไม่ใช่การแก้ไขกะของคนนี้โดยเฉพาะ)
+  const repEmpByTeam = {};
+  ANNUAL_SCHEDULE_TEAMS.forEach(team => {
+    repEmpByTeam[team] = getAllEmployees().find(e => e.shiftType === team && e.roleCategory !== 'Shift Supervisor')
+      || getAllEmployees().find(e => e.shiftType === team);
+  });
+
+  // การ์ดใหญ่ ปุ่มแตะง่าย — เลือกแค่ "เช้าก่อน" หรือ "ดึกก่อน" ต่อทีม ไม่มี dropdown ให้อ่านเยอะ
+  const teamCards = ANNUAL_SCHEDULE_TEAMS.map(team => {
+    const family = getTeamFamilyForYear(team, year);
+    const memberCount = getAllEmployees().filter(e => e.shiftType === team).length;
+    const isNatural = family === NATURAL_TEAM_FAMILY[team];
+    const explain = family === 'M'
+      ? `ปีนี้เริ่มด้วย <strong>กะเช้า 2 วัน</strong> → หยุด 2 วัน → กะดึก 2 วัน → หยุด 2 วัน วนแบบนี้ตลอดทั้งปี`
+      : `ปีนี้เริ่มด้วย <strong>กะดึก 2 วัน</strong> → หยุด 2 วัน → กะเช้า 2 วัน → หยุด 2 วัน วนแบบนี้ตลอดทั้งปี`;
+    return `
+      <div class="card">
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h3 style="margin:0;font-size:17px">${team}</h3>
+            <span style="color:var(--muted);font-size:12px">${memberCount} คน${isNatural ? '' : ' · เปลี่ยนแล้ว'}</span>
+          </div>
+          <div class="big-toggle-group">
+            <button type="button" class="big-toggle-btn ${family === 'M' ? 'active' : ''}" onclick="updateAnnualTeamFamily(${year}, '${team}', 'M')">
+              ${getIcon('sun', 'icon-lg')}
+              เช้าก่อน
+            </button>
+            <button type="button" class="big-toggle-btn ${family === 'N' ? 'active family-n' : ''}" onclick="updateAnnualTeamFamily(${year}, '${team}', 'N')">
+              ${getIcon('moon', 'icon-lg')}
+              ดึกก่อน
+            </button>
+          </div>
+          <p style="font-size:13px;color:var(--ink-secondary);line-height:1.6;margin:0">${explain}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const holidays = cfg.holidays;
+  const holidayPills = holidays.length ? holidays.map((h, idx) => `
+    <span class="pill pill-draft" style="display:inline-flex;align-items:center;gap:8px;font-size:13px;padding:8px 12px">
+      ${h}
+      <button onclick="removeAnnualHoliday(${year}, ${idx})" style="border:none;background:none;cursor:pointer;color:inherit;display:flex;padding:2px" title="ลบวันหยุดนี้">${getIcon('x', 'icon-sm')}</button>
+    </span>
+  `).join('') : `<span style="color:var(--muted);font-size:13px">ยังไม่มีการตั้งค่าวันหยุดสำหรับปีนี้</span>`;
+
+  // ภาพรวม 12 เดือน — แบบการ์ดอ่านง่าย แสดงแค่ "ทำงานกี่วัน / หยุดกี่วัน" ต่อทีม ไม่มีตัวอักษรรหัสกะเรียงเป็นแถวให้ตาลาย
+  const monthNames = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString('th-TH', { month: 'long' }));
+  const monthCards = monthNames.map((label, m) => {
+    const daysInMonth = new Date(year, m + 1, 0).getDate();
+    const hasData = hasScheduleDataForMonth(year, m);
+    const teamRows = ANNUAL_SCHEDULE_TEAMS.map(team => {
+      const emp = repEmpByTeam[team];
+      if (!emp) return '';
+      let morningDays = 0, nightDays = 0, offDays = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const code = getShiftCodeForDate(emp, year, m, d);
+        const def = state.shiftDefs[code];
+        if (code === 'O') offDays++;
+        else if (def && def.family === 'M') morningDays++;
+        else if (def && def.family === 'N') nightDays++;
+      }
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-top:1px dashed var(--line);font-size:13px">
+          <span style="font-weight:700">${team}</span>
+          <span style="display:flex;align-items:center;gap:12px;color:var(--ink-secondary)">
+            <span style="display:flex;align-items:center;gap:3px">${getIcon('sun', 'icon-xs')} ${morningDays}</span>
+            <span style="display:flex;align-items:center;gap:3px">${getIcon('moon', 'icon-xs')} ${nightDays}</span>
+            <span>หยุด ${offDays}</span>
+          </span>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="card">
+        <div class="card-body" style="padding:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+            <strong style="font-size:15px">${label}</strong>
+            ${hasData ? `<span class="pill pill-approved" style="font-size:10px;padding:2px 9px">ข้อมูลจริง</span>` : ''}
+          </div>
+          ${teamRows}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="page-header">
+      <div class="page-headline">
+        <h1>ตารางรายปี</h1>
+        <p>ตั้งค่าว่าแต่ละทีมเริ่มกะเช้าหรือกะดึกก่อน และวันหยุดนักขัตฤกษ์ของปีนั้นๆ — หน้านี้ไม่ใช่การสลับ/แก้กะพนักงานรายคน (ทำได้ที่หน้าหัวหน้างานกะเท่านั้น)</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-body" style="display:flex;align-items:center;gap:14px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-secondary" style="width:52px;padding:0" onclick="jumpAnnualYear(-1)" aria-label="ปีก่อนหน้า">${getIcon('arrowLeft', 'icon-sm')}</button>
+        <div style="font-weight:800;font-size:20px;min-width:100px;text-align:center">ปี ${year}</div>
+        <button class="btn btn-secondary" style="width:52px;padding:0" onclick="jumpAnnualYear(1)" aria-label="ปีถัดไป">${getIcon('arrowRight', 'icon-sm')}</button>
+        ${year !== SCHEDULE_DATA_YEAR ? `<button class="btn btn-secondary" onclick="jumpAnnualYearTo(${SCHEDULE_DATA_YEAR})">กลับปีปัจจุบัน (${SCHEDULE_DATA_YEAR})</button>` : ''}
+      </div>
+    </div>
+
+    <div class="page-header" style="margin-bottom:12px">
+      <div class="page-headline">
+        <h2 style="font-size:16px;margin:0 0 4px">ทิศทางกะของแต่ละทีม · ปี ${year}</h2>
+        <p style="margin:0">แตะเลือกว่าทีมไหนเริ่มกะเช้าหรือกะดึกก่อน (มีผลเฉพาะเดือนที่ยังไม่มีข้อมูลจริง ไม่กระทบตารางจริงเดือนสิงหาคม ${SCHEDULE_DATA_YEAR})</p>
+      </div>
+    </div>
+    <div class="grid-4col" style="margin-bottom:24px">
+      ${teamCards}
+    </div>
+
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-header">
+        <div class="card-title">
+          <h3>วันหยุดนักขัตฤกษ์ · ปี ${year}</h3>
+          <p>ใช้ตรวจสอบเมื่อพนักงานขอสิทธิ์วันหยุดนักขัตฤกษ์</p>
+        </div>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-wrap:wrap;gap:10px">${holidayPills}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="form-control" id="newHolidayInput" placeholder="เช่น 01 ม.ค. ${year + 543}" style="flex:1;min-width:200px" onkeyup="if(event.key==='Enter') addAnnualHoliday(${year})">
+          <button class="btn btn-primary" onclick="addAnnualHoliday(${year})" style="white-space:nowrap">${getIcon('plus', 'icon-sm')} เพิ่มวันหยุด</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-header" style="margin-bottom:12px">
+      <div class="page-headline">
+        <h2 style="font-size:16px;margin:0 0 4px">ภาพรวมทั้งปี ${year}</h2>
+        <p style="margin:0">จำนวนวันทำงาน/หยุดของแต่ละทีมในแต่ละเดือน ตามผังที่ตั้งไว้ด้านบน (ดูอย่างเดียว แตะแก้ไขไม่ได้)</p>
+      </div>
+    </div>
+    <div class="grid-3col">
+      ${monthCards}
+    </div>
+  `;
+}
+
+function jumpAnnualYear(delta) {
+  state.annualScheduleYear += delta;
+  renderApp();
+}
+
+function jumpAnnualYearTo(rawYear) {
+  const y = parseInt(rawYear, 10);
+  if (!y || y < 2000 || y > 2200) {
+    showToast('กรุณาระบุปี ค.ศ. ที่ถูกต้อง', 'alert');
+    return;
+  }
+  state.annualScheduleYear = y;
+  renderApp();
+}
+
+function updateAnnualTeamFamily(year, team, value) {
+  const cfg = getAnnualConfig(year);
+  cfg.teamFamily[team] = value;
+  showToast(`อัปเดตทิศทางกะของ ${team} ปี ${year} เรียบร้อยแล้ว`);
+  renderApp();
+}
+
+function addAnnualHoliday(year) {
+  const input = document.getElementById('newHolidayInput');
+  const value = input?.value?.trim();
+  if (!value) {
+    showToast('กรุณาระบุชื่อ/วันที่วันหยุด', 'alert');
+    return;
+  }
+  const cfg = getAnnualConfig(year);
+  cfg.holidays.push(value);
+  showToast('เพิ่มวันหยุดนักขัตฤกษ์เรียบร้อยแล้ว');
+  renderApp();
+}
+
+function removeAnnualHoliday(year, index) {
+  const cfg = getAnnualConfig(year);
+  cfg.holidays.splice(index, 1);
+  showToast('ลบวันหยุดนักขัตฤกษ์เรียบร้อยแล้ว');
+  renderApp();
+}
+
+// ==========================================================================
+// ENGINEER SELF-SERVICE CONFIGURATION PANEL (ข้อ 8 SRS)
+// ==========================================================================
+function renderManagerSettingsView() {
+  const cfg = state.managerConfig;
+
+  return `
+    <div class="page-header">
+      <div class="page-headline">
+        <h1>ตั้งค่าระบบ (Engineer Self-Service Configuration)</h1>
+        <p>บริหารจัดการโครงสร้างกะและกำลังพลได้เองโดยไม่ต้องพึ่ง IT ตามข้อ 8 ของ SRS</p>
+      </div>
+    </div>
+
+    <div class="grid-2col">
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <h3>ช่วงเวลากะการทำงาน</h3>
+              <p>ปรับเปลี่ยนช่วงเวลาของแต่ละรหัสกะ (M, MT, N, NT, D)</p>
+            </div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+            ${Object.keys(cfg.shiftTimes).map(code => `
+              <div class="form-group">
+                <label>${code} — ${state.shiftDefs[code]?.label || ''}</label>
+                <input class="form-control" value="${cfg.shiftTimes[code]}" onchange="updateManagerShiftTime('${code}', this.value)">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <h3>วันหยุดนักขัตฤกษ์ประจำปี ${state.currentYear}</h3>
+              <p>รายการวันหยุดที่ระบบจะใช้ตรวจสอบเมื่อผูกกับรหัสกะ H — จัดการรายปีได้ที่หน้า "ตารางรายปี"</p>
+            </div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${getHolidaysForYear(state.currentYear).length ? getHolidaysForYear(state.currentYear).map(h => `<span class="pill pill-draft">${h}</span>`).join('') : `<span style="color:var(--muted);font-size:12px">ยังไม่มีการตั้งค่าวันหยุดสำหรับปีนี้</span>`}
+            </div>
+            <button class="btn btn-secondary" style="width:100%;justify-content:space-between" onclick="switchView('annual-schedule')">
+              ไปตั้งค่าตารางรายปี / วันหยุดนักขัตฤกษ์ ${getIcon('arrowRight', 'icon-sm')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <h3>กำลังพลมาตรฐานต่อกะ</h3>
+              <p>7 ตำแหน่งต่อทีม (หัวหน้ากะ 1 + พนักงานกะ 6)</p>
+            </div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+            <div class="form-group">
+              <label>หัวหน้ากะ (Shift Supervisor)</label>
+              <input class="form-control" value="${cfg.standardHeadcount.supervisor} ตำแหน่ง/กะ" disabled>
+            </div>
+            <div class="form-group">
+              <label>พนักงานกะ (Boardman / Field Operator)</label>
+              <input class="form-control" value="${cfg.standardHeadcount.operator} ตำแหน่ง/กะ" disabled>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <h3>กฎความปลอดภัยและสิทธิ์คำขอ</h3>
+              <p>ค่าที่ใช้ในเครื่องมือตรวจสอบอัตโนมัติ (Validation Engine)</p>
+            </div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+            <div class="form-group">
+              <label>วันทำงานติดต่อกันสูงสุด</label>
+              <input class="form-control" type="number" value="${cfg.maxConsecutiveWorkDays}" onchange="updateManagerRule('maxConsecutiveWorkDays', this.value)">
+            </div>
+            <div class="form-group">
+              <label>สิทธิ์คำขอสลับ/เปลี่ยนกะ สูงสุดต่อเดือน</label>
+              <input class="form-control" type="number" value="${cfg.swapRequestMonthlyLimit}" onchange="updateManagerRule('swapRequestMonthlyLimit', this.value)">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <h3>โครงสร้างทีมกะ</h3>
+              <p>จัดการรายชื่อสมาชิกในแต่ละทีม (Shift A, B, C, D)</p>
+            </div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-secondary" style="width:100%;justify-content:space-between" onclick="switchRole('Supervisor'); switchView('people')">
+              ไปที่หน้าจัดการพนักงานและทีม ${getIcon('arrowRight', 'icon-sm')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function updateManagerShiftTime(code, value) {
+  state.managerConfig.shiftTimes[code] = value;
+  showToast(`อัปเดตช่วงเวลากะ ${code} เรียบร้อยแล้ว`);
+}
+
+function updateManagerRule(key, rawValue) {
+  const value = parseInt(rawValue, 10);
+  if (Number.isNaN(value) || value <= 0) {
+    showToast('กรุณาระบุตัวเลขที่มากกว่า 0', 'alert');
+    renderApp();
+    return;
+  }
+  state.managerConfig[key] = value;
+  showToast('บันทึกค่าคอนฟิกเรียบร้อยแล้ว');
+  renderApp();
+}
+
+// ==========================================================================
 // MODALS & ACTIONS
 // ==========================================================================
 
@@ -1571,51 +2584,78 @@ function openShiftEditor(empId, dayNum) {
   const emp = findEmployeeById(empId);
   if (!emp) return;
 
+  // HR: ดึงข้อมูล (view/export) ได้เท่านั้น ห้ามแก้ไขตารางกะใดๆ ทั้งสิ้น
+  if (state.activeRole === 'HR') {
+    showToast('บทบาท HR สามารถดึงข้อมูลได้เท่านั้น ไม่สามารถแก้ไขตารางกะได้', 'alert');
+    return;
+  }
+
+  if (isMonthLocked(state.currentYear, state.currentMonth)) {
+    showToast('เดือนนี้ถูกล็อกข้อมูลแล้ว ไม่สามารถแก้ไขได้ (ข้อ 10 SRS)', 'alert');
+    return;
+  }
+
   const currentViewer = state.activeRole === 'Shift Operator'
     ? getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name)
     : null;
   const isOperatorRequest = state.activeRole === 'Shift Operator';
   const isOwnRow = isOperatorRequest && currentViewer?.id === emp.id;
-  const requestMode = isOwnRow ? 'change' : 'swap';
-  const currentShift = emp.shifts[dayNum - 1];
+
+  // เพื่อนร่วมงาน → เปิด modal สลับกะโดยเฉพาะ (ตรวจสอบทั้งสองฝั่ง + โหมดลา+OT)
+  if (isOperatorRequest && !isOwnRow) {
+    openColleagueSwapModal(currentViewer, emp, dayNum);
+    return;
+  }
+
+  const currentShift = getShiftCodeForDate(emp, state.currentYear, state.currentMonth, dayNum);
   const initialValidation = validateShiftAssignment(empId, dayNum, currentShift);
   const modalTitle = isOperatorRequest
-    ? `${isOwnRow ? 'ขอเปลี่ยนกะของฉัน' : 'ขอสลับกะกับเพื่อนร่วมงาน'} · ${emp.name}`
+    ? `ขอเปลี่ยนกะของฉัน · ${emp.name}`
     : `ปรับแก้กะพนักงาน · ${emp.name}`;
-  const shiftLabel = isOperatorRequest
-    ? (isOwnRow ? 'กะที่ต้องการเปลี่ยน' : 'กะของเพื่อนร่วมงาน')
-    : 'ประเภทกะที่มอบหมาย';
+  const shiftLabel = isOperatorRequest ? 'กะที่ต้องการเปลี่ยน' : 'ประเภทกะที่มอบหมาย';
   const submitAction = isOperatorRequest
-    ? `submitOperatorShiftRequest('${empId}', ${dayNum}, '${requestMode}')`
+    ? `submitOperatorShiftRequest('${empId}', ${dayNum}, 'change')`
     : `saveShiftEdit('${empId}', ${dayNum})`;
-  const submitLabel = isOperatorRequest
-    ? (isOwnRow ? 'ส่งคำขอเปลี่ยนกะ' : 'ส่งคำขอสลับกะ')
-    : 'บันทึกการปรับกะ';
+  const submitLabel = isOperatorRequest ? 'ส่งคำขอเปลี่ยนกะ' : 'บันทึกการปรับกะ';
+
+  // ข้อ 9 SRS: ดึงข้อมูลผู้ร้องขออัตโนมัติ (Auto-populate) — รหัส/แผนก/เบอร์โทร
+  const autoPopulateHtml = isOperatorRequest ? `
+    <div class="form-group">
+      <label>ข้อมูลผู้ร้องขอ (ดึงอัตโนมัติจากระบบ)</label>
+      <input class="form-control" value="รหัส ${currentViewer?.code || '-'} · ${currentViewer?.shiftType || '-'} · โทร ${currentViewer?.phone || '-'}" disabled>
+    </div>
+  ` : '';
+
+  // เลือกตัวเลือกรหัสกะให้ครบตามข้อ 3 SRS
+  const shiftOptionGroups = [
+    { label: 'กะเช้า', codes: ['M', 'MT', 'MTh'] },
+    { label: 'กะดึก', codes: ['N', 'NT', 'NTh'] },
+    { label: 'อื่นๆ', codes: ['D', 'OT', 'O'] },
+    { label: 'สลับ/ปรับกะ', codes: ['N/M', 'M/N', 'M/O', 'N/O', 'O/M', 'O/N'] },
+    { label: 'ลา/หยุด', codes: ['V', 'B', 'S', 'H', 'VG', 'VGh'] }
+  ];
 
   const bodyHtml = `
     <form id="shiftEditForm" onsubmit="event.preventDefault(); ${submitAction}">
+      ${autoPopulateHtml}
       <div class="form-group">
-        <label>${isOperatorRequest && !isOwnRow ? 'เพื่อนร่วมงาน' : 'พนักงานในกะ'}</label>
+        <label>พนักงานในกะ</label>
         <input class="form-control" value="${emp.name} (${emp.roleCategory} · ${emp.shiftType})" disabled>
       </div>
 
       <div class="form-group">
         <label>วันที่</label>
-        <input class="form-control" value="${dayNum} กันยายน 2569" disabled>
+        <input class="form-control" value="${dayNum} ${new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}" disabled>
       </div>
 
       <div class="form-group">
         <label>${shiftLabel}</label>
         <select class="form-control" id="modalShiftSelect" onchange="runLiveShiftValidation('${empId}', ${dayNum}, this.value)">
-          <option value="M" ${currentShift === 'M' ? 'selected' : ''}>M · กะเช้า (07:30–19:30)</option>
-          <option value="MT" ${currentShift === 'MT' ? 'selected' : ''}>MT · กะเช้า + OT ส่งต่องาน</option>
-          <option value="N" ${currentShift === 'N' ? 'selected' : ''}>N · กะกลางคืน (19:30–07:30)</option>
-          <option value="NT" ${currentShift === 'NT' ? 'selected' : ''}>NT · กะดึก + OT ส่งต่องาน</option>
-          <option value="O" ${currentShift === 'O' ? 'selected' : ''}>O · วันหยุดพักผ่อน</option>
-          <option value="V" ${currentShift === 'V' ? 'selected' : ''}>V · ลาพักร้อน</option>
-          <option value="B" ${currentShift === 'B' ? 'selected' : ''}>B · ลากิจ</option>
-          <option value="S" ${currentShift === 'S' ? 'selected' : ''}>S · ลาป่วย</option>
-          <option value="H" ${currentShift === 'H' ? 'selected' : ''}>H · วันหยุดนักขัตฤกษ์</option>
+          ${shiftOptionGroups.map(group => `
+            <optgroup label="${group.label}">
+              ${group.codes.map(code => `<option value="${code}" ${currentShift === code ? 'selected' : ''}>${code} · ${state.shiftDefs[code].label}</option>`).join('')}
+            </optgroup>
+          `).join('')}
         </select>
       </div>
 
@@ -1627,7 +2667,7 @@ function openShiftEditor(empId, dayNum) {
 
   const footerHtml = `
     <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
-    <button type="button" class="btn btn-primary" id="btnSaveShift" onclick="${submitAction}">
+    <button type="button" class="btn btn-primary" id="btnSaveShift" ${!initialValidation.valid ? 'disabled' : ''} onclick="${submitAction}">
       ${submitLabel}
     </button>
   `;
@@ -1635,36 +2675,292 @@ function openShiftEditor(empId, dayNum) {
   openModal(modalTitle, bodyHtml, footerHtml);
 }
 
+// รายชื่อเพื่อนร่วมงานที่มีสิทธิ์สลับกะด้วยได้ (Eligible Swap Colleagues):
+//  - หัวหน้ากะ (Shift Supervisor) สลับได้เฉพาะกับหัวหน้ากะด้วยกันเท่านั้น
+//  - พนักงานทั่วไป ห้ามสลับกะกับเพื่อนร่วมงานใน "shift" (ทีม) เดียวกันของตนเอง ต้องเป็นคนละทีมเท่านั้น
+function getEligibleSwapColleagues(aEmp) {
+  const others = getAllEmployees().filter(e => e.id !== aEmp.id);
+  if (aEmp.roleCategory === 'Shift Supervisor') {
+    return others.filter(e => e.roleCategory === 'Shift Supervisor');
+  }
+  return others.filter(e => e.shiftType !== aEmp.shiftType);
+}
+
+// --------------------------------------------------------------------------
+// Colleague Swap Modal — สองโหมด:
+//  A) สลับกะกัน (Mutual Swap) — กำหนดตายตัว (A รับกะเดิมของ B, B รับกะเดิมของ A)
+//     ต้องตรวจสอบทั้งสองฝั่ง (check both operator)
+//  B) ฉันขอลา + ให้เพื่อนร่วมงานทำ OT แทน (Leave + OT Cover) — ตรวจสอบเฉพาะฝั่ง OT (check only B)
+//
+// ผู้ยื่นคำขอสามารถเปลี่ยนชื่อเพื่อนร่วมงานที่จะสลับด้วยได้ผ่าน dropdown แต่ตัวเลือกจะถูกจำกัด
+// ตามกฎ: หัวหน้ากะสลับได้แค่กับหัวหน้ากะ / พนักงานทั่วไปห้ามสลับกับคนใน shift (ทีม) ตัวเอง
+// --------------------------------------------------------------------------
+function openColleagueSwapModal(aEmp, bEmp, dayNum) {
+  if (!aEmp) return;
+
+  const eligible = getEligibleSwapColleagues(aEmp);
+  if (!eligible.length) {
+    showToast('ไม่พบเพื่อนร่วมงานที่มีสิทธิ์สลับกะด้วยตามเงื่อนไข', 'alert');
+    return;
+  }
+
+  // ถ้าคนที่คลิกมาไม่อยู่ในรายชื่อที่มีสิทธิ์ (เช่น เป็นคนในทีมเดียวกัน) ให้เลือกคนแรกที่มีสิทธิ์แทนโดยอัตโนมัติ
+  if (!bEmp || !eligible.some(e => e.id === bEmp.id)) {
+    bEmp = eligible[0];
+  }
+
+  const aOldCode = getShiftCodeForDate(aEmp, state.currentYear, state.currentMonth, dayNum);
+  const bOldCode = getShiftCodeForDate(bEmp, state.currentYear, state.currentMonth, dayNum);
+  const monthLabel = new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  const restrictionNote = aEmp.roleCategory === 'Shift Supervisor'
+    ? 'หัวหน้ากะสามารถสลับกะได้เฉพาะกับหัวหน้ากะทีมอื่นเท่านั้น'
+    : 'ไม่สามารถสลับกะกับเพื่อนร่วมงานในทีม (Shift) เดียวกับตนเองได้ ต้องเป็นคนละทีม';
+
+  const bodyHtml = `
+    <div class="form-group">
+      <label>ข้อมูลผู้ร้องขอ (ดึงอัตโนมัติจากระบบ)</label>
+      <input class="form-control" value="${aEmp.name} · รหัส ${aEmp.code} · ${aEmp.shiftType} · โทร ${aEmp.phone}" disabled>
+    </div>
+    <div class="form-group">
+      <label>เพื่อนร่วมงาน (เปลี่ยนได้ — ${restrictionNote})</label>
+      <select class="form-control" id="colleagueSelect" onchange="changeColleagueSwapTarget('${aEmp.id}', this.value, ${dayNum})">
+        ${eligible.map(e => `<option value="${e.id}" ${e.id === bEmp.id ? 'selected' : ''}>${e.name} (${e.roleCategory} · ${e.shiftType}) · โทร ${e.phone}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>วันที่</label>
+      <input class="form-control" value="${dayNum} ${monthLabel} (กะเดิม — คุณ: ${aOldCode} · เพื่อนร่วมงาน: ${bOldCode})" disabled>
+    </div>
+    <div class="form-group">
+      <label>ประเภทคำขอ</label>
+      <select class="form-control" id="swapModeSelect" onchange="renderColleagueSwapValidation('${aEmp.id}', '${bEmp.id}', ${dayNum})">
+        <option value="mutual">สลับกะกัน (Mutual Swap) — คุณ ${aOldCode} ↔ เพื่อนร่วมงาน ${bOldCode}</option>
+        <option value="leaveOT">ฉันขอลา + ให้เพื่อนร่วมงานทำ OT แทน (Leave + OT Cover)</option>
+      </select>
+    </div>
+    <div id="swapModeExtra"></div>
+    <div class="validation-panel" id="modalValidationPanel"></div>
+  `;
+
+  const footerHtml = `
+    <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+    <button type="button" class="btn btn-primary" id="btnSaveShift" onclick="submitColleagueSwapRequest('${aEmp.id}', '${bEmp.id}', ${dayNum})">
+      ส่งคำขอ
+    </button>
+  `;
+
+  openModal(`ขอสลับกะกับเพื่อนร่วมงาน · ${bEmp.name}`, bodyHtml, footerHtml);
+  renderColleagueSwapValidation(aEmp.id, bEmp.id, dayNum);
+}
+
+// เมื่อผู้ยื่นคำขอเปลี่ยนชื่อเพื่อนร่วมงานจาก dropdown — เปิด modal ใหม่ด้วยคู่สลับที่เลือก
+function changeColleagueSwapTarget(aId, newBId, dayNum) {
+  const aEmp = findEmployeeById(aId);
+  const bEmp = findEmployeeById(newBId);
+  if (!aEmp || !bEmp) return;
+  openColleagueSwapModal(aEmp, bEmp, dayNum);
+}
+
+function renderColleagueSwapValidation(aId, bId, day) {
+  const mode = document.getElementById('swapModeSelect')?.value || 'mutual';
+  const extraEl = document.getElementById('swapModeExtra');
+  const panel = document.getElementById('modalValidationPanel');
+  const btn = document.getElementById('btnSaveShift');
+  const aEmp = findEmployeeById(aId);
+  const bEmp = findEmployeeById(bId);
+  if (!aEmp || !bEmp) return;
+
+  if (mode === 'mutual') {
+    if (extraEl) extraEl.innerHTML = '';
+    // ตรวจสอบทั้งสองฝั่ง (check both operator)
+    const swap = validateSwapBothSides(aId, bId, day);
+    if (panel) {
+      panel.innerHTML = `
+        <div class="validation-panel-title">ผลตรวจสอบฝั่งคุณ (${aEmp.name}: ${swap.aOldCode} → ${swap.aNewCode})</div>
+        ${swap.sideA.results.map(c => renderCheckItem(c)).join('')}
+        <div class="validation-panel-title" style="margin-top:10px">ผลตรวจสอบฝั่งเพื่อนร่วมงาน (${bEmp.name}: ${swap.bOldCode} → ${swap.bNewCode})</div>
+        ${swap.sideB.results.map(c => renderCheckItem(c)).join('')}
+      `;
+    }
+    if (btn) btn.disabled = !swap.valid;
+  } else {
+    // leaveOT mode: A ลา, B ทำ OT แทน — ตรวจสอบเฉพาะฝั่ง B (check only B)
+    if (extraEl) {
+      extraEl.innerHTML = `
+        <div class="form-group">
+          <label>ประเภทการลาของคุณ</label>
+          <select class="form-control" id="leaveTypeSelect" onchange="renderColleagueSwapValidation('${aId}','${bId}',${day})">
+            <option value="V">V · ลาพักร้อน</option>
+            <option value="B">B · ลากิจ</option>
+            <option value="S">S · ลาป่วย</option>
+            <option value="VG">VG · ลาอื่นๆ</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>รหัส OT ที่ให้เพื่อนร่วมงานทำแทน</label>
+          <select class="form-control" id="otCodeSelect" onchange="renderColleagueSwapValidation('${aId}','${bId}',${day})">
+            <option value="MT">MT · กะเช้า + OT</option>
+            <option value="NT">NT · กะดึก + OT</option>
+            <option value="MTh">MTh · กะเช้า + OT ครึ่งวัน</option>
+            <option value="NTh">NTh · กะดึก + OT ครึ่งวัน</option>
+            <option value="OT">OT · ทำงานล่วงเวลา</option>
+          </select>
+        </div>
+      `;
+    }
+    const otCode = document.getElementById('otCodeSelect')?.value || 'MT';
+    const otCheck = validateOTRequest(bId, day, otCode);
+    if (panel) {
+      panel.innerHTML = `
+        <div class="validation-panel-title">ตรวจสอบเฉพาะฝั่งเพื่อนร่วมงานที่ทำ OT (${bEmp.name}) — ฝั่งที่ลาไม่ต้องตรวจสอบกฎกะเพิ่มเติม</div>
+        ${otCheck.results.map(c => renderCheckItem(c)).join('')}
+      `;
+    }
+    if (btn) btn.disabled = !otCheck.valid;
+  }
+}
+
+function submitColleagueSwapRequest(aId, bId, day) {
+  const aEmp = findEmployeeById(aId);
+  const bEmp = findEmployeeById(bId);
+  if (!aEmp || !bEmp) return;
+
+  const usedQuota = countMonthlySwapRequests(aId);
+  const quotaLimit = state.managerConfig.swapRequestMonthlyLimit;
+  if (usedQuota >= quotaLimit) {
+    showToast(`ไม่สามารถส่งคำขอได้ — ใช้สิทธิ์ครบ ${quotaLimit} ครั้ง/เดือนแล้ว`, 'alert');
+    return;
+  }
+
+  const mode = document.getElementById('swapModeSelect')?.value || 'mutual';
+  const dateLabel = `${day} ${new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}`;
+  const isCrossShift = aEmp.shiftType !== bEmp.shiftType;
+  const requestId = Date.now();
+
+  if (mode === 'mutual') {
+    const swap = validateSwapBothSides(aId, bId, day);
+    if (!swap.valid) {
+      showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบไม่ผ่านเงื่อนไข', 'alert');
+      return;
+    }
+    state.requests.unshift({
+      id: requestId,
+      type: 'สลับกะ',
+      person: aEmp.name,
+      requesterId: aEmp.id,
+      initials: aEmp.initials,
+      roleCategory: aEmp.roleCategory,
+      targetPerson: bEmp.name,
+      targetRole: bEmp.roleCategory,
+      date: dateLabel,
+      currentShift: swap.aOldCode,
+      targetShift: swap.aNewCode,
+      reason: `สลับกะกับ ${bEmp.name} (${swap.aOldCode} ↔ ${swap.bOldCode})`,
+      isCrossShift,
+      approvers: buildApprovalChain(aEmp, bEmp).chain,
+      status: 'รอดำเนินการ',
+      submittedAt: 'เมื่อสักครู่',
+      quotaUsed: `${usedQuota + 1} / ${quotaLimit} ครั้ง`
+    });
+    state.auditLogs.unshift({
+      id: requestId,
+      actor: aEmp.name,
+      employeeId: aEmp.id,
+      avatar: aEmp.initials,
+      action: `ยื่นคำขอสลับกะวันที่ ${dateLabel} กับ ${bEmp.name} (${swap.aOldCode} ↔ ${swap.bOldCode})`,
+      time: 'เมื่อสักครู่'
+    });
+    closeModal();
+    showToast(`ส่งคำขอสลับกะเรียบร้อยแล้ว (ใช้สิทธิ์ ${usedQuota + 1}/${quotaLimit} ครั้งในเดือนนี้)`);
+  } else {
+    const leaveCode = document.getElementById('leaveTypeSelect')?.value || 'V';
+    const otCode = document.getElementById('otCodeSelect')?.value || 'MT';
+    const otCheck = validateOTRequest(bId, day, otCode);
+    if (!otCheck.valid) {
+      showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบฝั่ง OT ไม่ผ่านเงื่อนไข', 'alert');
+      return;
+    }
+    state.requests.unshift({
+      id: requestId,
+      type: 'ลา + OT คุมกะแทน',
+      person: aEmp.name,
+      requesterId: aEmp.id,
+      initials: aEmp.initials,
+      roleCategory: aEmp.roleCategory,
+      targetPerson: bEmp.name,
+      targetRole: bEmp.roleCategory,
+      date: dateLabel,
+      currentShift: getShiftCodeForDate(aEmp, state.currentYear, state.currentMonth, day),
+      targetShift: leaveCode,
+      reason: `${aEmp.name} ขอลา (${leaveCode}) และให้ ${bEmp.name} ทำ OT (${otCode}) แทน${otCheck.requiresManagerSpecialReview ? ' — มีวันลาพักร้อนซ้อนทับ ต้องอนุมัติพิเศษจากผู้จัดการ' : ''}`,
+      isCrossShift: false,
+      approvers: [
+        { role: `หัวหน้ากะตรวจสอบ (${bEmp.shiftType})`, status: 'pending' },
+        { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
+      ],
+      status: 'รอดำเนินการ',
+      submittedAt: 'เมื่อสักครู่',
+      quotaUsed: `${usedQuota + 1} / ${quotaLimit} ครั้ง`
+    });
+    state.auditLogs.unshift({
+      id: requestId,
+      actor: aEmp.name,
+      employeeId: aEmp.id,
+      avatar: aEmp.initials,
+      action: `ยื่นคำขอลา (${leaveCode}) พร้อมให้ ${bEmp.name} ทำ OT (${otCode}) แทน วันที่ ${dateLabel}`,
+      time: 'เมื่อสักครู่'
+    });
+    closeModal();
+    showToast('ส่งคำขอลา + OT คุมกะแทนเรียบร้อยแล้ว (ตรวจสอบเฉพาะฝั่งผู้ทำ OT)');
+  }
+
+  state.activeView = 'my-requests';
+  renderApp();
+}
+
+function renderCheckItem(c) {
+  return `
+    <div class="validation-check-item ${c.status}">
+      ${c.status === 'pass' ? getIcon('check', 'icon-sm') : c.status === 'warn' ? getIcon('alert', 'icon-sm') : getIcon('x', 'icon-sm')}
+      <span><strong>${c.rule}:</strong> ${c.msg}</span>
+    </div>
+  `;
+}
+
 function renderValidationChecks(checks) {
   return `
     <div class="validation-panel-title">ผลการตรวจสอบกฎความปลอดภัยและข้อกำหนด</div>
-    ${checks.map(c => `
-      <div class="validation-check-item ${c.status}">
-        ${c.status === 'pass' ? getIcon('check', 'icon-sm') : c.status === 'warn' ? getIcon('alert', 'icon-sm') : getIcon('x', 'icon-sm')}
-        <span><strong>${c.rule}:</strong> ${c.msg}</span>
-      </div>
-    `).join('')}
+    ${checks.map(c => renderCheckItem(c)).join('')}
   `;
 }
 
 function runLiveShiftValidation(empId, dayNum, shiftCode) {
-  const validation = validateShiftAssignment(empId, dayNum, shiftCode);
+  const isOT = state.shiftDefs[shiftCode] && state.shiftDefs[shiftCode].ot;
+  const validation = isOT ? validateOTRequest(empId, dayNum, shiftCode) : validateShiftAssignment(empId, dayNum, shiftCode);
   const panel = document.getElementById('modalValidationPanel');
   const btn = document.getElementById('btnSaveShift');
-  
+
   if (panel) panel.innerHTML = renderValidationChecks(validation.results);
   if (btn) btn.disabled = !validation.valid;
 }
 
 function submitOperatorShiftRequest(targetEmpId, dayNum, requestMode) {
   const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
-  const targetEmp = findEmployeeById(targetEmpId);
   const shiftCode = document.getElementById('modalShiftSelect')?.value;
-  if (!currentEmp || !targetEmp || !shiftCode) return;
+  if (!currentEmp || !shiftCode) return;
 
-  const requestType = requestMode === 'change' ? 'ขอเปลี่ยนกะ' : 'ขอสลับกะ';
+  // บังคับสิทธิ์คำขอสลับ/เปลี่ยนกะ ไม่เกิน 2 ครั้ง/เดือน (ข้อ 6 SRS)
+  const usedQuota = countMonthlySwapRequests(currentEmp.id);
+  const quotaLimit = state.managerConfig.swapRequestMonthlyLimit;
+  if (usedQuota >= quotaLimit) {
+    showToast(`ไม่สามารถส่งคำขอได้ — ใช้สิทธิ์ครบ ${quotaLimit} ครั้ง/เดือนแล้ว`, 'alert');
+    return;
+  }
+
+  const isOT = state.shiftDefs[shiftCode] && state.shiftDefs[shiftCode].ot;
+  const requestType = isOT ? 'ขอทำ OT' : 'ขอเปลี่ยนกะ';
   const requestId = Date.now();
-  const dateLabel = `${dayNum} ก.ย. 2569`;
+  const dateLabel = `${dayNum} ${new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' })}`;
 
   state.requests.unshift({
     id: requestId,
@@ -1673,19 +2969,25 @@ function submitOperatorShiftRequest(targetEmpId, dayNum, requestMode) {
     requesterId: currentEmp.id,
     initials: currentEmp.initials,
     roleCategory: currentEmp.roleCategory,
-    targetPerson: requestMode === 'swap' ? targetEmp.name : null,
-    targetRole: requestMode === 'swap' ? targetEmp.roleCategory : null,
+    targetPerson: null,
+    targetRole: null,
     date: dateLabel,
-    currentShift: currentEmp.shifts[dayNum - 1],
+    currentShift: getShiftCodeForDate(currentEmp, state.currentYear, state.currentMonth, dayNum),
     targetShift: shiftCode,
-    reason: requestMode === 'change'
-      ? `ขอเปลี่ยนกะของฉันเป็น ${shiftCode}`
-      : `ขอสลับกะกับ ${targetEmp.name}`,
-    isCrossShift: requestMode === 'swap' && currentEmp.shiftType !== targetEmp.shiftType,
-    approvers: [{ role: `Shift Supervisor (${currentEmp.shiftType})`, status: 'pending' }],
+    reason: isOT
+      ? `ขอทำ OT (${shiftCode}) วันที่ ${dateLabel}`
+      : `ขอเปลี่ยนกะของฉันเป็น ${shiftCode}`,
+    isCrossShift: false,
+    // OT ต้องผ่าน 2 ขั้นตอน: หัวหน้ากะตรวจสอบ → ผู้จัดการอนุมัติ
+    approvers: isOT
+      ? [
+          { role: `หัวหน้ากะตรวจสอบ (${currentEmp.shiftType})`, status: 'pending' },
+          { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
+        ]
+      : [{ role: `Shift Supervisor (${currentEmp.shiftType})`, status: 'pending' }],
     status: 'รอดำเนินการ',
     submittedAt: 'เมื่อสักครู่',
-    quotaUsed: requestMode === 'swap' ? '1 / 2 ครั้ง' : '-'
+    quotaUsed: `${usedQuota + 1} / ${quotaLimit} ครั้ง`
   });
 
   state.auditLogs.unshift({
@@ -1693,28 +2995,393 @@ function submitOperatorShiftRequest(targetEmpId, dayNum, requestMode) {
     actor: currentEmp.name,
     employeeId: currentEmp.id,
     avatar: currentEmp.initials,
-    action: `${requestType}วันที่ ${dateLabel}${requestMode === 'swap' ? ` กับ ${targetEmp.name}` : ''}`,
+    action: `${requestType}วันที่ ${dateLabel}`,
     time: 'เมื่อสักครู่'
   });
 
   closeModal();
-  showToast(`ส่ง${requestType}เรียบร้อยแล้ว`);
+  showToast(`ส่ง${requestType}เรียบร้อยแล้ว (ใช้สิทธิ์ ${usedQuota + 1}/${quotaLimit} ครั้งในเดือนนี้)`);
+  state.activeView = 'my-requests';
+  renderApp();
+}
+
+// ===== Leave Request (ขอลา) — ฟีเจอร์ Leave Request ใน Design Draft =====
+function openLeaveRequestModal(empId) {
+  const emp = findEmployeeById(empId);
+  if (!emp) return;
+
+  const todayDay = Math.min(state.currentDay, 28);
+  // เพื่อนร่วมทีมที่สามารถเลือกมาทำงานแทนวันที่ลาได้ (คนที่จะเข้ามารับกะแทนควรอยู่ทีมเดียวกัน)
+  const coverCandidates = getAllEmployees().filter(e => e.id !== emp.id && e.shiftType === emp.shiftType);
+
+  const bodyHtml = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="form-group">
+        <label>พนักงานผู้ยื่นคำขอ</label>
+        <div class="form-control" style="background:var(--bg-subtle)">${emp.name} (${emp.shiftType})</div>
+      </div>
+      <div class="form-group">
+        <label>ประเภทการลา</label>
+        <select class="form-control" id="leaveReqTypeSelect">
+          <option value="V">V · ลาพักร้อน (Vacation)</option>
+          <option value="B">B · ลากิจ (Business)</option>
+          <option value="S">S · ลาป่วย (Sick)</option>
+          <option value="H">H · ลาวันหยุดนักขัตฤกษ์ (Holiday)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>วันที่ (ของเดือนปัจจุบัน)</label>
+        <input class="form-control" type="number" id="leaveReqDay" min="1" max="31" value="${todayDay}" onchange="renderLeaveCoverValidation('${empId}')" />
+      </div>
+      <div class="form-group">
+        <label>ใครจะมาทำงานแทนคุณ (ถ้ามี)</label>
+        <select class="form-control" id="leaveCoverSelect" onchange="renderLeaveCoverValidation('${empId}')">
+          <option value="">ไม่ระบุ — ให้หัวหน้ากะจัดคนแทนภายหลัง</option>
+          ${coverCandidates.map(c => `<option value="${c.id}">${c.name} (${c.roleCategory} · ${c.shiftType})</option>`).join('')}
+        </select>
+        <small style="color:var(--muted);font-size:10px">เมื่อเลือก ระบบจะส่งคำขอ OT ให้เพื่อนร่วมงานคนนี้ทำแทนวันที่คุณลาไปพร้อมกัน เพื่อให้ทุกคนรู้ล่วงหน้าว่าใครมาแทน</small>
+      </div>
+      <div id="leaveCoverExtra"></div>
+      <div class="form-group">
+        <label>เหตุผล / รายละเอียดเพิ่มเติม</label>
+        <textarea class="form-control" id="leaveReqReason" rows="2" placeholder="ระบุเหตุผลการลา"></textarea>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-secondary)">
+        <input type="checkbox" id="leaveReqRetroactive" />
+        ยื่นย้อนหลัง (Retroactive Submission) — สำหรับวันที่ผ่านมาแล้ว
+      </label>
+      <div class="validation-panel" id="leaveValidationPanel"></div>
+    </div>
+  `;
+  const footerHtml = `
+    <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" id="btnSubmitLeave" onclick="submitLeaveRequest('${empId}')">ส่งคำขอลา</button>
+  `;
+  openModal('ขอลา (Leave Request)', bodyHtml, footerHtml);
+  renderLeaveCoverValidation(empId);
+}
+
+// เมื่อเลือกเพื่อนร่วมงานมาทำแทน — ให้แสดงตัวเลือกรหัส OT และตรวจสอบกฎให้ทันที (เหมือนโหมด Leave + OT Cover)
+function renderLeaveCoverValidation(empId) {
+  const coverId = document.getElementById('leaveCoverSelect')?.value || '';
+  const day = parseInt(document.getElementById('leaveReqDay')?.value, 10) || state.currentDay;
+  const extraEl = document.getElementById('leaveCoverExtra');
+  const panel = document.getElementById('leaveValidationPanel');
+  const btn = document.getElementById('btnSubmitLeave');
+
+  if (!coverId) {
+    if (extraEl) extraEl.innerHTML = '';
+    if (panel) panel.innerHTML = '';
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const coverEmp = findEmployeeById(coverId);
+  if (!coverEmp) return;
+
+  if (extraEl) {
+    extraEl.innerHTML = `
+      <div class="form-group">
+        <label>รหัส OT ที่ให้ ${coverEmp.name} ทำแทน</label>
+        <select class="form-control" id="leaveCoverOtCode" onchange="renderLeaveCoverValidation('${empId}')">
+          <option value="MT">MT · กะเช้า + OT</option>
+          <option value="NT">NT · กะดึก + OT</option>
+          <option value="MTh">MTh · กะเช้า + OT ครึ่งวัน</option>
+          <option value="NTh">NTh · กะดึก + OT ครึ่งวัน</option>
+          <option value="OT">OT · ทำงานล่วงเวลา</option>
+        </select>
+      </div>
+    `;
+  }
+  const otCode = document.getElementById('leaveCoverOtCode')?.value || 'MT';
+  const otCheck = validateOTRequest(coverId, day, otCode);
+  if (panel) {
+    panel.innerHTML = `
+      <div class="validation-panel-title">ตรวจสอบฝั่งผู้มาทำแทน (${coverEmp.name}) — ตรวจสอบเฉพาะฝั่งผู้ทำ OT</div>
+      ${otCheck.results.map(c => renderCheckItem(c)).join('')}
+    `;
+  }
+  if (btn) btn.disabled = !otCheck.valid;
+}
+
+function submitLeaveRequest(empId) {
+  const emp = findEmployeeById(empId);
+  if (!emp) return;
+  const leaveCode = document.getElementById('leaveReqTypeSelect')?.value || 'V';
+  const day = parseInt(document.getElementById('leaveReqDay')?.value, 10) || state.currentDay;
+  const reason = document.getElementById('leaveReqReason')?.value || '';
+  const isRetroactive = document.getElementById('leaveReqRetroactive')?.checked || false;
+  const coverId = document.getElementById('leaveCoverSelect')?.value || '';
+  const coverEmp = coverId ? findEmployeeById(coverId) : null;
+  const coverOtCode = document.getElementById('leaveCoverOtCode')?.value || 'MT';
+  const dateLabel = `${day} ${new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}`;
+  const requestId = Date.now();
+
+  if (coverEmp) {
+    const otCheck = validateOTRequest(coverId, day, coverOtCode);
+    if (!otCheck.valid) {
+      showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบฝั่งผู้มาทำแทนไม่ผ่านเงื่อนไข', 'alert');
+      return;
+    }
+  }
+
+  const coverNote = coverEmp ? ` — มอบหมายให้ ${coverEmp.name} มาทำแทน (OT ${coverOtCode})` : '';
+
+  state.requests.unshift({
+    id: requestId,
+    type: `ขอลา (${leaveCode})${isRetroactive ? ' — ย้อนหลัง' : ''}`,
+    person: emp.name,
+    requesterId: emp.id,
+    initials: emp.initials,
+    roleCategory: emp.roleCategory,
+    targetPerson: coverEmp ? coverEmp.name : null,
+    targetRole: coverEmp ? coverEmp.roleCategory : null,
+    date: dateLabel,
+    currentShift: getShiftCodeForDate(emp, state.currentYear, state.currentMonth, day) || '-',
+    targetShift: leaveCode,
+    reason: (reason || `ขอลา (${leaveCode}) วันที่ ${dateLabel}`) + coverNote,
+    isCrossShift: false,
+    isRetroactive,
+    approvers: coverEmp
+      ? [
+          { role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' },
+          { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
+        ]
+      : [
+          { role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' },
+          { role: 'ผู้จัดการอนุมัติ (Manager Review)', status: 'pending' }
+        ],
+    status: 'รอดำเนินการ',
+    submittedAt: 'เมื่อสักครู่',
+    quotaUsed: '-'
+  });
+
+  state.auditLogs.unshift({
+    id: requestId,
+    actor: emp.name,
+    employeeId: emp.id,
+    avatar: emp.initials,
+    action: `ยื่นคำขอลา (${leaveCode}) วันที่ ${dateLabel}${isRetroactive ? ' (ยื่นย้อนหลัง)' : ''}${coverEmp ? ` พร้อมมอบหมายให้ ${coverEmp.name} ทำ OT (${coverOtCode}) แทน` : ''}`,
+    time: 'เมื่อสักครู่'
+  });
+
+  closeModal();
+  showToast('ส่งคำขอลาเรียบร้อยแล้ว');
+  state.activeView = 'my-requests';
+  renderApp();
+}
+
+// ===== Day-Off Change Request (ขอเปลี่ยนวันหยุด) — Project Proposal 6.3 =====
+function openDayOffChangeModal(empId) {
+  const emp = findEmployeeById(empId);
+  if (!emp) return;
+
+  const daysInCurrentMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
+  const offDays = Array.from({ length: daysInCurrentMonth }, (_, idx) => ({
+    code: getShiftCodeForDate(emp, state.currentYear, state.currentMonth, idx + 1),
+    day: idx + 1
+  }))
+    .filter(d => d.code === 'O')
+    .slice(0, 10);
+
+  const bodyHtml = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="form-group">
+        <label>พนักงานผู้ยื่นคำขอ</label>
+        <div class="form-control" style="background:var(--bg-subtle)">${emp.name} (${emp.shiftType})</div>
+      </div>
+      <div class="form-group">
+        <label>วันหยุดเดิมที่ต้องการเปลี่ยน</label>
+        <select class="form-control" id="dayOffOldSelect">
+          ${offDays.length ? offDays.map(d => `<option value="${d.day}">วันที่ ${d.day}</option>`).join('') : '<option value="">ไม่พบวันหยุดในตาราง</option>'}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>วันหยุดใหม่ที่ต้องการย้ายไป (ภายในกรอบ ±7 วัน)</label>
+        <input class="form-control" type="number" id="dayOffNewDay" min="1" max="31" placeholder="ระบุวันที่" />
+      </div>
+      <div class="form-group">
+        <label>เหตุผล</label>
+        <textarea class="form-control" id="dayOffReason" rows="2" placeholder="ระบุเหตุผลการเปลี่ยนวันหยุด"></textarea>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-secondary)">
+        <input type="checkbox" id="dayOffRetroactive" />
+        ยื่นย้อนหลัง (Retroactive Submission)
+      </label>
+    </div>
+  `;
+  const footerHtml = `
+    <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="submitDayOffChangeRequest('${empId}')">ส่งคำขอ</button>
+  `;
+  openModal('ขอเปลี่ยนวันหยุด (Day-Off Change)', bodyHtml, footerHtml);
+}
+
+function submitDayOffChangeRequest(empId) {
+  const emp = findEmployeeById(empId);
+  if (!emp) return;
+  const oldDay = parseInt(document.getElementById('dayOffOldSelect')?.value, 10);
+  const newDay = parseInt(document.getElementById('dayOffNewDay')?.value, 10);
+  const reason = document.getElementById('dayOffReason')?.value || '';
+  const isRetroactive = document.getElementById('dayOffRetroactive')?.checked || false;
+
+  if (!oldDay || !newDay) {
+    showToast('กรุณาระบุวันหยุดเดิมและวันหยุดใหม่ให้ครบถ้วน', 'alert');
+    return;
+  }
+  if (Math.abs(newDay - oldDay) > 7) {
+    showToast('ไม่สามารถส่งคำขอได้ — วันหยุดใหม่ต้องอยู่ในกรอบ ±7 วันจากวันหยุดเดิม', 'alert');
+    return;
+  }
+
+  const dateLabel = `${oldDay} → ${newDay} ${new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}`;
+  const requestId = Date.now();
+
+  state.requests.unshift({
+    id: requestId,
+    type: `เปลี่ยนวันหยุด${isRetroactive ? ' — ย้อนหลัง' : ''}`,
+    person: emp.name,
+    requesterId: emp.id,
+    initials: emp.initials,
+    roleCategory: emp.roleCategory,
+    targetPerson: null,
+    targetRole: null,
+    date: dateLabel,
+    currentShift: 'O',
+    targetShift: 'O',
+    reason: reason || `ขอเปลี่ยนวันหยุดจากวันที่ ${oldDay} เป็นวันที่ ${newDay}`,
+    isCrossShift: false,
+    isRetroactive,
+    approvers: [
+      { role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' },
+      { role: 'ผู้จัดการอนุมัติ (Manager Review)', status: 'pending' }
+    ],
+    status: 'รอดำเนินการ',
+    submittedAt: 'เมื่อสักครู่',
+    quotaUsed: '-'
+  });
+
+  state.auditLogs.unshift({
+    id: requestId,
+    actor: emp.name,
+    employeeId: emp.id,
+    avatar: emp.initials,
+    action: `ยื่นคำขอเปลี่ยนวันหยุดจากวันที่ ${oldDay} เป็นวันที่ ${newDay}${isRetroactive ? ' (ยื่นย้อนหลัง)' : ''}`,
+    time: 'เมื่อสักครู่'
+  });
+
+  closeModal();
+  showToast('ส่งคำขอเปลี่ยนวันหยุดเรียบร้อยแล้ว');
+  state.activeView = 'my-requests';
+  renderApp();
+}
+
+// ===== Public Holiday Entitlement — เลือกหยุดหรือทำงานเป็น OT ในวันนักขัตฤกษ์ =====
+function openPublicHolidayModal(empId) {
+  const emp = findEmployeeById(empId);
+  if (!emp) return;
+  const holidays = getHolidaysForYear(state.currentYear);
+  if (!holidays.length) {
+    showToast(`ยังไม่มีการตั้งค่าวันหยุดนักขัตฤกษ์สำหรับปี ${state.currentYear} — กรุณาติดต่อวิศวกรฝ่ายผลิตให้ตั้งค่าในหน้า "ตารางรายปี"`, 'alert');
+    return;
+  }
+
+  const bodyHtml = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="form-group">
+        <label>พนักงานผู้ยื่นคำขอ</label>
+        <div class="form-control" style="background:var(--bg-subtle)">${emp.name} (${emp.shiftType})</div>
+      </div>
+      <div class="form-group">
+        <label>วันหยุดนักขัตฤกษ์</label>
+        <select class="form-control" id="publicHolidaySelect">
+          ${holidays.map(h => `<option value="${h}">${h}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ตัวเลือก</label>
+        <select class="form-control" id="publicHolidayChoice">
+          <option value="H">หยุดตามสิทธิ์ (Take the day off)</option>
+          <option value="OT">ทำงานเป็น OT แทน (Work as OT)</option>
+        </select>
+      </div>
+    </div>
+  `;
+  const footerHtml = `
+    <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="submitPublicHolidayChoice('${empId}')">ยืนยันสิทธิ์</button>
+  `;
+  openModal('สิทธิ์วันหยุดนักขัตฤกษ์ (Public Holiday Entitlement)', bodyHtml, footerHtml);
+}
+
+function submitPublicHolidayChoice(empId) {
+  const emp = findEmployeeById(empId);
+  if (!emp) return;
+  const holiday = document.getElementById('publicHolidaySelect')?.value;
+  const choice = document.getElementById('publicHolidayChoice')?.value || 'H';
+  const requestId = Date.now();
+
+  state.requests.unshift({
+    id: requestId,
+    type: 'สิทธิ์วันหยุดนักขัตฤกษ์',
+    person: emp.name,
+    requesterId: emp.id,
+    initials: emp.initials,
+    roleCategory: emp.roleCategory,
+    targetPerson: null,
+    targetRole: null,
+    date: holiday,
+    currentShift: '-',
+    targetShift: choice,
+    reason: choice === 'OT'
+      ? `เลือกทำงานเป็น OT แทนวันหยุดนักขัตฤกษ์ (${holiday})`
+      : `เลือกหยุดตามสิทธิ์วันหยุดนักขัตฤกษ์ (${holiday})`,
+    isCrossShift: false,
+    approvers: [{ role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' }],
+    status: 'รอดำเนินการ',
+    submittedAt: 'เมื่อสักครู่',
+    quotaUsed: '-'
+  });
+
+  state.auditLogs.unshift({
+    id: requestId,
+    actor: emp.name,
+    employeeId: emp.id,
+    avatar: emp.initials,
+    action: `เลือกสิทธิ์วันหยุดนักขัตฤกษ์ (${holiday}): ${choice === 'OT' ? 'ทำงานเป็น OT' : 'หยุดตามสิทธิ์'}`,
+    time: 'เมื่อสักครู่'
+  });
+
+  closeModal();
+  showToast('บันทึกสิทธิ์วันหยุดนักขัตฤกษ์เรียบร้อยแล้ว');
   state.activeView = 'my-requests';
   renderApp();
 }
 
 function saveShiftEdit(empId, dayNum) {
+  if (isMonthLocked(state.currentYear, state.currentMonth)) {
+    showToast('เดือนนี้ถูกล็อกข้อมูลแล้ว ไม่สามารถแก้ไขได้', 'alert');
+    closeModal();
+    return;
+  }
   const shiftCode = document.getElementById('modalShiftSelect').value;
   const emp = findEmployeeById(empId);
   if (emp) {
-    const oldShift = emp.shifts[dayNum - 1];
-    emp.shifts[dayNum - 1] = shiftCode;
-    
+    const oldShift = getShiftCodeForDate(emp, state.currentYear, state.currentMonth, dayNum);
+
+    if (hasScheduleDataForMonth(state.currentYear, state.currentMonth)) {
+      // เดือนสิงหาคม 2569 = ข้อมูลจริง เขียนทับ shifts[] ของพนักงานโดยตรง
+      emp.shifts[dayNum - 1] = shiftCode;
+    } else {
+      // เดือนอื่นๆ ยังไม่มีข้อมูลจริง — บันทึกการแก้ไข/ทดสอบแยกไว้ ไม่ยุ่งกับข้อมูลจริงของเดือนสิงหาคม
+      setShiftOverride(empId, state.currentYear, state.currentMonth, dayNum, shiftCode);
+    }
+
     state.auditLogs.unshift({
       id: Date.now(),
       actor: state.roles[state.activeRole].name,
       avatar: state.roles[state.activeRole].initials,
-      action: `เปลี่ยนกะของ ${emp.name} วันที่ ${dayNum} ก.ย. จาก ${oldShift} เป็น ${shiftCode}`,
+      action: `เปลี่ยนกะของ ${emp.name} วันที่ ${dayNum} จาก ${oldShift} เป็น ${shiftCode}`,
       time: 'เมื่อสักครู่'
     });
 
@@ -1725,93 +3392,51 @@ function saveShiftEdit(empId, dayNum) {
 }
 
 // 3-Step Swap Modal for Operator
-function openOperatorRequestModal(dateStr, currentShift) {
+// หมายเหตุ: เดิมมี openOperatorRequestModal/submitSwapRequest เป็น flow เก่าที่แยกต่างหาก
+// (ไม่ได้บังคับกฎ "ห้ามสลับในทีมตัวเอง / หัวหน้ากะสลับได้เฉพาะหัวหน้ากะ")
+// รวม flow นี้เข้ากับ openColleagueSwapModal() ทั้งหมดแล้ว เพื่อให้มีจุดยื่นคำขอสลับกะจุดเดียว
+// ที่บังคับใช้กฎสิทธิ์การสลับกะอย่างถูกต้องเสมอ ฟังก์ชันนี้คงไว้เผื่อโค้ดอื่นเรียกใช้ชื่อเดิม
+function openOperatorRequestModal(dateStr, currentShift, dayNum) {
   const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
-  const eligibleColleagues = state.shiftsData.shiftA.employees.filter(employee => employee.id !== currentEmp.id);
-
-  const bodyHtml = `
-    <div style="display:flex;flex-direction:column;gap:14px">
-      <div class="form-group">
-        <label>วันที่ต้องการสลับกะ</label>
-        <input class="form-control" value="${dateStr} 2569 (กะเดิมของคุณ: ${currentShift})" disabled>
-      </div>
-
-      <div class="form-group">
-        <label>เลือกเพื่อนร่วมงานในกะที่ต้องการสลับด้วย</label>
-        <select class="form-control" id="swapTargetSelect">
-          ${eligibleColleagues.map(c => `
-            <option value="${c.id}">${c.name} (${c.roleCategory})</option>
-          `).join('')}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>เหตุผลความจำเป็น</label>
-        <textarea class="form-control" id="swapReasonInput" rows="2" placeholder="ระบุเหตุผลในการขอสลับกะ"></textarea>
-      </div>
-
-      <div class="validation-panel">
-        <div class="validation-panel-title">การตรวจสอบสิทธิ์</div>
-        <div class="validation-check-item pass">${getIcon('check', 'icon-sm')} <span><strong>สิทธิ์คงเหลือ:</strong> 1/2 ครั้งในเดือนนี้</span></div>
-        <div class="validation-check-item pass">${getIcon('check', 'icon-sm')} <span><strong>วันทำงานติดต่อกัน:</strong> ไม่เกินเกณฑ์ 6 วัน</span></div>
-      </div>
-    </div>
-  `;
-
-  const footerHtml = `
-    <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
-    <button type="button" class="btn btn-primary" onclick="submitSwapRequest('${dateStr}', '${currentShift}')">
-      ยืนยันส่งคำขอสลับกะ
-    </button>
-  `;
-
-  openModal('ยื่นคำขอสลับกะ (Shift Swap Request)', bodyHtml, footerHtml);
-}
-
-function submitSwapRequest(dateStr, currentShift) {
-  const targetEmpId = document.getElementById('swapTargetSelect').value;
-  const reason = document.getElementById('swapReasonInput').value || 'มีความจำเป็นส่วนตัวขอสลับกะ';
-  const targetEmp = findEmployeeById(targetEmpId);
-
-  const currentEmp = getAllEmployees().find(employee => employee.name === state.roles['Shift Operator'].name);
-
-  state.requests.unshift({
-    id: Date.now(),
-    type: 'สลับกะ',
-    person: currentEmp.name,
-    requesterId: currentEmp.id,
-    initials: currentEmp.initials,
-    roleCategory: currentEmp.roleCategory,
-    targetPerson: targetEmp.name,
-    targetRole: targetEmp.roleCategory,
-    date: dateStr + ' 2569',
-    currentShift: currentShift,
-    targetShift: 'MT',
-    reason: reason,
-    isCrossShift: false,
-    approvers: [{ role: 'Shift Supervisor (Kanya)', status: 'pending' }],
-    status: 'รอดำเนินการ',
-    submittedAt: 'เมื่อสักครู่',
-    quotaUsed: '2 / 2 ครั้ง'
-  });
-
-  state.auditLogs.unshift({
-    id: Date.now(),
-    actor: currentEmp.name,
-    employeeId: currentEmp.id,
-    avatar: currentEmp.initials,
-    action: `ยื่นคำขอสลับกะวันที่ ${dateStr} 2569`,
-    time: 'เมื่อสักครู่'
-  });
-
-  closeModal();
-  showToast('ยื่นคำขอสลับกะส่งถึงหัวหน้ากะเรียบร้อยแล้ว');
-  renderApp();
+  if (!currentEmp) return;
+  const day = dayNum || state.currentDay;
+  openColleagueSwapModal(currentEmp, null, day);
 }
 
 function approveRequest(reqId) {
   const req = state.requests.find(r => r.id === reqId);
-  if (req) {
+  if (!req) return;
+
+  if (req.approvers && req.approvers.length > 1) {
+    // คำขอที่ต้องผ่านหลายขั้น (เช่น สลับข้ามทีม หรือ OT: หัวหน้ากะตรวจสอบ → ผู้จัดการอนุมัติ)
+    const nextStep = req.approvers.find(a => a.status !== 'approved');
+    if (nextStep) {
+      nextStep.status = 'approved';
+      nextStep.at = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    }
+    const allApproved = req.approvers.every(a => a.status === 'approved');
+    if (allApproved) {
+      req.status = 'อนุมัติแล้ว';
+      state.auditLogs.unshift({
+        id: Date.now(),
+        actor: state.roles[state.activeRole].name,
+        avatar: state.roles[state.activeRole].initials,
+        action: `อนุมัติคำขอ ${req.type} ของ ${req.person} ครบทุกขั้นตอนแล้ว (วันที่ ${req.date})`,
+        time: 'เมื่อสักครู่'
+      });
+      showToast(`อนุมัติคำขอของ ${req.person} ครบทุกขั้นตอนแล้ว`);
+    } else {
+      req.status = `รออนุมัติขั้นถัดไป (${nextStep ? req.approvers[req.approvers.indexOf(nextStep) + 1]?.role || '' : ''})`.trim();
+      state.auditLogs.unshift({
+        id: Date.now(),
+        actor: state.roles[state.activeRole].name,
+        avatar: state.roles[state.activeRole].initials,
+        action: `ผ่านขั้นตอน "${nextStep ? req.approvers[req.approvers.indexOf(nextStep)].role : ''}" ของคำขอ ${req.type} ของ ${req.person} — รอขั้นถัดไป`,
+        time: 'เมื่อสักครู่'
+      });
+      showToast(`ผ่านขั้นตอนนี้แล้ว — รออนุมัติขั้นถัดไป`);
+    }
+  } else {
     req.status = 'อนุมัติแล้ว';
     state.auditLogs.unshift({
       id: Date.now(),
@@ -1820,10 +3445,10 @@ function approveRequest(reqId) {
       action: `อนุมัติคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date})`,
       time: 'เมื่อสักครู่'
     });
-
     showToast(`อนุมัติคำขอของ ${req.person} เรียบร้อยแล้ว`);
-    renderApp();
   }
+
+  renderApp();
 }
 
 function promptRejectRequest(reqId) {
@@ -1863,7 +3488,7 @@ function confirmRejectRequest(reqId) {
   if (req) {
     req.status = 'ไม่อนุมัติ';
     req.rejectReason = reason;
-    
+
     state.auditLogs.unshift({
       id: Date.now(),
       actor: state.roles[state.activeRole].name,
@@ -1908,6 +3533,34 @@ function changeScheduleMonth(monthDelta) {
   renderApp();
 }
 
+// สลับระหว่างหน้า "กะของฉัน" แบบง่าย กับตารางกะเต็มรูปแบบทุกทีม (สำหรับพนักงานปฏิบัติการ)
+function toggleOperatorFullGrid(show) {
+  state.operatorShowFullGrid = !!show;
+  renderApp();
+}
+
+// เปิด/ปิดหน้าต่างเลือกเดือน-ปีโดยตรง แทนการต้องกดลูกศรเลื่อนทีละเดือน
+function toggleMonthPicker(force) {
+  state.monthPickerOpen = typeof force === 'boolean' ? force : !state.monthPickerOpen;
+  renderApp();
+}
+
+// กระโดดไปยังเดือน-ปีที่เลือกได้ทันที
+function jumpToScheduleMonth(year, month) {
+  state.currentYear = parseInt(year, 10);
+  state.currentMonth = parseInt(month, 10);
+  state.monthPickerOpen = false;
+  renderApp();
+}
+
+function jumpToScheduleDataMonth() {
+  jumpToScheduleMonth(SCHEDULE_DATA_YEAR, SCHEDULE_DATA_MONTH);
+}
+
+function thaiMonthName(monthIndex, style = 'long') {
+  return new Date(2000, monthIndex, 1).toLocaleDateString('th-TH', { month: style });
+}
+
 function filterScheduleShiftType(shiftTypeVal) {
   state.selectedShiftFilter = shiftTypeVal;
   renderApp();
@@ -1929,7 +3582,7 @@ function openEmployeeForm(employeeId = '') {
   const bodyHtml = `
     <form id="employeeForm" onsubmit="event.preventDefault(); saveEmployeeProfile('${employeeId}')">
       <div class="form-group">
-        <label for="employeeCode">รหัสพนักงาน</label>
+        <label for="employeeCode">รหัสพนักงาน (4 หลัก)</label>
         <input id="employeeCode" class="form-control" value="${employee?.id || ''}" required ${employee ? 'disabled' : ''}>
       </div>
       <div class="form-group">
@@ -1942,6 +3595,8 @@ function openEmployeeForm(employeeId = '') {
           <select id="employeeTeam" class="form-control">
             <option value="Shift A" ${employee?.shiftType === 'Shift A' ? 'selected' : ''}>Shift A</option>
             <option value="Shift B" ${employee?.shiftType === 'Shift B' ? 'selected' : ''}>Shift B</option>
+            <option value="Shift C" ${employee?.shiftType === 'Shift C' ? 'selected' : ''}>Shift C</option>
+            <option value="Shift D" ${employee?.shiftType === 'Shift D' ? 'selected' : ''}>Shift D</option>
           </select>
         </div>
         <div class="form-group">
@@ -1973,10 +3628,12 @@ function saveEmployeeProfile(employeeId) {
   const phone = document.getElementById('employeePhone')?.value.trim();
   if (!code || !name || !team || !roleCategory || !phone) return;
 
-  const targetTeam = team === 'Shift A' ? state.shiftsData.shiftA : state.shiftsData.shiftB;
+  const targetTeamKey = getTeamKeyByLabel(team);
+  const targetTeam = state.shiftsData[targetTeamKey];
   const employee = employeeId ? findEmployeeById(employeeId) : null;
   if (employee) {
-    const currentTeam = employee.shiftType === 'Shift A' ? state.shiftsData.shiftA : state.shiftsData.shiftB;
+    const currentTeamKey = getTeamKeyByLabel(employee.shiftType);
+    const currentTeam = state.shiftsData[currentTeamKey];
     currentTeam.employees = currentTeam.employees.filter(item => item.id !== employeeId);
     Object.assign(employee, { name, phone, roleCategory, shiftType: team });
     targetTeam.employees.push(employee);
@@ -1998,21 +3655,59 @@ function saveEmployeeProfile(employeeId) {
   renderApp();
 }
 
-function exportMonthlyCSV() {
-  const allEmps = getAllEmployees();
-  const headers = ['รหัส', 'ชื่อ-นามสกุล', 'กะ', 'บทบาท', ...Array.from({ length: 30 }, (_, i) => `วันที่ ${i + 1} ก.ย.`)];
-  const rows = allEmps.map(e => [e.id, e.name, e.shiftType, e.roleCategory, ...e.shifts]);
-  
-  const csvContent = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+// Export Schedule Data (CSV/Excel) — shared helper reused by all export buttons
+function downloadCSV(headers, rows, filename) {
+  const csvContent = [headers, ...rows].map(r => r.map(c => `"${c ?? ''}"`).join(',')).join('\n');
   const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', 'ShiftFlow-September-2026-Shifts.csv');
+  link.setAttribute('download', filename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportMonthlyCSV() {
+  const allEmps = getAllEmployees();
+  const daysInMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
+  const monthShort = new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('th-TH', { month: 'short' });
+  const monthEn = new Date(state.currentYear, state.currentMonth, 1).toLocaleDateString('en-US', { month: 'long' });
+  const headers = ['รหัส', 'ชื่อ-นามสกุล', 'กะ', 'บทบาท', ...Array.from({ length: daysInMonth }, (_, i) => `วันที่ ${i + 1} ${monthShort}`)];
+  const rows = allEmps.map(e => [e.id, e.name, e.shiftType, e.roleCategory, ...Array.from({ length: daysInMonth }, (_, i) => getShiftCodeForDate(e, state.currentYear, state.currentMonth, i + 1))]);
+  downloadCSV(headers, rows, `ShiftFlow-${monthEn}-${state.currentYear}-Shifts.csv`);
   showToast('ส่งออกไฟล์ตารางกะรายเดือน (CSV) เรียบร้อย');
+}
+
+// Export Leave Records — ฟีเจอร์ "Export Leave Records" (Design Draft)
+function exportLeaveRecordsCSV() {
+  const leaveCodes = ['V', 'B', 'S', 'H', 'VG', 'VGh'];
+  const allEmps = getAllEmployees();
+  const headers = ['รหัส', 'ชื่อ-นามสกุล', 'กะ', 'บทบาท', 'วันที่', 'รหัสการลา', 'รายละเอียด'];
+  const rows = [];
+  allEmps.forEach(e => {
+    e.shifts.forEach((code, idx) => {
+      if (leaveCodes.includes(code)) rows.push([e.id, e.name, e.shiftType, e.roleCategory, idx + 1, code, state.shiftDefs[code]?.label || code]);
+    });
+  });
+  downloadCSV(headers, rows, 'ShiftFlow-Leave-Records-2026.csv');
+  showToast('ส่งออกประวัติการลา (CSV) เรียบร้อย');
+}
+
+// Export OT Records — ฟีเจอร์ "Export OT Records" (Design Draft)
+function exportOTRecordsCSV() {
+  const otCodes = ['MT', 'NT', 'MTh', 'NTh', 'OT'];
+  const allEmps = getAllEmployees();
+  const headers = ['รหัส', 'ชื่อ-นามสกุล', 'กะ', 'บทบาท', 'วันที่', 'รหัส OT', 'รายละเอียด'];
+  const rows = [];
+  allEmps.forEach(e => {
+    e.shifts.forEach((code, idx) => {
+      if (otCodes.includes(code)) rows.push([e.id, e.name, e.shiftType, e.roleCategory, idx + 1, code, state.shiftDefs[code]?.label || code]);
+    });
+  });
+  downloadCSV(headers, rows, 'ShiftFlow-OT-Records-2026.csv');
+  showToast('ส่งออกประวัติการทำ OT (CSV) เรียบร้อย');
 }
 
 function switchRole(roleName) {
@@ -2104,8 +3799,10 @@ function renderApp() {
 
   if (breadcrumbView) breadcrumbView.textContent = viewTitle;
   if (topbarTitle) {
-    topbarTitle.textContent = state.activeRole === 'Supervisor' && state.activeView === 'overview'
-      ? 'สวัสดีตอนเช้า, คุณกัญญา'
+    const isHomeView = state.activeRole === 'Supervisor' && state.activeView === 'overview';
+    const firstName = role.name ? role.name.split(' ')[0] : '';
+    topbarTitle.textContent = isHomeView
+      ? `สวัสดีตอนเช้า, คุณ${firstName}`
       : viewTitle;
   }
 
@@ -2121,13 +3818,30 @@ function renderApp() {
       else if (state.activeView === 'requests') contentRoot.innerHTML = renderRequestsView();
       else if (state.activeView === 'history') contentRoot.innerHTML = renderHistoryView();
     } else if (state.activeRole === 'Shift Operator') {
-      if (state.activeView === 'team-schedule') contentRoot.innerHTML = renderScheduleView();
+      if (state.activeView === 'team-schedule') {
+        contentRoot.innerHTML = state.operatorShowFullGrid
+          ? `
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+                <span style="font-size:13px;color:var(--ink-secondary)">กำลังดูตารางกะเต็มรูปแบบของทุกทีม</span>
+                <button class="btn btn-secondary" onclick="toggleOperatorFullGrid(false)">${getIcon('arrowLeft', 'icon-sm')} กลับไปหน้ากะของฉัน (แบบง่าย)</button>
+              </div>
+            </div>
+            ${renderScheduleView()}
+          `
+          : renderOperatorView();
+      }
       else if (state.activeView === 'my-requests') contentRoot.innerHTML = renderRequestsView();
       else if (state.activeView === 'my-history') contentRoot.innerHTML = renderHistoryView();
     } else if (state.activeRole === 'HR') {
       if (state.activeView === 'schedule') contentRoot.innerHTML = renderScheduleView();
       else if (state.activeView === 'hr-export') contentRoot.innerHTML = renderHRView();
       else if (state.activeView === 'hr-audit') contentRoot.innerHTML = renderHistoryView();
+    } else if (state.activeRole === 'Engineer') {
+      if (state.activeView === 'engineer-settings') contentRoot.innerHTML = renderManagerSettingsView();
+      else if (state.activeView === 'annual-schedule') contentRoot.innerHTML = renderAnnualScheduleView();
+    } else if (state.activeRole === 'Manager') {
+      if (state.activeView === 'manager-approvals') contentRoot.innerHTML = renderRequestsView();
     }
   }
 }
