@@ -178,8 +178,11 @@ HR users can:
 - Export schedule data
 - Use exported data for payroll, OT, and shift-allowance processes
 The initial system will focus on data export rather than direct payroll calculation.
-### 5.4 External Users
-External Users can :
+
+## 5.4 External User (Contractor / Van Driver)
+
+External Users can:
+
 - View the latest approved daily schedule
 - View the list of employees assigned for transportation
 - View relevant pickup/drop-off information
@@ -564,8 +567,4 @@ The project will be considered successful if the implemented system can:
 - Allow authorized external users to view relevant transportation information.
 - Allow HR to export approved schedule data.
 - Maintain a record of important schedule changes.
-<<<<<<< HEAD:proposal.md
 - Successfully pass system testing and User Acceptance Testing.
-=======
-- Successfully pass system testing and User Acceptance Testing.
->>>>>>> 9631ff85726fcfe219b1dbcae769310da51ec417:.docs/01-requirements/proposal.md

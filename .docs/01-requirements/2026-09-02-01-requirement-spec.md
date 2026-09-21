@@ -30,7 +30,7 @@ A centralized scheduling service for authenticated users that supports monthly s
 | Shift Operator | View own/authorized schedule and submit supported requests. |
 | Shift Supervisor | Manage assigned schedules, review requests, and perform required approvals. |
 | HR | View approved schedule data and export only fields approved for HR processing. |
-| Contractor / Van Driver | Read only the minimum approved transportation information. |
+| External User (Contractor / Van Driver) | Read only the minimum approved transportation information. |
 | System Administrator | Provision and manage access only after the authentication/provisioning decision is approved. |
 | System owner / legal reviewer | Resolve business, privacy, retention, and approval decisions. |
 
