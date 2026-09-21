@@ -12,17 +12,22 @@
 
 ## Project Title
 
-Shift Schedule Management System
+## Project Title 
+
+Shift Schedule Management System 
+
+---
 
 ## 1. Background
 
-Currently, shift scheduling and shift-based work management in the Production Department rely primarily on Microsoft Excel and manual communication. Shift schedules are prepared on a monthly basis, and when changes are required, the Excel file must be manually updated and reviewed by the Supervisor before the revised schedule can be used.
+Currently, shift scheduling and shift-based work management in the Production Department rely primarily on Microsoft Excel and manual communication. Shift rosters are prepared on a monthly basis, and when changes are required, the Excel file must be manually updated and reviewed by the Supervisor before the revised version can be used.
 
-This process can become inefficient when multiple schedule changes occur. Employees and other relevant parties may not receive the latest version of the schedule at the same time, while external personnel such as contracted van drivers cannot directly access the internal Excel file.
+This process can become inefficient when multiple file changes occur. Employees and other relevant parties may not receive the latest version at the same time, while external personnel such as contracted van drivers cannot directly access the internal Excel file.
 
-In addition, communication regarding schedule changes is often handled through phone calls or other manual channels. This increases coordination workload and creates a risk of misunderstandings or users referring to outdated information.
+In addition, communication regarding roster changes is often handled through phone calls or other manual channels. This increases coordination workload and creates a risk of misunderstandings or users referring to outdated information.
 
-Therefore, this project proposes a Shift Schedule Management System that centralizes shift scheduling, approval, and schedule-related requests in a single system. The system will provide authorized users with access to the latest schedule and support controlled schedule changes through predefined business rules and approval workflows.
+Therefore, this project proposes a Shift Scheduling Management System that centralizes shift planning, approval, and related requests in a single platform. The system will provide authorized users with access to the most current roster and support controlled adjustments through predefined business rules and approval workflows.
+
 
 # 2. Problem Statement and Pain Points
 
@@ -54,13 +59,15 @@ This can increase coordination time and make it difficult to maintain a clear re
 
 The proposed system will provide in-system requests, approval workflows, and notifications to reduce unnecessary manual coordination.
 
-## 2.4 Limited Access for External Users
+
+### 2.4 Limited Access for External Users
 
 External personnel, such as contracted van drivers, may need access to specific schedule information but cannot directly access the organization's internal Excel file.
 
 The proposed system will provide restricted access for external users, allowing them to view only the information required for their responsibilities.
 
-## 2.5 Limited HR Data Integration
+
+### 2.5 Limited HR Data Integration
 
 The current Excel-based scheduling process does not directly support integration with HR-related data.
 
@@ -101,32 +108,37 @@ The initial version of the system will include:
 - User authentication and role-based access control
 - Monthly shift schedule management
 - Shift creation, editing, and removal
-- Shift-swap requests
+- Employee replacement and shift schedule adjustment
 - Day-off change requests
 - Supervisor approval and rejection
 - Cross-shift approval workflow
 - Business-rule validation
 - Schedule notifications
 - Monthly schedule overview
-- Mobile access for Shift Operators
-- Mobile access for Contractors / Van Drivers
+- Mobile access for Shift Employees
+- Read-only mobile access for External Users (e.g., Contractors / Van Drivers)
 - HR data export
 - Schedule history / change records
 
 ## 4.2 Out of Scope
 
 The following features are not included in the initial implementation:
+- Automatic Salary and Payroll Calculation
+The system will not calculate employee salaries, payroll, or other payment-related amounts.
+- Automatic OT Payment Calculation
+The system will manage scheduled shift and OT-related schedule information but will not calculate the actual OT payment amount.
+- Actual Working Hour / Attendance Calculation
+The system will not calculate employees' actual working hours based on clock-in/clock-out records. It will only manage scheduled shift times.
+- Full HR System Integration
+The system will provide scheduled data export for HR use but will not directly integrate with the organization's HR or payroll system.
+- Full Leave Management                                                 The system will not provide a complete leave-management system, including full leave balance management, leave entitlement calculation, or comprehensive leave administration.
+- Employee Personal Address Management
+The system will not store or manage employees' personal house numbers, home addresses, or precise home locations.
+- GPS and Real-Time Location Tracking
+The system will not track the real-time location of employees or vehicles.
 
-- Automatic salary calculation
-- Automatic OT payment calculation
-- Full integration with the organization's HR system
-- Payroll processing
-- Leave-management system
-- Transportation route optimization
-- GPS tracking of employees or vehicles
-These features may be considered for future development after the core shift-scheduling system has been implemented and evaluated.
-
-# 5. User Roles and Core Functions
+These features may be considered for future development after the core Shift Schedule Management System has been implemented and evaluated.
+---
 
 ## 5.1 Shift Employee
 
@@ -135,7 +147,7 @@ Shift Employee can:
 - View their assigned shift schedule
 - View the overall shift schedule according to their access permissions
 - View their upcoming shifts and days off
-- Submit shift-swap requests
+- Submit shift-change requests
 - Submit day-off change requests
 - Track the status of their requests
 - Receive notifications regarding schedule changes and approvals
@@ -153,10 +165,12 @@ Shift Supervisors can:
 - Participate in cross-shift approval
 - View pending requests
 - Monitor schedule conflicts and validation warnings
+- Replace employees when required for shift coverage
+- Adjust employee shift assignments when necessary
+
 For cross-shift swaps, approval from the Supervisors responsible for both affected shifts will be required.
 
-5.3 HR
-
+### 5.3 HR
 HR users can:
 
 - Access approved schedule data
@@ -174,23 +188,40 @@ External Users can:
 - View relevant pickup/drop-off information
 - Access the information through a mobile device
 - View the latest update time
-Contractors and van drivers cannot edit or approve shift schedules.
+
+Contractors and External Users cannot edit or approve shift schedules.
+
+### 5.5 IT
+IT can :
+- Backend settings
+
+### 5.6 Production Engineer 
+
+Contractors or van drivers can:
+- Setting and adjusting work shift schedules (M, MT, N, NT, D).
+- Defining standard staffing levels per position for each shift (7 positions per team).
+- Managing team shift rosters (Teams A, B, C, D) in response to new hires or personnel transfers.
+- Configuring the annual schedule of public holidays.
+- The annual shift scheduler is responsible for proposing the annual staffing plan—as well as any mid-year personnel changes within shifts—for approval by the Production Manager or Production Engineer.
 
 # 6. User Workflows
 
 ## 6.1 Schedule Management Workflow
 
-Supervisor Login → View Schedule → Add/Edit/Remove Shift → System Validation → Submit Change → Approval/Confirmation → Update Schedule → Notify Relevant Users
+Supervisor Login → View Schedule → Add/Edit/Remove Shift → Employee Replacement / Schedule Adjustment (if required) → System Validation → Submit Change → Approval/Confirmation → Update Schedule → Record Audit Log → Notify Relevant Users
 
 The system will validate the change against predefined business rules before the schedule is updated.
 
-## 6.2 Shift-Swap Request Workflow
 
-For a Same-Shift Swap:
+### 6.2 Shift-Swap Request Workflow
 
-Employee A → Select Date and Employee B in Same Shift → System Validation → Submit Request → Supervisor A Review → Approve / Reject → Update Schedule → Record Audit Log → Notify Relevant Employees
+The employee selects their own shift and chooses the swap type.
+For a Cross-Shift Swap:
 
-Only Supervisor A is required to review and approve the request.
+Employee A → Select Date and Employee B from Another Shift → System Validation → Submit Request → Supervisor A, B Review → Manager Review → All Approve → Update Schedule → Record Audit Log → Notify Relevant Employees
+
+Both Supervisor A and Supervisor B must approve the request before the schedule is updated.
+
 
 For a Cross-Shift Swap:
 
@@ -200,11 +231,12 @@ Both Supervisor A and Supervisor B must approve the request before the schedule 
 
 ## 6.3 Day-Off Change Workflow
 
-Employee → Select Day Off → Submit Change Request → System Validation → Supervisor Review → Approve / Reject → Update Schedule → Notify Employee
+Employee → Select Scheduled Day Off → Submit Change Request → System Validation → Supervisor Review → Manager Review → Approve / Reject → Update Schedule → Record Audit Log → Notify Employee
 
 The system will only allow requests within the configured request period and according to applicable scheduling rules.
 
-# 7. Business Rules and Validation
+
+---
 
 ## 7.1 Request Submission Period
 
@@ -214,7 +246,8 @@ For example, a request may only be submitted within a specified number of days b
 
 The exact period should be confirmed during the requirements-gathering phase with Supervisors and relevant stakeholders.
 
-## 7.2 Maximum Consecutive Working Days
+
+### 7.2 Maximum Consecutive Working Days
 
 An employee must not be scheduled to work more than 6 consecutive days.
 
@@ -224,12 +257,29 @@ If the change violates this rule, the system should prevent submission or displa
 
 ## 7.3 Shift Type Validation
 
-The system will support predefined shift types, such as:
+The system will support predefined shift types :
+- N	Night shift
+- M	Morning shift
+- O	Blank cell = Weekly day off (Off Days)
+- VG	Other leave
+- VGh	Other leave (half-day)
+- M/O	Scheduled day off; worked morning shift
+- N/O	Scheduled day off; worked night shift
+- O/M	Scheduled morning shift; changed to day off
+- O/N	Scheduled night shift; changed to day off
+- M/N	Scheduled night shift; changed to morning shift
+- N/M	Scheduled morning shift; changed to night shift
+- NT	Night shift OT
+- MT	Morning shift OT
+- NTh	Night shift OT (half-day)
+- MTh	Morning shift OT (half-day)
+- OT	Overtime work
+- V	Vacation leave
+- B	Business leave
+- S	Sick leave
+- H	Public holiday / Traditional holiday
+- D	Day shift (08:00-17:00) 
 
-- N = Night
-- M = Morning
-- O = Day Off
-- MT / NT = Morning Over Time / Night Over Time
 Additional shift types may be added if required by the organization.
 
 ## 7.4 Skill and Position Validation
@@ -269,9 +319,9 @@ The system should notify relevant users when important schedule events occur, su
 - A shift assignment is changed
 Notifications may initially be provided through in-system notifications. Additional channels such as email or messaging applications can be considered in future versions.
 
-9. Screen Layouts and UI Components
+# 9. Screen Layouts and UI Components
 
-## 9.1 Shift Supervisor – Web Application
+### 9.1 Shift Supervisor – Web Application
 
 The Supervisor dashboard will focus on schedule overview and management.
 
@@ -298,14 +348,14 @@ Main components:
 - Shift start/end time
 - Upcoming schedule
 - Days off
-- Request Shift Swap
+- Request Shift Change
 - Request Day-Off Change
 - Request status
 - Notifications
 
 ## 9.3 External Users – Web Application
 
-The Contractor / Van Driver interface will provide only the information necessary for transportation operations.
+External User interface will provide only the information necessary for transportation operations.
 
 Main components:
 
@@ -319,7 +369,7 @@ The interface will be read-only.
 
 ## 9.4 HR – Web Application
 
-The HR interface will focus on accessing and exporting approved schedule data.
+The HR & Management interface will focus on accessing and exporting approved schedule data.
 
 Main components:
 
@@ -372,6 +422,14 @@ The proposed system is expected to provide the following benefits:
 12. Future Enhancements
 
 After the initial system has been implemented, the following features may be considered:
+- Direct integration with the HR system
+- Automatic OT calculation
+- Automatic shift-allowance calculation
+- Payroll integration
+- Leave-management integration
+- Integration with transportation management
+- Schedule analytics and reporting
+- Adding employee house numbers or addresses for easier pick-up and drop-off
 
 1. Direct integration with the HR system
 2. Automatic OT calculation
@@ -386,7 +444,18 @@ After the initial system has been implemented, the following features may be con
 
 The project will be developed over approximately 12 weeks.
 
-Phase
+| Phase | Activities | Timeline |
+| --- | --- | --- |
+| Phase 1 | Requirements Analysis | 1-8 September 2026 |
+| Phase 2 | UX/UI Design | 9 - 15 September 2026|
+| Phase 3 | System Design | 16 - 22 September 2026 |
+| Phase 4 | Core Development | 23 September - 3 November 2026 |
+| Phase 5 | Workflow Development | 4 - 17 November 2026 |
+| Phase 6 | HR Data Export | 18 November - 1 December 2026 |
+| Phase 7 | System Testing | 2 - 8 December 2026 |
+| Phase 8 | User Acceptance Testing (UAT) | 9 -15 December 2026 |
+| Phase 9 | Deployment / Go-Live | 16 - 23 December 2026 |
+| Phase 10 | Post-Implementation Improvement | After Go-Live |
 
 Activities
 
