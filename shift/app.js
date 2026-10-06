@@ -55,7 +55,7 @@ const DEMO_TODAY = new Date(SCHEDULE_DATA_YEAR, SCHEDULE_DATA_MONTH, 12);
 // Global App State
 const state = {
   activeRole: 'Manager',
-  activeView: 'manager-approvals',
+  activeView: 'manager-monitoring',
   currentYear: DEMO_TODAY.getFullYear(),
   currentMonth: DEMO_TODAY.getMonth(), // 0-indexed: เริ่มที่เดือนที่มีข้อมูลจริง (สิงหาคม 2569)
   currentDay: DEMO_TODAY.getDate(), // "วันนี้" ของ demo — ย้ายได้ที่ DEMO_TODAY จุดเดียว
@@ -70,7 +70,7 @@ const state = {
   // (ไม่เขียนทับ shifts[] ของพนักงาน ซึ่งเป็นข้อมูลจริงของเดือนสิงหาคมเท่านั้น)
   // รูปแบบ: { "<year>-<month>": { "<empId>": { "<day>": "<code>" } } }
   scheduleOverrides: {},
-  unreadNotifications: 2,
+  unreadNotifications: 0,
   hrDateFilter: '2026-08',
   driverAcknowledged: false,
   driverAckTime: null,
@@ -103,7 +103,7 @@ const state = {
     VGh: { label: 'ลาอื่นๆ ครึ่งวัน', time: 'Leave (Other, Half-day)', family: 'leave', ot: false, half: true, leave: true }
   },
 
-  // Role Profiles — เรียงตามระดับสิทธิ์การเข้าถึงข้อมูล: Manager → Shift Supervisor → Shift Employee → HR → External User
+  // Role Profiles — เรียงตามระดับสิทธิ์การเข้าถึงข้อมูล: Manager → Shift Supervisor A/B → Shift Employee → HR → External User
   roles: {
     Manager: {
       initials: 'MG',
@@ -111,21 +111,48 @@ const state = {
       title: 'Manager (ฝ่ายผลิต)',
       short: 'ผู้จัดการฝ่ายผลิต',
       nav: [
-        { id: 'manager-approvals', label: 'คิวอนุมัติขั้นสุดท้าย', icon: 'inbox' },
+        { id: 'manager-monitoring', label: 'ติดตามสถานะคำขอ', icon: 'inbox' },
         { id: 'people', label: 'พนักงานและทีม', icon: 'users' },
         { id: 'annual-schedule', label: 'ตารางรายปี (Annual Schedule)', icon: 'calendar' },
         { id: 'manager-settings', label: 'ตั้งค่าระบบ (Settings)', icon: 'grid' }
+      ]
+    },
+    'Shift Supervisor A': {
+      initials: 'ณด',
+      name: 'ณัฐพล ดวงประสิทธิ์',
+      title: 'Shift Supervisor (Shift A)',
+      short: 'หัวหน้ากะ A',
+      team: 'shiftA',
+      nav: [
+        { id: 'schedule', label: 'ตารางกะ (Shift Schedule)', icon: 'calendar' },
+        { id: 'overview', label: 'ภาพรวมกำลังพล', icon: 'grid' },
+        { id: 'requests', label: 'คิวคำขอตรวจสอบ', icon: 'check-square', badge: 0 },
+        { id: 'history', label: 'ประวัติการเปลี่ยนแปลง', icon: 'history' }
+      ]
+    },
+    'Shift Supervisor B': {
+      initials: 'สส',
+      name: 'สุระศักดิ์ สงหลำ',
+      title: 'Shift Supervisor (Shift B)',
+      short: 'หัวหน้ากะ B',
+      team: 'shiftB',
+      nav: [
+        { id: 'schedule', label: 'ตารางกะ (Shift Schedule)', icon: 'calendar' },
+        { id: 'overview', label: 'ภาพรวมกำลังพล', icon: 'grid' },
+        { id: 'requests', label: 'คิวคำขอตรวจสอบ', icon: 'check-square', badge: 0 },
+        { id: 'history', label: 'ประวัติการเปลี่ยนแปลง', icon: 'history' }
       ]
     },
     'Shift Supervisor': {
       initials: 'ณด',
       name: 'ณัฐพล ดวงประสิทธิ์',
       title: 'Shift Supervisor (Shift A)',
-      short: 'หัวหน้ากะ',
+      short: 'หัวหน้ากะ A',
+      team: 'shiftA',
       nav: [
         { id: 'schedule', label: 'ตารางกะ (Shift Schedule)', icon: 'calendar' },
         { id: 'overview', label: 'ภาพรวมกำลังพล', icon: 'grid' },
-        { id: 'requests', label: 'คิวคำขอตรวจสอบ', icon: 'check-square', badge: 2 },
+        { id: 'requests', label: 'คิวคำขอตรวจสอบ', icon: 'check-square', badge: 0 },
         { id: 'history', label: 'ประวัติการเปลี่ยนแปลง', icon: 'history' }
       ]
     },
@@ -136,7 +163,7 @@ const state = {
       short: 'พนักงานปฏิบัติ',
       nav: [
         { id: 'team-schedule', label: 'กะของฉัน', icon: 'calendar' },
-        { id: 'my-requests', label: 'คำขอของฉัน', icon: 'inbox', badge: 2 },
+        { id: 'my-requests', label: 'คำขอของฉัน', icon: 'inbox', badge: 0 },
         { id: 'my-history', label: 'ประวัติของฉัน', icon: 'history' }
       ]
     },
@@ -335,53 +362,8 @@ const state = {
       ]
     },
   },
-  // Requests Queue Data
-  requests: [
-    {
-      id: 101,
-      type: 'สลับกะข้ามทีม (Shift A ↔ Shift B)',
-      person: 'วราเทพ นิยากุล',
-      requesterId: '140',
-      initials: 'วน',
-      roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: 'กัณฑ์เอนก สุวัฒนกุล',
-      targetRole: 'Shift Employee (Shift B)',
-      date: '14 ส.ค. 2569',
-      currentShift: 'N',
-      targetShift: 'M',
-      reason: 'ขอสลับกะกับเพื่อนร่วมงานต่างทีม (N↔M ข้ามทีม A↔B)',
-      isCrossShift: true,
-      approvers: [
-        { role: 'Shift Supervisor B (สุระศักดิ์)', status: 'approved', at: '08:15' },
-        { role: 'Shift Supervisor A (ณัฐพล)', status: 'pending' }
-      ],
-      status: 'รออนุมัติครบ 2 ฝ่าย',
-      submittedAt: '1 ชั่วโมงที่แล้ว',
-      quotaUsed: '1 / 2 ครั้ง'
-    },
-    {
-      id: 103,
-      type: 'ขอทำ OT',
-      person: 'วราเทพ นิยากุล',
-      requesterId: '140',
-      initials: 'วน',
-      roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: null,
-      targetRole: null,
-      date: '20 ส.ค. 2569',
-      currentShift: 'O',
-      targetShift: 'OT',
-      reason: 'ขอทำงานล่วงเวลาในวันหยุด — เสริมกำลังสายผลิตช่วงสั่งซื้อด่วน',
-      isCrossShift: false,
-      approvers: [
-        { role: 'หัวหน้ากะตรวจสอบ (Shift A)', status: 'pending' },
-        { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
-      ],
-      status: 'รอดำเนินการ',
-      submittedAt: '20 นาทีที่แล้ว',
-      quotaUsed: '-'
-    }
-  ],
+  // Requests Queue Data (เริ่มต้นเป็นคิวว่างเปล่าตามตัวเลือก 2.2 เพื่อทดสอบ Flow จริงจากการยื่นคำขอ)
+  requests: [],
 
   // Audit History Logs
   auditLogs: [
@@ -550,17 +532,18 @@ function flipShiftFamily(code) {
   return code;
 }
 
-// จุดเข้าถึงรหัสกะเดียวสำหรับทั้งแอป: เดือนสิงหาคม 2569 = ข้อมูลจริง,
-// เดือนอื่น = ค่าที่แก้ไขไว้ (ถ้ามี) หรือค่าคาดการณ์จากรอบการทำงานของพนักงานคนนั้น
-// (ปรับทิศทางเช้า/ดึกตามผังตารางรายปีที่ผู้จัดการฝ่ายผลิตตั้งค่าไว้สำหรับปีนั้นๆ ด้วย)
+// จุดเข้าถึงรหัสกะเดียวสำหรับทั้งแอป:
+// ตรวจสอบค่า override จากการแก้ไขหรือการอนุมัติคำขอก่อนเสมอ
+// หากไม่มี override: เดือนสิงหาคม 2569 = ข้อมูลจริง, เดือนอื่น = ค่าคาดการณ์จากรอบการทำงาน
 function getShiftCodeForDate(emp, year, month, day) {
   if (!emp) return 'O';
-  if (hasScheduleDataForMonth(year, month)) {
-    return emp.shifts[day - 1] || 'O';
-  }
   const key = `${year}-${month}`;
   const override = state.scheduleOverrides[key] && state.scheduleOverrides[key][emp.id] && state.scheduleOverrides[key][emp.id][day];
   if (override) return override;
+
+  if (hasScheduleDataForMonth(year, month)) {
+    return (emp.shifts && emp.shifts[day - 1]) || 'O';
+  }
 
   const pattern = getEmployeeBasePattern(emp);
   const diff = daysBetweenDates(new Date(year, month, day), new Date(SCHEDULE_DATA_YEAR, SCHEDULE_DATA_MONTH, 1));
@@ -580,6 +563,12 @@ function setShiftOverride(empId, year, month, day, code) {
   if (!state.scheduleOverrides[key]) state.scheduleOverrides[key] = {};
   if (!state.scheduleOverrides[key][empId]) state.scheduleOverrides[key][empId] = {};
   state.scheduleOverrides[key][empId][day] = code;
+
+  // สำหรับเดือนที่มีข้อมูลจริง (สิงหาคม 2569) อัปเดต shifts[] ของพนักงานด้วยเพื่อให้ข้อมูลซิงค์กัน 100%
+  const emp = findEmployeeById(empId);
+  if (emp && hasScheduleDataForMonth(year, month) && emp.shifts) {
+    emp.shifts[day - 1] = code;
+  }
 }
 
 function isMonthLocked(year, month) {
@@ -590,7 +579,7 @@ function isMonthLocked(year, month) {
 }
 
 // ข้อ 6 SRS: สร้างลำดับการอนุมัติคำขอสลับกะ — สลับได้เฉพาะข้ามทีมเท่านั้น
-// หัวหน้ากะของฝ่ายที่จะรับคนมาทำงานอนุมัติก่อน แล้วหัวหน้ากะอีกฝ่ายให้ความยินยอม (ไม่ผ่าน Manager ยกเว้น OT/เคสพิเศษ)
+// หัวหน้ากะของทั้งสองฝ่ายต้องอนุมัติร่วมกัน (Dual Approval: 2 Supervisors ไม่ผ่าน Manager)
 function buildApprovalChain(aEmp, bEmp) {
   const teamAKey = getTeamKeyByLabel(aEmp.shiftType);
   const teamBKey = bEmp ? getTeamKeyByLabel(bEmp.shiftType) : null;
@@ -598,9 +587,50 @@ function buildApprovalChain(aEmp, bEmp) {
   const supB = teamBKey ? state.shiftsData[teamBKey].employees.find(e => e.id === state.shiftsData[teamBKey].supervisorId) : null;
 
   const chain = [];
-  if (bEmp) chain.push({ role: `Shift Supervisor B (${supB ? supB.name.split(' ')[0] : bEmp.shiftType})`, status: 'pending' });
-  chain.push({ role: `Shift Supervisor A (${supA ? supA.name.split(' ')[0] : aEmp.shiftType})`, status: 'pending' });
+  if (bEmp) {
+    const bTeamLetter = bEmp.shiftType.replace('Shift ', '').trim();
+    const aTeamLetter = aEmp.shiftType.replace('Shift ', '').trim();
+    const bSupName = supB ? supB.name.split(' ')[0] : `กะ ${bTeamLetter}`;
+    const aSupName = supA ? supA.name.split(' ')[0] : `กะ ${aTeamLetter}`;
+    chain.push({ role: `Shift Supervisor ${bTeamLetter} (${bSupName})`, status: 'pending' });
+    chain.push({ role: `Shift Supervisor ${aTeamLetter} (${aSupName})`, status: 'pending' });
+  } else {
+    const aTeamLetter = aEmp.shiftType.replace('Shift ', '').trim();
+    const aSupName = supA ? supA.name.split(' ')[0] : `กะ ${aTeamLetter}`;
+    chain.push({ role: `Shift Supervisor ${aTeamLetter} (${aSupName})`, status: 'pending' });
+  }
   return { chain, isCrossTeam: true };
+}
+
+function isSupervisorRoleName(roleName) {
+  return roleName === 'Shift Supervisor' || roleName === 'Shift Supervisor A' || roleName === 'Shift Supervisor B';
+}
+
+function canUserReviewRequestForRole(req, roleName) {
+  if (roleName === 'Manager' || roleName === 'HR' || roleName === 'Shift Employee' || roleName === 'Contractor / Van Driver') {
+    return false;
+  }
+  if (!req.status || (!req.status.includes('รอ') && req.status !== 'รอดำเนินการ')) {
+    return false;
+  }
+  const nextApprover = req.approvers ? req.approvers.find(a => a.status !== 'approved') : null;
+  if (!nextApprover) return false;
+
+  const roleText = nextApprover.role || '';
+  if (roleName === 'Shift Supervisor A') {
+    return roleText.includes('Supervisor A') || roleText.includes('กะ A') || roleText.includes('ณัฐพล') || roleText.includes('Shift A');
+  }
+  if (roleName === 'Shift Supervisor B') {
+    return roleText.includes('Supervisor B') || roleText.includes('กะ B') || roleText.includes('สุระศักดิ์') || roleText.includes('Shift B');
+  }
+  if (roleName === 'Shift Supervisor') {
+    return roleText.includes('Supervisor') || roleText.includes('หัวหน้ากะ');
+  }
+  return false;
+}
+
+function canUserReviewRequest(req) {
+  return canUserReviewRequestForRole(req, state.activeRole);
 }
 
 function isMonthPublished(year, month) {
@@ -979,8 +1009,8 @@ function renderScheduleView() {
   });
 
   const allEmployees = getAllEmployees();
-  const currentViewerId = ['Shift Supervisor', 'Shift Employee'].includes(state.activeRole)
-    ? allEmployees.find(employee => employee.name === state.roles[state.activeRole].name)?.id
+  const currentViewerId = (isSupervisorRoleName(state.activeRole) || state.activeRole === 'Shift Employee')
+    ? allEmployees.find(employee => employee.name === state.roles[state.activeRole]?.name)?.id
     : null;
   const today = DEMO_TODAY;
   const isCurrentDate = d => d === today.getDate()
@@ -996,7 +1026,7 @@ function renderScheduleView() {
   const monthLocked = isMonthLocked(state.currentYear, state.currentMonth);
   const monthPublished = isMonthPublished(state.currentYear, state.currentMonth);
   const hasData = hasScheduleDataForMonth(state.currentYear, state.currentMonth);
-  const canPublish = (state.activeRole === 'Shift Supervisor' || state.activeRole === 'Manager') && !monthLocked && hasData;
+  const canPublish = (isSupervisorRoleName(state.activeRole) || state.activeRole === 'Manager') && !monthLocked && hasData;
   // HR: ดึงข้อมูล (view/export) ได้เท่านั้น ห้ามแก้ไขตารางกะใดๆ ทั้งสิ้น
   const isReadOnlyRole = state.activeRole === 'HR';
   const canInteractSchedule = !monthLocked && !isReadOnlyRole;
@@ -1175,7 +1205,7 @@ function renderScheduleView() {
                       let tdBg = '';
                       if (weekend) tdBg = 'background:#fefce8;';
 
-                      const shiftCode = hasData ? (emp.shifts[d - 1] || 'O') : getShiftCodeForDate(emp, state.currentYear, state.currentMonth, d);
+                      const shiftCode = getShiftCodeForDate(emp, state.currentYear, state.currentMonth, d);
                       return `
                         <td class="${isToday ? 'today-col' : ''} ${weekStartClass}" style="${tdBg}">
                           ${renderShiftBadge(shiftCode, canInteractSchedule, d, emp.id, !hasData)}
@@ -1357,102 +1387,90 @@ function renderOverviewView() {
   `;
 }
 
-function getVisibleRequests() {
-  if (state.activeRole !== 'Shift Employee') return state.requests;
-
-  const employee = getAllEmployees().find(item => item.name === state.roles[state.activeRole].name);
-  return state.requests.filter(request => request.requesterId === employee?.id || request.person === employee?.name);
+function getSupervisorShiftType(roleName) {
+  if (roleName === 'Shift Supervisor A') return 'Shift A';
+  if (roleName === 'Shift Supervisor B') return 'Shift B';
+  const roleConfig = state.roles[roleName];
+  if (roleConfig && roleConfig.team) {
+    if (roleConfig.team === 'shiftA') return 'Shift A';
+    if (roleConfig.team === 'shiftB') return 'Shift B';
+    if (roleConfig.team === 'shiftC') return 'Shift C';
+    if (roleConfig.team === 'shiftD') return 'Shift D';
+  }
+  return 'Shift A';
 }
 
-// Requests View with Interactive Testcase Sandbox Runner
+function getVisibleRequests() {
+  if (state.activeRole === 'Manager' || state.activeRole === 'HR') {
+    return state.requests;
+  }
+
+  if (state.activeRole === 'Shift Employee') {
+    const employee = getAllEmployees().find(item => item.name === state.roles[state.activeRole]?.name);
+    return state.requests.filter(req =>
+      req.requesterId === employee?.id ||
+      req.person === employee?.name ||
+      req.targetPerson === employee?.name
+    );
+  }
+
+  if (isSupervisorRoleName(state.activeRole)) {
+    const supShift = getSupervisorShiftType(state.activeRole);
+    const allEmps = getAllEmployees();
+
+    return state.requests.filter(req => {
+      // Find requester's shift
+      const requester = allEmps.find(e => e.id === req.requesterId || e.name === req.person);
+      const reqShift = requester ? requester.shiftType : (req.roleCategory?.includes('Shift') ? req.roleCategory.match(/Shift [A-D]/)?.[0] : null);
+
+      if (reqShift === supShift) return true;
+
+      // For cross-shift swap, check target person's shift
+      if (req.targetPerson) {
+        const target = allEmps.find(e => e.name === req.targetPerson);
+        const targetShift = target ? target.shiftType : (req.targetRole?.includes('Shift') ? req.targetRole.match(/Shift [A-D]/)?.[0] : null);
+        if (targetShift === supShift) return true;
+      }
+
+      return false;
+    });
+  }
+
+  return state.requests;
+}
+
+// Requests View
 function renderRequestsView() {
   const visibleRequests = getVisibleRequests();
   const isOperatorView = state.activeRole === 'Shift Employee';
 
   return `
     <div class="requests-page ${isOperatorView ? 'operator-requests' : ''}" style="display:flex;flex-direction:column;gap:20px">
-      <!-- เครื่องมือจำลอง test cases สำหรับหัวหน้ากะเท่านั้น ซ่อนจากพนักงาน/ผู้จัดการ/HR -->
-      ${state.activeRole === 'Shift Supervisor' ? `
-      <div class="card" style="padding:18px 24px;background:#f8fafc;border:1.5px solid #cbd5e1">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
-          <div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="avatar avatar-sm" style="background:var(--navy);color:#ffffff">⚡</span>
-              <strong style="font-size:14px;color:var(--navy)">Interactive Test Cases Sandbox (ทดสอบ Flow ข้อ 4 & ข้อ 6)</strong>
-            </div>
-            <p style="font-size:11px;color:var(--muted);margin-top:2px">
-              คลิกปุ่มด้านล่างเพื่อจำลองเหตุการณ์จริงตามโจทย์: Quota เกินกำหนด (US-023), Dual Approval 2 ฝ่าย (US-024) และ Reject พร้อมระบุเหตุผล (US-033)
-            </p>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="resetTestcases()">
-            ${getIcon('history', 'icon-sm')} รีเซ็ตข้อมูลทดสอบ
-          </button>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px">
-          <!-- Testcase 1: Quota Exceeded Simulation -->
-          <div style="padding:12px;background:#ffffff;border:1px solid var(--line);border-radius:var(--radius-md);display:flex;flex-direction:column;justify-content:space-between;gap:8px">
-            <div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <strong style="font-size:12px;color:var(--ink)">Testcase 1: Quota สลับกะ (US-023)</strong>
-                <span class="pill pill-draft" style="color:#b45309">โควตา $\le$ ${state.managerConfig.swapRequestMonthlyLimit} ครั้ง/เดือน</span>
-              </div>
-              <p style="font-size:11px;color:var(--muted);margin-top:4px">
-                ทดสอบกรณียื่นสลับกะครบ ${state.managerConfig.swapRequestMonthlyLimit}/${state.managerConfig.swapRequestMonthlyLimit} ครั้งแล้ว และพยายามส่งคำขอเพิ่ม (ระบบจะบล็อคทันที)
-              </p>
-            </div>
-            <button class="btn btn-secondary btn-sm" style="width:100%;font-weight:700" onclick="simulateQuotaExceeded()">
-              ▶ จำลองพนักงานใช้โควตาเกิน ${state.managerConfig.swapRequestMonthlyLimit} ครั้ง
-            </button>
-          </div>
-
-          <!-- Testcase 2: Dual Approval Progression -->
-          <div style="padding:12px;background:#ffffff;border:1px solid var(--line);border-radius:var(--radius-md);display:flex;flex-direction:column;justify-content:space-between;gap:8px">
-            <div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <strong style="font-size:12px;color:var(--ink)">Testcase 2: อนุมัติ 2 ฝ่าย (US-024)</strong>
-                <span class="pill pill-approved">Cross-Shift Stepper</span>
-              </div>
-              <p style="font-size:11px;color:var(--muted);margin-top:4px">
-                ทดสอบการอนุมัติแบบเป็นขั้น: Shift Supervisor A อนุมัติแล้ว $\to$ รอ Shift Supervisor B กดยืนยันครบถ้วน
-              </p>
-            </div>
-            <button class="btn btn-secondary btn-sm" style="width:100%;font-weight:700" onclick="simulateDualApprovalStep()">
-              ▶ จำลองกดยืนยันฝ่ายที่ 2 (ครบ 2 ฝ่าย)
-            </button>
-          </div>
-
-          <!-- Testcase 3: Reject with Reason Prompt -->
-          <div style="padding:12px;background:#ffffff;border:1px solid var(--line);border-radius:var(--radius-md);display:flex;flex-direction:column;justify-content:space-between;gap:8px">
-            <div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <strong style="font-size:12px;color:var(--ink)">Testcase 3: ไม่อนุมัติพร้อมเหตุผล (US-033)</strong>
-                <span class="pill pill-rejected">Reason Required</span>
-              </div>
-              <p style="font-size:11px;color:var(--muted);margin-top:4px">
-                ทดสอบการเปิด Modal ปฏิเสธคำขอ บังคับพิมพ์เหตุผลเพื่อบันทึกลงประวัติและแจ้งเตือนพนักงาน
-              </p>
-            </div>
-            <button class="btn btn-secondary btn-sm" style="width:100%;font-weight:700;color:#b91c1c" onclick="promptRejectRequest(101)">
-              ▶ ทดสอบเปิดฟอร์มปฏิเสธคำขอ
-            </button>
-          </div>
-        </div>
-      </div>
-      ` : ''}
-
       <!-- Requests Queue Card -->
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
           <div class="card-title">
-            <h3>${isOperatorView ? 'คำขอของฉัน' : 'คิวคำขอตรวจสอบและอนุมัติ (Approval Queue)'}</h3>
-            <p>${isOperatorView ? 'ติดตามสถานะคำขอสลับกะ เปลี่ยนวันหยุด และการลาของคุณ' : 'คำขอสลับกะ เปลี่ยนวันหยุด และขอลา — ตรวจสอบตามกฎความปลอดภัยและสิทธิ์คงเหลือ'}</p>
+            <h3>${isOperatorView ? 'คำขอของฉัน' : state.activeRole === 'Manager' ? 'ติดตามสถานะคำขอ' : `คิวคำขอตรวจสอบและอนุมัติ (${state.roles[state.activeRole]?.short || 'หัวหน้ากะ'})`}</h3>
           </div>
-          <span class="pill pill-pending">${isOperatorView ? 'คำขอของฉัน' : `รอดำเนินการ ${visibleRequests.filter(r => r.status.includes('รอ')).length} รายการ`}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="pill pill-pending">${isOperatorView ? `คำขอของฉัน (${visibleRequests.length})` : `รอดำเนินการ ${visibleRequests.filter(r => r.status && r.status.includes('รอ')).length} รายการ`}</span>
+            ${state.requests.length > 0 ? `
+              <button class="btn btn-secondary btn-sm" onclick="resetTestcases()" title="ล้างรายการคำขอทั้งหมดเพื่อเริ่มทดสอบใหม่">
+                ${getIcon('history', 'icon-sm')} ล้างคิวคำขอ
+              </button>
+            ` : ''}
+          </div>
         </div>
 
         <div>
-          ${visibleRequests.length ? visibleRequests.map(req => renderRequestCard(req, false)).join('') : '<div class="request-empty-state">ยังไม่มีคำขอของคุณ</div>'}
+          ${visibleRequests.length ? visibleRequests.map(req => renderRequestCard(req, false)).join('') : `
+            <div class="request-empty-state" style="padding:48px 20px;text-align:center;color:var(--muted)">
+              <div style="font-size:36px;margin-bottom:12px">📥</div>
+              <strong style="font-size:14px;color:var(--ink);display:block">
+                ${isOperatorView ? 'ยังไม่มีคำขอ' : 'ไม่มีคำขอที่ต้องตรวจสอบ'}
+              </strong>
+            </div>
+          `}
         </div>
       </div>
     </div>
@@ -1462,11 +1480,7 @@ function renderRequestsView() {
 function renderRequestCard(req, isCompact = false) {
   const isPending = req.status.includes('รอ');
   const nextApprover = req.approvers ? req.approvers.find(a => a.status !== 'approved') : null;
-  const canReview = nextApprover
-    ? (state.activeRole === 'Manager' ? nextApprover.role.includes('ผู้จัดการ') || nextApprover.role.includes('Manager')
-      : state.activeRole === 'Shift Supervisor' ? nextApprover.role.includes('Shift Supervisor') || nextApprover.role.includes('หัวหน้ากะ')
-      : false)
-    : state.activeRole === 'Shift Supervisor';
+  const canReview = canUserReviewRequest(req);
   const isApproved = req.status === 'อนุมัติแล้ว';
   const isRejected = req.status === 'ไม่อนุมัติ';
   const isCancelled = req.status === 'ยกเลิกแล้ว';
@@ -1530,14 +1544,14 @@ function renderRequestCard(req, isCompact = false) {
 
         ${req.approvers && req.approvers.length > 1 ? `
           <div class="request-approval">
-            <span class="request-approval-title">ขั้นตอนอนุมัติ</span>
+            <span class="request-approval-title">ขั้นตอนอนุมัติ (2 Supervisors)</span>
             <div class="approval-stepper">
               ${req.approvers.map((a, i) => {
                 const priorAllApproved = req.approvers.slice(0, i).every(p => p.status === 'approved');
                 const stepClass = a.status === 'approved' ? 'done' : (priorAllApproved ? 'active' : '');
                 const isLast = i === req.approvers.length - 1;
                 const label = a.status === 'approved'
-                  ? (isLast ? 'อนุมัติครบแล้ว' : 'อนุมัติแล้ว')
+                  ? (a.at ? `อนุมัติแล้ว (${a.at} น.)` : 'อนุมัติแล้ว')
                   : (priorAllApproved ? 'รอดำเนินการ' : `รอขั้นที่ ${i + 1}`);
                 return `
                   <span class="stepper-step ${stepClass}">
@@ -1552,7 +1566,11 @@ function renderRequestCard(req, isCompact = false) {
         ` : ''}
       </div>
 
-      ${isPending && canReview ? `
+      ${state.activeRole === 'Manager' ? `
+        <div class="request-view-action">
+          <button class="btn btn-secondary btn-sm" onclick="openRequestDetails(${req.id})">ดูรายละเอียด</button>
+        </div>
+      ` : canReview && isPending ? `
         <div class="request-actions">
           <button class="btn-icon-action btn-icon-reject" aria-label="ไม่อนุมัติคำขอ" title="ปฏิเสธคำขอ (ระบุเหตุผล)" onclick="promptRejectRequest(${req.id})">
             ${getIcon('x', 'icon-sm')}<span>ไม่อนุมัติ</span>
@@ -1561,6 +1579,13 @@ function renderRequestCard(req, isCompact = false) {
             ${getIcon('check', 'icon-sm')}<span>อนุมัติ</span>
           </button>
         </div>
+      ` : isSupervisorRoleName(state.activeRole) && isPending ? `
+        <div class="request-view-action" style="align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--muted);background:#f8fafc;padding:6px 10px;border-radius:6px;border:1px dashed #cbd5e1;display:inline-flex;align-items:center;gap:4px">
+            ${getIcon('clock', 'icon-xs')} รอ ${nextApprover ? nextApprover.role : 'หัวหน้ากะอีกฝ่าย'}
+          </span>
+          <button class="btn btn-secondary btn-sm" onclick="openRequestDetails(${req.id})">ดูรายละเอียด</button>
+        </div>
       ` : state.activeRole === 'Shift Employee' ? `
         <div class="request-view-action">
           <button class="btn btn-secondary btn-sm" onclick="openRequestDetails(${req.id})">ดูรายละเอียด</button>
@@ -1568,7 +1593,11 @@ function renderRequestCard(req, isCompact = false) {
             ? `<button class="btn btn-secondary btn-sm" style="color:#b91c1c" title="ยกเลิกได้จนกว่าหัวหน้ากะจะเริ่มตรวจสอบ" onclick="withdrawRequest(${req.id})">ยกเลิกคำขอ</button>`
             : isPending ? `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.45;cursor:not-allowed" title="ยกเลิกไม่ได้ — คำขอนี้ผ่านการตรวจสอบไปแล้ว">ยกเลิกคำขอ</button>` : ''}
         </div>
-      ` : ''}
+      ` : `
+        <div class="request-view-action">
+          <button class="btn btn-secondary btn-sm" onclick="openRequestDetails(${req.id})">ดูรายละเอียด</button>
+        </div>
+      `}
     </article>
   `;
 }
@@ -1666,84 +1695,52 @@ function simulateQuotaExceeded() {
 }
 
 function simulateDualApprovalStep() {
-  const req = state.requests.find(r => r.isCrossShift && r.approvers && r.approvers.length > 1);
+  const req = state.requests.find(r => r.isCrossShift && r.approvers && r.approvers.length > 1 && r.status.includes('รอ'));
   if (!req) {
-    showToast('ไม่พบคำขอข้ามทีมที่ต้องอนุมัติ 2 ฝ่าย', 'alert');
+    showToast('ไม่พบคำขอข้ามทีมที่กำลังรออนุมัติ', 'alert');
     return;
   }
 
   const nextStep = req.approvers.find(a => a.status !== 'approved');
   if (!nextStep) {
-    showToast('คำขอนี้ได้รับการอนุมัติครบทุกฝ่ายเรียบร้อยแล้ว');
+    showToast('คำขอนี้ได้รับการอนุมัติครบ 2 หัวหน้ากะเรียบร้อยแล้ว');
     return;
   }
 
   // Complete the pending approval step
   nextStep.status = 'approved';
-  nextStep.at = '09:05';
-  req.status = 'อนุมัติแล้ว';
+  nextStep.at = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 
-  state.auditLogs.unshift({
-    id: Date.now(),
-    actor: state.roles[state.activeRole]?.name || state.activeRole,
-    avatar: state.roles[state.activeRole]?.initials || '--',
-    action: `อนุมัติคำขอสลับกะข้ามทีม (ฝ่ายสุดท้ายครบสมบูรณ์) ของ ${req.person}`,
-    time: 'เมื่อสักครู่'
-  });
+  const allApproved = req.approvers.every(a => a.status === 'approved');
+  if (allApproved) {
+    req.status = 'อนุมัติแล้ว';
+    state.auditLogs.unshift({
+      id: Date.now(),
+      actor: state.roles[state.activeRole]?.name || nextStep.role,
+      avatar: state.roles[state.activeRole]?.initials || '⚡',
+      action: `อนุมัติคำขอสลับกะข้ามทีม (ครบ 2 หัวหน้ากะสมบูรณ์) ของ ${req.person}`,
+      time: 'เมื่อสักครู่'
+    });
+    showToast(`${nextStep.role} กดยืนยันแล้ว — อนุมัติครบ 2 หัวหน้ากะเรียบร้อย!`, 'check');
+  } else {
+    const nextPending = req.approvers.find(a => a.status !== 'approved');
+    req.status = `รออนุมัติครบ 2 ฝ่าย (${nextPending ? nextPending.role : ''})`.trim();
+    state.auditLogs.unshift({
+      id: Date.now(),
+      actor: state.roles[state.activeRole]?.name || nextStep.role,
+      avatar: state.roles[state.activeRole]?.initials || '⚡',
+      action: `ผ่านการยืนยันโดย "${nextStep.role}" สำหรับคำขอของ ${req.person} — รอหัวหน้ากะอีกฝ่ายยืนยัน`,
+      time: 'เมื่อสักครู่'
+    });
+    showToast(`${nextStep.role} ยืนยันแล้ว — รอหัวหน้ากะอีกฝ่าย`);
+  }
 
-  showToast(`${nextStep.role} กดยืนยันแล้ว — อนุมัติครบทุกฝ่ายเรียบร้อย!`, 'check');
   renderApp();
 }
 
 function resetTestcases() {
-  state.requests = [
-    {
-      id: 101,
-      type: 'สลับกะข้ามทีม (Shift A ↔ Shift B)',
-      person: 'วราเทพ นิยากุล',
-      requesterId: '140',
-      initials: 'วน',
-      roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: 'กัณฑ์เอนก สุวัฒนกุล',
-      targetRole: 'Shift Employee (Shift B)',
-      date: '14 ส.ค. 2569',
-      currentShift: 'N',
-      targetShift: 'M',
-      reason: 'ขอสลับกะกับเพื่อนร่วมงานต่างทีม (N↔M ข้ามทีม A↔B)',
-      isCrossShift: true,
-      approvers: [
-        { role: 'Shift Supervisor B (สุระศักดิ์)', status: 'approved', at: '08:15' },
-        { role: 'Shift Supervisor A (ณัฐพล)', status: 'pending' }
-      ],
-      status: 'รออนุมัติครบ 2 ฝ่าย',
-      submittedAt: '1 ชั่วโมงที่แล้ว',
-      quotaUsed: '1 / 2 ครั้ง'
-    },
-    {
-      id: 103,
-      type: 'ขอทำ OT',
-      person: 'วราเทพ นิยากุล',
-      requesterId: '140',
-      initials: 'วน',
-      roleCategory: 'Shift Employee (Shift A)',
-      targetPerson: null,
-      targetRole: null,
-      date: '20 ส.ค. 2569',
-      currentShift: 'O',
-      targetShift: 'OT',
-      reason: 'ขอทำงานล่วงเวลาในวันหยุด — เสริมกำลังสายผลิตช่วงสั่งซื้อด่วน',
-      isCrossShift: false,
-      approvers: [
-        { role: 'หัวหน้ากะตรวจสอบ (Shift A)', status: 'pending' },
-        { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
-      ],
-      status: 'รอดำเนินการ',
-      submittedAt: '20 นาทีที่แล้ว',
-      quotaUsed: '-'
-    }
-  ];
-
-  showToast('รีเซ็ตข้อมูลคำขอทดสอบเรียบร้อยแล้ว');
+  state.requests = [];
+  showToast('ล้างรายการคำขอทั้งหมดเรียบร้อยแล้ว (คิวคำขอว่างเปล่า)');
   renderApp();
 }
 
@@ -1978,7 +1975,7 @@ function renderOperatorView() {
               <div class="avatar avatar-sm" style="background:#fef3c7;color:#92400e">${getIcon('clock', 'icon-sm')}</div>
               <div class="req-text">
                 <strong>ขอทำงานล่วงเวลา (OT)</strong>
-                <small>เลือกวันและรูปแบบ OT · อนุมัติโดยหัวหน้ากะและผู้จัดการ</small>
+                <small>เลือกวันและรูปแบบ OT · อนุมัติโดยหัวหน้ากะ</small>
               </div>
               ${getIcon('arrowRight', 'icon-sm')}
             </button>
@@ -2791,14 +2788,14 @@ function openShiftEditor(empId, dayNum) {
 }
 
 // รายชื่อเพื่อนร่วมงานที่มีสิทธิ์สลับกะด้วยได้ (Eligible Swap Colleagues):
-//  - หัวหน้ากะ (Shift Supervisor) สลับได้เฉพาะกับหัวหน้ากะด้วยกันเท่านั้น
-//  - พนักงานทั่วไป ห้ามสลับกะกับเพื่อนร่วมงานใน "shift" (ทีม) เดียวกันของตนเอง ต้องเป็นคนละทีมเท่านั้น
+//  - หัวหน้ากะ (Shift Supervisor) สลับได้เฉพาะกับหัวหน้ากะข้ามทีมด้วยกันเท่านั้น
+//  - พนักงานทั่วไป ห้ามสลับกะกับเพื่อนร่วมงานในทีมเดียวกัน (ต้องข้ามทีมเท่านั้น)
 function getEligibleSwapColleagues(aEmp) {
   const others = getAllEmployees().filter(e => e.id !== aEmp.id);
   if (aEmp.roleCategory === 'Shift Supervisor') {
-    return others.filter(e => e.roleCategory === 'Shift Supervisor');
+    return others.filter(e => e.roleCategory === 'Shift Supervisor' && e.shiftType !== aEmp.shiftType);
   }
-  return others.filter(e => e.shiftType !== aEmp.shiftType);
+  return others.filter(e => e.shiftType !== aEmp.shiftType && e.roleCategory !== 'Shift Supervisor');
 }
 
 // --------------------------------------------------------------------------
@@ -2979,22 +2976,27 @@ function submitColleagueSwapRequest(aId, bId, day) {
       showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบไม่ผ่านเงื่อนไข', 'alert');
       return;
     }
+    const chain = buildApprovalChain(aEmp, bEmp).chain;
     state.requests.unshift({
       id: requestId,
-      type: 'สลับกะ',
+      type: 'สลับกะข้ามทีม',
       person: aEmp.name,
       requesterId: aEmp.id,
+      targetPerson: bEmp.name,
+      targetId: bEmp.id,
+      day: parseInt(day, 10),
+      aNewCode: swap.aNewCode,
+      bNewCode: swap.bNewCode,
       initials: aEmp.initials,
       roleCategory: aEmp.roleCategory,
-      targetPerson: bEmp.name,
       targetRole: bEmp.roleCategory,
       date: dateLabel,
       currentShift: swap.aOldCode,
       targetShift: swap.aNewCode,
       reason: `สลับกะกับ ${bEmp.name} (${swap.aOldCode} ↔ ${swap.bOldCode})`,
       isCrossShift,
-      approvers: buildApprovalChain(aEmp, bEmp).chain,
-      status: 'รอดำเนินการ',
+      approvers: chain,
+      status: chain.length > 1 ? 'รออนุมัติครบ 2 ฝ่าย' : 'รอดำเนินการ',
       submittedAt: 'เมื่อสักครู่',
       quotaUsed: `${usedQuota + 1} / ${quotaLimit} ครั้ง`
     });
@@ -3021,18 +3023,21 @@ function submitColleagueSwapRequest(aId, bId, day) {
       type: 'ลา + OT คุมกะแทน',
       person: aEmp.name,
       requesterId: aEmp.id,
+      targetPerson: bEmp.name,
+      targetId: bEmp.id,
+      day: parseInt(day, 10),
+      leaveCode,
+      otCode,
       initials: aEmp.initials,
       roleCategory: aEmp.roleCategory,
-      targetPerson: bEmp.name,
       targetRole: bEmp.roleCategory,
       date: dateLabel,
       currentShift: getShiftCodeForDate(aEmp, state.currentYear, state.currentMonth, day),
       targetShift: leaveCode,
-      reason: `${aEmp.name} ขอลา (${leaveCode}) และให้ ${bEmp.name} ทำ OT (${otCode}) แทน${otCheck.requiresManagerSpecialReview ? ' — มีวันลาพักร้อนซ้อนทับ ต้องอนุมัติพิเศษจากผู้จัดการ' : ''}`,
+      reason: `${aEmp.name} ขอลา (${leaveCode}) และให้ ${bEmp.name} ทำ OT (${otCode}) แทน`,
       isCrossShift: false,
       approvers: [
-        { role: `หัวหน้ากะตรวจสอบ (${bEmp.shiftType})`, status: 'pending' },
-        { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
+        { role: `Shift Supervisor (${bEmp.shiftType})`, status: 'pending' }
       ],
       status: 'รอดำเนินการ',
       submittedAt: 'เมื่อสักครู่',
@@ -3274,6 +3279,10 @@ function submitLeaveRequest(empId) {
     type: `ขอลา (${leaveCode})${isRetroactive ? ' — ย้อนหลัง' : ''}`,
     person: emp.name,
     requesterId: emp.id,
+    day: parseInt(day, 10),
+    leaveCode,
+    coverId: coverEmp ? coverEmp.id : null,
+    coverOtCode,
     initials: emp.initials,
     roleCategory: emp.roleCategory,
     targetPerson: coverEmp ? coverEmp.name : null,
@@ -3284,14 +3293,9 @@ function submitLeaveRequest(empId) {
     reason: (reason || `ขอลา (${leaveCode}) วันที่ ${dateLabel}`) + coverNote,
     isCrossShift: false,
     isRetroactive,
-    approvers: coverEmp
-      ? [
-          { role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' },
-          { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
-        ]
-      : [
-          { role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' }
-        ],
+    approvers: [
+      { role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' }
+    ],
     status: 'รอดำเนินการ',
     submittedAt: 'เมื่อสักครู่',
     quotaUsed: '-'
@@ -3393,6 +3397,8 @@ function submitDayOffChangeRequest(empId) {
     type: `เปลี่ยนวันหยุด${isRetroactive ? ' — ย้อนหลัง' : ''}`,
     person: emp.name,
     requesterId: emp.id,
+    oldDay: parseInt(oldDay, 10),
+    newDay: parseInt(newDay, 10),
     initials: emp.initials,
     roleCategory: emp.roleCategory,
     targetPerson: null,
@@ -3513,6 +3519,7 @@ function submitOTRequest(empId) {
     type: 'ขอทำ OT',
     person: emp.name,
     requesterId: emp.id,
+    day: parseInt(day, 10),
     initials: emp.initials,
     roleCategory: emp.roleCategory,
     targetPerson: null,
@@ -3520,11 +3527,10 @@ function submitOTRequest(empId) {
     date: dateLabel,
     currentShift: getShiftCodeForDate(emp, state.currentYear, state.currentMonth, day),
     targetShift: otCode,
-    reason: (reason || `ขอทำงานล่วงเวลา (${otCode}) วันที่ ${dateLabel}`) + (check.requiresManagerSpecialReview ? ' — มีวันลาพักร้อนซ้อนทับ ต้องอนุมัติพิเศษจากผู้จัดการ' : ''),
+    reason: (reason || `ขอทำงานล่วงเวลา (${otCode}) วันที่ ${dateLabel}`),
     isCrossShift: false,
     approvers: [
-      { role: `หัวหน้ากะตรวจสอบ (${emp.shiftType})`, status: 'pending' },
-      { role: 'ผู้จัดการอนุมัติ OT', status: 'pending' }
+      { role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' }
     ],
     status: 'รอดำเนินการ',
     submittedAt: 'เมื่อสักครู่',
@@ -3539,7 +3545,7 @@ function submitOTRequest(empId) {
     time: 'เมื่อสักครู่'
   });
   closeModal();
-  showToast('ส่งคำขอทำงานล่วงเวลาเรียบร้อยแล้ว · รอหัวหน้ากะและผู้จัดการพิจารณา');
+  showToast('ส่งคำขอทำงานล่วงเวลาเรียบร้อยแล้ว · รอหัวหน้ากะพิจารณา');
   state.activeView = 'my-requests';
   renderApp();
 }
@@ -3698,12 +3704,81 @@ function withdrawRequest(reqId) {
   renderApp();
 }
 
+// ปรับปรุงตารางกะ (Calendar Grid) ตามผลการอนุมัติคำขอจริงทันที
+function applyApprovedRequestToSchedule(req) {
+  if (!req) return;
+  const year = state.currentYear;
+  const month = state.currentMonth;
+
+  let day = req.day;
+  if (!day && req.date) {
+    const match = String(req.date).match(/^\d+/);
+    if (match) day = parseInt(match[0], 10);
+  }
+
+  // 1. สลับกะข้ามทีม (Mutual Swap)
+  if (req.type && req.type.includes('สลับกะ') && req.targetPerson) {
+    const aEmp = findEmployeeById(req.requesterId) || getAllEmployees().find(e => e.name === req.person);
+    const bEmp = findEmployeeById(req.targetId) || getAllEmployees().find(e => e.name === req.targetPerson);
+    if (aEmp && bEmp && day) {
+      const aNew = req.aNewCode || req.targetShift;
+      const bNew = req.bNewCode || req.currentShift;
+      setShiftOverride(aEmp.id, year, month, day, aNew);
+      setShiftOverride(bEmp.id, year, month, day, bNew);
+    }
+  }
+
+  // 2. ขอทำงานล่วงเวลา (OT)
+  else if (req.type && req.type.includes('OT')) {
+    const emp = findEmployeeById(req.requesterId) || getAllEmployees().find(e => e.name === req.person);
+    if (emp && day && req.targetShift) {
+      setShiftOverride(emp.id, year, month, day, req.targetShift);
+    }
+  }
+
+  // 3. ขอลา (Leave / Sick / Vacation) และคนมาคุมแทน
+  else if (req.type && (req.type.includes('ลา') || req.type.includes('ขอลา'))) {
+    const emp = findEmployeeById(req.requesterId) || getAllEmployees().find(e => e.name === req.person);
+    if (emp && day && req.targetShift) {
+      setShiftOverride(emp.id, year, month, day, req.targetShift);
+    }
+    if (req.targetPerson && (req.coverOtCode || req.otCode)) {
+      const coverEmp = findEmployeeById(req.coverId || req.targetId) || getAllEmployees().find(e => e.name === req.targetPerson);
+      const otCode = req.coverOtCode || req.otCode || 'MT';
+      if (coverEmp && day) {
+        setShiftOverride(coverEmp.id, year, month, day, otCode);
+      }
+    }
+  }
+
+  // 4. เปลี่ยนวันหยุด (Day-Off Change)
+  else if (req.type && req.type.includes('เปลี่ยนวันหยุด')) {
+    const emp = findEmployeeById(req.requesterId) || getAllEmployees().find(e => e.name === req.person);
+    if (emp && req.oldDay && req.newDay) {
+      const defaultWork = (emp.shiftType === 'Shift A' || emp.shiftType === 'Shift C') ? 'M' : 'N';
+      setShiftOverride(emp.id, year, month, req.oldDay, defaultWork);
+      setShiftOverride(emp.id, year, month, req.newDay, 'O');
+    }
+  }
+
+  // 5. สิทธิ์วันหยุดนักขัตฤกษ์ (H)
+  else if (req.type && req.type.includes('วันหยุดนักขัตฤกษ์')) {
+    const emp = findEmployeeById(req.requesterId) || getAllEmployees().find(e => e.name === req.person);
+    if (emp && req.targetShift) {
+      const match = String(req.date || '').match(/^\d+/);
+      const holDay = match ? parseInt(match[0], 10) : state.currentDay;
+      setShiftOverride(emp.id, year, month, holDay, req.targetShift);
+    }
+  }
+}
+
 function approveRequest(reqId) {
   const req = state.requests.find(r => r.id === reqId);
   if (!req) return;
 
+  const currentRole = state.roles[state.activeRole] || { name: state.activeRole, initials: '⚡' };
+
   if (req.approvers && req.approvers.length > 1) {
-    // คำขอที่ต้องผ่านหลายขั้น (เช่น สลับข้ามทีม หรือ OT: หัวหน้ากะตรวจสอบ → ผู้จัดการอนุมัติ)
     const nextStep = req.approvers.find(a => a.status !== 'approved');
     if (nextStep) {
       nextStep.status = 'approved';
@@ -3712,31 +3787,38 @@ function approveRequest(reqId) {
     const allApproved = req.approvers.every(a => a.status === 'approved');
     if (allApproved) {
       req.status = 'อนุมัติแล้ว';
+      applyApprovedRequestToSchedule(req);
       state.auditLogs.unshift({
         id: Date.now(),
-        actor: state.roles[state.activeRole].name,
-        avatar: state.roles[state.activeRole].initials,
-        action: `อนุมัติคำขอ ${req.type} ของ ${req.person} ครบทุกขั้นตอนแล้ว (วันที่ ${req.date})`,
+        actor: currentRole.name,
+        avatar: currentRole.initials,
+        action: `อนุมัติคำขอ ${req.type} ของ ${req.person} ครบ 2 หัวหน้ากะแล้ว (วันที่ ${req.date})`,
         time: 'เมื่อสักครู่'
       });
-      showToast(`อนุมัติคำขอของ ${req.person} ครบทุกขั้นตอนแล้ว`);
+      showToast(`อนุมัติคำขอของ ${req.person} ครบ 2 หัวหน้ากะเรียบร้อยแล้ว ✓`);
     } else {
-      req.status = `รออนุมัติขั้นถัดไป (${nextStep ? req.approvers[req.approvers.indexOf(nextStep) + 1]?.role || '' : ''})`.trim();
+      const nextPending = req.approvers.find(a => a.status !== 'approved');
+      req.status = `รออนุมัติครบ 2 ฝ่าย (${nextPending ? nextPending.role : ''})`.trim();
       state.auditLogs.unshift({
         id: Date.now(),
-        actor: state.roles[state.activeRole].name,
-        avatar: state.roles[state.activeRole].initials,
-        action: `ผ่านขั้นตอน "${nextStep ? req.approvers[req.approvers.indexOf(nextStep)].role : ''}" ของคำขอ ${req.type} ของ ${req.person} — รอขั้นถัดไป`,
+        actor: currentRole.name,
+        avatar: currentRole.initials,
+        action: `ผ่านการยืนยันโดย "${nextStep ? nextStep.role : currentRole.name}" สำหรับคำขอ ${req.type} ของ ${req.person} — รอหัวหน้ากะอีกฝ่ายยืนยัน`,
         time: 'เมื่อสักครู่'
       });
-      showToast(`ผ่านขั้นตอนนี้แล้ว — รออนุมัติขั้นถัดไป`);
+      showToast(`กดยืนยันแล้ว — รอ ${nextPending ? nextPending.role : 'หัวหน้ากะอีกฝ่าย'}`);
     }
   } else {
+    if (req.approvers && req.approvers.length === 1) {
+      req.approvers[0].status = 'approved';
+      req.approvers[0].at = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    }
     req.status = 'อนุมัติแล้ว';
+    applyApprovedRequestToSchedule(req);
     state.auditLogs.unshift({
       id: Date.now(),
-      actor: state.roles[state.activeRole].name,
-      avatar: state.roles[state.activeRole].initials,
+      actor: currentRole.name,
+      avatar: currentRole.initials,
       action: `อนุมัติคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date})`,
       time: 'เมื่อสักครู่'
     });
@@ -4013,7 +4095,10 @@ function exportOTRecordsCSV() {
 function switchRole(roleName) {
   state.activeRole = roleName;
   const roleConfig = state.roles[roleName];
-  state.activeView = roleConfig.nav.length > 0 ? roleConfig.nav[0].id : 'today';
+  if (roleConfig) {
+    state.activeView = roleConfig.nav.length > 0 ? roleConfig.nav[0].id : 'today';
+    state.selectedShiftFilter = 'ALL';
+  }
   renderApp();
 }
 
@@ -4042,7 +4127,36 @@ function toggleNotifications() {
 // MAIN APP RENDER
 // ==========================================================================
 function renderApp() {
-  const role = state.roles[state.activeRole];
+  // คำนวณ badge จำนวนคำขอคงค้างแบบเรียลไทม์
+  const pendingRequests = state.requests.filter(r => r.status && r.status.includes('รอ'));
+  if (state.roles['Manager']) {
+    const monNav = state.roles['Manager'].nav.find(n => n.id === 'manager-monitoring' || n.id === 'manager-approvals');
+    if (monNav) monNav.badge = pendingRequests.length;
+  }
+  if (state.roles['Shift Supervisor A']) {
+    const reqNav = state.roles['Shift Supervisor A'].nav.find(n => n.id === 'requests');
+    if (reqNav) reqNav.badge = state.requests.filter(r => canUserReviewRequestForRole(r, 'Shift Supervisor A')).length;
+  }
+  if (state.roles['Shift Supervisor B']) {
+    const reqNav = state.roles['Shift Supervisor B'].nav.find(n => n.id === 'requests');
+    if (reqNav) reqNav.badge = state.requests.filter(r => canUserReviewRequestForRole(r, 'Shift Supervisor B')).length;
+  }
+  if (state.roles['Shift Supervisor']) {
+    const reqNav = state.roles['Shift Supervisor'].nav.find(n => n.id === 'requests');
+    if (reqNav) reqNav.badge = state.requests.filter(r => canUserReviewRequestForRole(r, 'Shift Supervisor A')).length;
+  }
+  if (state.roles['Shift Employee']) {
+    const myReqNav = state.roles['Shift Employee'].nav.find(n => n.id === 'my-requests');
+    if (myReqNav) {
+      const emp = getAllEmployees().find(item => item.name === state.roles['Shift Employee']?.name);
+      myReqNav.badge = state.requests.filter(req =>
+        (req.requesterId === emp?.id || req.person === emp?.name || req.targetPerson === emp?.name) &&
+        req.status && req.status.includes('รอ')
+      ).length;
+    }
+  }
+
+  const role = state.roles[state.activeRole] || state.roles['Manager'];
   const isDriver = state.activeRole === 'Contractor / Van Driver';
 
   // Sidebar
@@ -4068,7 +4182,7 @@ function renderApp() {
               <button class="nav-link ${state.activeView === item.id ? 'active' : ''}" onclick="switchView('${item.id}')">
                 ${getIcon(item.icon)}
                 <span>${item.label}</span>
-                ${item.badge ? `<span class="nav-badge">${item.badge}</span>` : ''}
+                ${item.badge !== undefined && item.badge > 0 ? `<span class="nav-badge">${item.badge}</span>` : ''}
               </button>
             `).join('')}
           </div>
@@ -4099,7 +4213,7 @@ function renderApp() {
 
   if (breadcrumbView) breadcrumbView.textContent = viewTitle;
   if (topbarTitle) {
-    const isHomeView = state.activeRole === 'Shift Supervisor' && state.activeView === 'overview';
+    const isHomeView = isSupervisorRoleName(state.activeRole) && state.activeView === 'overview';
     const firstName = role.name ? role.name.split(' ')[0] : '';
     topbarTitle.textContent = isHomeView
       ? `สวัสดีตอนเช้า, คุณ${firstName}`
@@ -4111,7 +4225,7 @@ function renderApp() {
   if (contentRoot) {
     if (isDriver) {
       contentRoot.innerHTML = renderDriverView();
-    } else if (state.activeRole === 'Shift Supervisor') {
+    } else if (isSupervisorRoleName(state.activeRole)) {
       if (state.activeView === 'schedule') contentRoot.innerHTML = renderScheduleView();
       else if (state.activeView === 'overview') contentRoot.innerHTML = renderOverviewView();
       else if (state.activeView === 'requests') contentRoot.innerHTML = renderRequestsView();
@@ -4137,7 +4251,7 @@ function renderApp() {
       else if (state.activeView === 'hr-export') contentRoot.innerHTML = renderHRView();
       else if (state.activeView === 'hr-audit') contentRoot.innerHTML = renderHistoryView();
     } else if (state.activeRole === 'Manager') {
-      if (state.activeView === 'manager-approvals') contentRoot.innerHTML = renderRequestsView();
+      if (state.activeView === 'manager-monitoring' || state.activeView === 'manager-approvals') contentRoot.innerHTML = renderRequestsView();
       else if (state.activeView === 'people') contentRoot.innerHTML = renderPeopleView();
       else if (state.activeView === 'annual-schedule') contentRoot.innerHTML = renderAnnualScheduleView();
       else if (state.activeView === 'manager-settings') contentRoot.innerHTML = renderManagerSettingsView();

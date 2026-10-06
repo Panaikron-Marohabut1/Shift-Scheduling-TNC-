@@ -47,7 +47,8 @@
             <span class="role-switch-label">บทบาท:</span>
             <select class="role-select" id="roleSelect" onchange="switchRole(this.value)">
               <option value="Manager">ผู้จัดการฝ่ายผลิต (Manager)</option>
-              <option value="Shift Supervisor">หัวหน้ากะ (Shift Supervisor)</option>
+              <option value="Shift Supervisor A">หัวหน้ากะ A (Shift Supervisor A)</option>
+              <option value="Shift Supervisor B">หัวหน้ากะ B (Shift Supervisor B)</option>
               <option value="Shift Employee">พนักงานปฏิบัติ (Shift Employee)</option>
               <option value="HR">ฝ่ายบุคคล (HR Data & Export)</option>
               <option value="Contractor / Van Driver">ผู้ใช้ภายนอก (External User)</option>
@@ -58,31 +59,16 @@
           <div class="notification-bell-wrap">
             <button class="icon-btn" onclick="toggleNotifications()" aria-label="การแจ้งเตือน">
               <svg class="icon" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-              <span class="unread-dot"></span>
+              <span class="unread-dot" id="unreadDot" style="display:none"></span>
             </button>
             <div class="notification-dropdown" id="notificationDropdown">
               <div class="notification-header">
                 <strong>การแจ้งเตือนล่าสุด</strong>
-                <span class="pill pill-pending">2 รายการใหม่</span>
+                <span class="pill pill-pending" id="notificationBadge" style="display:none">0 รายการใหม่</span>
               </div>
-              <div class="notification-list">
-                <div class="notification-item unread">
-                  <div>
-                    <p><strong>คำขอสลับกะใหม่:</strong> วราเทพ นิยากุล ขอสลับกะวันที่ 12 ส.ค.</p>
-                    <small>12 นาทีที่แล้ว · ตรวจสอบกฎผ่านแล้ว</small>
-                  </div>
-                </div>
-                <div class="notification-item unread">
-                  <div>
-                    <p><strong>สลับกะข้ามทีม:</strong> Shift A ↔ Shift B รอคุณอนุมัติ</p>
-                    <small>1 ชั่วโมงที่แล้ว · หัวหน้า Shift B อนุมัติแล้ว</small>
-                  </div>
-                </div>
-                <div class="notification-item">
-                  <div>
-                    <p><strong>ประกาศตารางกะ:</strong> ตารางกะ ส.ค. 2569 ได้รับการเผยแพร่</p>
-                    <small>08:42 น. · Official Published</small>
-                  </div>
+              <div class="notification-list" id="notificationList">
+                <div class="notification-empty" style="padding:24px 16px;text-align:center;color:var(--muted);font-size:12px">
+                  ไม่มีการแจ้งเตือนใหม่
                 </div>
               </div>
             </div>
