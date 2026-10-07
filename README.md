@@ -1,47 +1,102 @@
-# Shift Scheduling (TNC)
+# Shift schedule TNC
 
-## Overview
+Alpha Demo วันที่ 7 ตุลาคม 2026: แอปสลับกะข้ามทีมบนเครื่อง ใช้ NestJS + TypeScript, PostgreSQL และ Vanilla JavaScript modules ข้อมูลทุกคนเป็นข้อมูลสมมติ ใช้สีและรูปแบบจากต้นแบบเดิมใน `prototypes/legacy-static/` ซึ่งยังเก็บไว้เป็นแหล่งอ้างอิง
 
-The Shift Scheduling System is a project designed to support the management
-of employee work shifts in organizations that operate continuously.
+## โครงสร้าง Project
 
-The system focuses on helping manage shift schedules, employee availability,
-leave requests, shift changes, overtime assignments, and schedule updates.
+- `apps/api/` — Backend ปัจจุบัน
+- `apps/web/` — Frontend ปัจจุบัน
+- `prototypes/legacy-static/` — ต้นแบบเก่า พร้อมเอกสารออกแบบและรายงานตรวจเดิม
+- `.docs/` — Requirements, design และคู่มือพัฒนา
+- `scripts/` — เครื่องมือรันและตรวจ Project
+- `.agents/`, `.codex/`, `.claude/` — Skills และการตั้งค่าของเครื่องมือ Agent
+- `.local/`, `node_modules/`, `.env` — ข้อมูลและ dependencies เฉพาะเครื่อง ไม่เข้า Git
 
-In the current operational process, employees may work in rotating shifts
-to ensure that operations can continue throughout the day and night.
-Shift teams must also maintain enough employees to cover the required
-positions during each working period.
+ดู [คู่มือโครงสร้างและ Agent](.docs/06-development/project-structure.md) สำหรับตำแหน่งที่แก้ไฟล์ร่วมกันและเหตุผลที่คงโฟลเดอร์ของแต่ละเครื่องมือ
 
-## Background
+Workflow: เลือกพนักงานเดโม → ยื่นคำขอ → หัวหน้าทีมผู้ขออนุมัติ → หัวหน้าอีกทีมอนุมัติ → กะสองคนเปลี่ยนพร้อมกัน → Refresh → ตรวจประวัติ
 
-Shift scheduling is used to organize employees into different working
-periods so that operations can continue beyond normal working hours.
+หากส่งวันที่หรือคู่สลับผิด พนักงานผู้ยื่นกด **ยกเลิกคำขอ** ใน “คำขอของฉัน” แล้วกดยืนยันได้ก่อนหัวหน้าคนแรกบันทึกคำตัดสิน แม้หัวหน้าเปิดตรวจแล้วก็ยังยกเลิกได้ หลังอนุมัติครั้งแรกจะยกเลิกไม่ได้ คำขอแสดง “ยกเลิกแล้ว” และมีประวัติ โดยตารางกะไม่เปลี่ยน สามารถยื่นคำขอใหม่สำหรับกะเดิมได้
 
-For continuous 24/7 operations, employees may be divided into multiple
-shift teams such as Shift A, Shift B, Shift C, and Shift D.
+## เริ่มบน Windows
 
-Each shift must maintain sufficient staffing and may need to be adjusted
-when situations such as leave, shift swaps, overtime, special activities,
-or unexpected absences occur.
+1. ใน VS Code เลือก **File → Open Folder** แล้วเปิดโฟลเดอร์ `Shift-Scheduling-TNC-` ที่มี `package.json` ไม่เลือกโฟลเดอร์ `apps/` หรือ legacy prototype
+2. เครื่องใหม่ให้ติดตั้ง [Node.js 24 LTS สำหรับ Windows](https://nodejs.org/en/download) แล้วเปิด Terminal ใหม่ ติดตั้ง pnpm รุ่นที่โปรเจคกำหนด:
 
-## Project Objective
+```powershell
+npm.cmd install --global pnpm@11.25.0
+```
 
-The objective of this project is to study the existing shift scheduling
-process and design a system that can improve the management of:
+3. เลือก **Terminal → New Terminal** ที่ root ของ Project แล้วรันทีละคำสั่ง ระบบทดสอบด้วย Node.js 24 และ pnpm 11.25.0 บน Windows ใช้ชื่อคำสั่งลงท้าย `.cmd` ได้หาก PowerShell ไม่อนุญาต script launcher:
 
-- Employee shift schedules
-- Shift teams
-- Leave requests
-- Shift changes and shift swaps
-- Overtime assignments
-- Schedule revisions
-- Workforce availability
+```powershell
+pnpm install --frozen-lockfile
+pnpm setup
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
+```
 
-## Current Project Status
+รอข้อความว่าแอปพร้อมแล้ว จึงเปิด URL ด้านล่าง และเปิด Terminal ที่รันแอปค้างไว้ `setup` เตรียม PostgreSQL ให้ ไม่ต้องติดตั้งฐานข้อมูลแยกหรือคัดลอก `.env.example` ก่อน
 
-This project is currently in the **DISCOVER phase**.
+เปิด **http://localhost:3000** ใช้ URL นี้สำหรับคำสั่งเปลี่ยนข้อมูล เนื่องจากระบบตรวจ origin แบบตรงกัน Frontend และ `/api` ใช้ origin เดียวกัน
 
-The team is currently focusing on understanding the existing workflow,
-identifying real user problems, gathering user feedback, and defining
-system requirements before starting production development.
+`setup` ดาวน์โหลด PostgreSQL 18.6 Windows x64 จาก EDB เฉพาะเมื่อยังไม่มี เตรียมฐานข้อมูลและรหัสผ่านสุ่มใน `.env` และคัดลอกฟอนต์สำหรับใช้ออฟไลน์ เก็บทั้งหมดในเครื่อง ไม่ติดตั้ง Windows service และไม่แก้ PATH ของระบบ PostgreSQL รับการเชื่อมต่อที่ `127.0.0.1:54329` เท่านั้น ครั้งแรกต้องมีอินเทอร์เน็ตและพื้นที่สำหรับ archive ประมาณ 400 MB พร้อมไฟล์ที่แตกแล้ว
+
+ไม่ต้องคัดลอก `.env.example` ก่อนใช้ portable setup ไฟล์นี้เป็นตัวอย่างสำหรับผู้ที่เตรียม PostgreSQL เอง รหัสผ่านตัวอย่างใช้รันไม่ได้ Instance อื่นต้องเตรียม owner role และ runtime role `shiftflow_app` ที่เป็น non-superuser ให้ตรง migration ชื่อ role/database ภายในเป็นชื่อเทคนิคที่ใช้ก่อนเปลี่ยนชื่อผลิตภัณฑ์
+
+## เปิดครั้งต่อไปและตรวจความพร้อม
+
+```powershell
+pnpm db:start
+pnpm dev
+```
+
+เปิดแอปซ้ำไม่ล้างข้อมูล `db:seed` ทำงานเมื่อสั่งเท่านั้น เมื่อมีข้อมูลแล้วจะเพิ่ม/อัปเดตบัญชีเดโมที่เลือกได้โดยไม่ลบตาราง คำขอ หรือประวัติ คำขอและตารางเก็บใน PostgreSQL จึงยังอยู่หลัง Refresh และ restart Backend หลังอัปเดตโค้ดที่มี migration ใหม่ให้ปิด Backend แล้วรัน `pnpm db:migrate` และ `pnpm db:seed` ก่อนเปิดอีกครั้ง
+
+```powershell
+pnpm check
+pnpm test
+pnpm audit:backlog
+```
+
+`check` สร้าง Backend ตรวจ syntax JavaScript และโครงสร้าง Markdown ที่เปลี่ยน `test` ใช้ฐานข้อมูลแยกที่สร้างและลบเฉพาะของ suite ไม่ล้างเดโม ต้องเปิด PostgreSQL และมี `.env` ก่อน `audit:backlog` ตรวจ traceability ของ spec/backlog ปัจจุบันโดยไม่แก้เนื้อหา
+
+เมื่อมี Playwright และ Chromium พร้อมแล้ว ใช้ `pnpm test:browser` ตรวจ workflow และหน้าทั้ง 9 บัญชีบน desktop/mobile รวมการสลับ A → D และ B → C คำสั่งสร้างฐานทดสอบแยกและใช้พอร์ต 3021 โดยไม่เปลี่ยน `.env` หรือข้อมูลเดโม ตั้ง `PLAYWRIGHT_PACKAGE` และ `BROWSER_EXECUTABLE` หากใช้ package/browser ที่ติดตั้งไว้นอกโปรเจค รายละเอียดอยู่ใน [Alpha Demo implementation notes](.docs/02-design/prototype/alpha-demo.md)
+
+สำหรับรันชุดที่ build แล้ว:
+
+```powershell
+pnpm build
+pnpm start
+```
+
+ความพร้อมฐานข้อมูล: **http://localhost:3000/api/health** ถ้าฐานข้อมูลไม่พร้อม แอปจะไม่เปลี่ยนไปใช้ข้อมูลชั่วคราว ปิดแอปด้วย Ctrl+C และหยุดฐานข้อมูลด้วย `pnpm db:stop` เมื่อเลิกใช้
+
+## ซ้อมเดโม 4 นาที
+
+1. เลือก **พนักงานทดสอบ A1** เปิดเดือนตุลาคม กด “ขอสลับกะ” เลือก **พนักงานทดสอบ B1** วันที่เริ่มต้น 8 ตุลาคม 2026
+2. ตรวจค่าก่อน–หลังและเงื่อนไข ส่งคำขอ เปิด “คำขอของฉัน” แล้ว Refresh เพื่อแสดงว่าคำขอยังอยู่
+3. กด “เปลี่ยนบัญชี” เลือก **หัวหน้าทดสอบ A0** ตรวจคำขอและยืนยันอนุมัติ ตารางยังไม่เปลี่ยน
+4. เปลี่ยนเป็น **หัวหน้าทดสอบ B0** อนุมัติขั้นที่สอง
+5. กลับบัญชี A1 ดูตารางและ Refresh จาก N → M ส่วน B1 เปลี่ยนจาก M → N เปิด “คำขอของฉัน” ดูผลและผู้อนุมัติ ส่วน “ประวัติของฉัน” แสดงการยื่นคำขอของบัญชีตนพร้อมเวลา
+
+มีตารางสมมติทีม A–D เดือนกันยายน–พฤศจิกายน 2026 เลือกเข้าใช้ได้ **9 บัญชี**: Manager, Supervisor 1–4 (A–D), Shift employee 1 (A), Shift employee 2 (B), HR และ External user พนักงาน A/B เลือกคู่สลับจากทีมอื่นใน A–D ได้เมื่อผ่านเงื่อนไขตำแหน่ง กะต่างกัน กะไม่ซ้อน และวันทำงานต่อเนื่อง หัวหน้าทีมผู้ขออนุมัติก่อน แล้วหัวหน้าทีมคู่สลับอนุมัติ บัญชีพนักงาน C/D ยังไม่เปิดเลือกใช้ ไม่คัดลอกชื่อหรือเบอร์ติดต่อจาก seed เก่า Browser tabs ใน profile เดียวใช้ cookie ร่วมกัน หากดูหลาย session พร้อมกันให้ใช้คนละ Browser profile หรือหน้าต่างปกติกับ private window
+
+สำหรับฐานเดโมเดิม ให้รัน `pnpm db:migrate` แล้ว `pnpm db:seed` เพื่อเพิ่ม Supervisor C/D ในหน้าเลือกบัญชี คำสั่งรักษา user IDs ตาราง คำขอ และ audit เดิม ไม่ต้องใช้ `demo:fresh` ตัวอย่าง fixture: A1 → D1 วันที่ 8 ตุลาคม หรือ B1 → C1 วันที่ 11 ตุลาคม 2026 (หากกะในวันนั้นยังไม่ถูกเปลี่ยนจากการทดลองก่อนหน้า)
+
+กะที่สลับและอนุมัติครบมีเครื่องหมายสีม่วงในตาราง ชี้เมาส์ ใช้คีย์บอร์ด หรือแตะบนมือถือเพื่อดูชื่อคู่สลับ ทีม และกะก่อน–หลัง ทุกบัญชีที่อ่านตารางนั้นได้เห็นรายละเอียดนี้ตามขอบเขตเดิม HR อ่านเฉพาะตารางเผยแพร่ External ไม่มีสิทธิ์ แสดงที่มาของกะปัจจุบันเท่านั้นและยังเก็บประวัติเดิม การเพิ่มเครื่องหมายไม่ต้อง migrate หรือ seed เพิ่ม
+
+หลังซ้อม หากต้องการ fixture ใหม่ ให้ปิด Backend แล้วรัน `pnpm demo:fresh` จากนั้นเปิดแอปอีกครั้ง คำสั่งสร้างฐานข้อมูลใหม่และเปลี่ยน `.env` โดย **เก็บฐานข้อมูลเก่าและประวัติทั้งหมดไว้** มีสำเนา config เก่าใน `.local/env-backups/` ไม่มีปุ่มล้างข้อมูลในหน้าจอและไม่มีงานลบ logs อัตโนมัติ ต้องเก็บหลักฐานอย่างน้อย 90 วัน การจัดการ retention จริงยังรอบริษัทอนุมัติ
+
+## ขอบเขตและสิ่งที่รอบริษัท
+
+- Demo account selector ใช้เฉพาะ localhost; session cookie เป็น HttpOnly, SameSite=Strict สิทธิ์ตรวจที่ Backend จาก IDs
+- อนุมัติสองขั้นเป็นเส้นทางเดโมที่ผู้ใช้เลือก ยังไม่รับรอง authority บริษัท การอนุมัติผูก request version และ assignment snapshots
+- ตรวจวันที่ ความเป็นเจ้าของ ต่างทีม ตำแหน่งใน fixture กะซ้อน และไม่เกิน 6 วันทำงานต่อเนื่องรวมข้ามเดือน
+- โควต้า cutoff ช่วงเวลาคำขอ กำลังคนขั้นต่ำ และทักษะบริษัทแสดง “รอยืนยัน” ไม่อ้างว่าผ่านแล้ว
+- Company Identity และ Power Apps มี interfaces ใน `apps/api/src/integrations/contracts.ts` ยังไม่มี provider, payload, sync หรือเส้นทางรับข้อมูลจริง โหมด COMPANY ถูกปิด
+- Manager อ่านคำขอรวม พนักงาน/ทีม ตารางรายปี และตั้งค่า ไม่มีสิทธิ์อนุมัติ HR อ่านเฉพาะตารางที่เผยแพร่ External มีหน้ารับส่งที่ยังไม่โหลดข้อมูลภายใน
+- หน้าตาม Prototype สำหรับ Leave/OT, HR export, รถรับส่งและจัดตารางรายปีเตรียมไว้แล้ว ส่วนที่ยังไม่เชื่อมปิดปุ่มและไม่สร้างผลสำเร็จจำลอง
+
+รายละเอียดอยู่ใน [Alpha Demo implementation notes](.docs/02-design/prototype/alpha-demo.md) ข้อกำหนดโครงการยังอยู่ระหว่าง Discover และการยืนยัน ต้นแบบนี้ไม่เปลี่ยนสถานะของ business/legal decisions

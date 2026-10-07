@@ -1,0 +1,13 @@
+node_modules/
+dist/
+apps/web/fonts/
+.local/
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+*.log
+.claude/settings.local.json
+.impeccable/
+.DS_Store
