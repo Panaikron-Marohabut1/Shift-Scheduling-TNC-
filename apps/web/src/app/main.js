@@ -14,9 +14,15 @@ import { hrExportView,hrAuditView } from '../features/hr/view.js';
 import { driverView } from '../features/external/view.js';
 
 const root=document.getElementById('app');let stage,version=0;
+// Only the sidebar page is kept in the URL so a refresh reopens it; month and filters still reset.
+function rememberView(view) {
+  const url=new URL(location.href);
+  if(view)url.searchParams.set('view',view==='swap'?'schedule':view);else url.searchParams.delete('view');
+  history.replaceState(null,'',url);
+}
 function navigate(view,assignmentId=null) {
   if(ui.saving||!data.actor||!allowedView(data.actor,view))return;
-  ui.view=view;ui.assignmentId=assignmentId;ui.drawer=false;shell();void render();
+  ui.view=view;ui.assignmentId=assignmentId;ui.drawer=false;rememberView(view);shell();void render();
 }
 function onMonth(month) {ui.month=month;void render();}
 function notificationItems(records) {
@@ -24,29 +30,35 @@ function notificationItems(records) {
 }
 async function logout() {
   if(ui.saving)return;
-  try {await api('/auth/logout',{method:'POST'});data.actor=null;data.schedule=null;data.requests=[];data.notifications=[];version++;await showLogin(root,login);}catch(e){toast(e.message);}
+  try {await api('/auth/logout',{method:'POST'});rememberView(null);data.actor=null;data.schedule=null;data.requests=[];data.notifications=[];version++;await showLogin(root,login);}catch(e){toast(e.message);}
 }
 function closeDrawer(focus=false) {
   ui.drawer=false;document.querySelector('.sidebar')?.classList.remove('open');document.querySelector('.sidebar-backdrop')?.classList.remove('open');
   const menu=document.querySelector('.mobile-menu');menu?.setAttribute('aria-expanded','false');if(focus)menu?.focus();
 }
+// shell() rebuilds the sidebar on every navigation; remembering the hover keeps it open after a click.
+function hoverSidebar(open) {ui.sidebarOpen=open;document.querySelector('.sidebar')?.classList.toggle('expanded',open);}
+// An English name in brackets goes on its own line: "ตารางรายปี" / "(Annual Schedule)".
+function navLabel(label) {const [main,english]=label.split(/ (?=\()/);return h('span',{class:'nav-label'},main,english?h('small',{class:'nav-label-en'},english):null);}
 function shell() {
   const actor=data.actor,external=actor.role==='EXTERNAL',profile=profiles[actor.role];
-  const sidebar=external?null:h('aside',{id:'sidebar',class:`sidebar ${ui.drawer?'open':''}`,'aria-label':'เมนูหลัก'},
-    h('a',{class:'brand',href:'#main'},h('span',{class:'brand-mark'},icon('schedule')),h('span',{class:'brand-info'},h('strong',{},'Shift schedule TNC'),h('small',{},'ระบบจัดการตารางกะฝ่ายผลิต'))),
-    h('div',{class:'sidebar-body'},h('nav',{},h('p',{class:'nav-section-title'},'เมนูการทำงาน'),...profile.nav.map(([view,label,symbol])=>h('button',{class:`nav-link ${ui.view===view||(view==='schedule'&&ui.view==='swap')?'active':''}`,onclick:()=>navigate(view),'aria-current':ui.view===view?'page':undefined},icon(symbol),label)))),
-    h('div',{class:'sidebar-profile'},h('span',{class:'avatar'},initials(actor)),h('div',{},h('strong',{},actor.name),h('small',{},accountLabel(actor)))));
+  const sidebar=external?null:h('aside',{id:'sidebar',class:`sidebar ${ui.drawer?'open':''} ${ui.sidebarOpen?'expanded':''}`,'aria-label':'เมนูหลัก',onmouseenter:()=>hoverSidebar(true),onmouseleave:()=>hoverSidebar(false)},
+    h('div',{class:'sidebar-header'},
+      h('a',{class:'brand',href:'#main','aria-label':'Shift schedule TNC'},h('img',{class:'brand-logo',src:'/assets/tnc-logo.png',alt:'','aria-hidden':'true'}),h('span',{class:'brand-info'},h('strong',{},'Shift schedule TNC'),h('small',{},'ระบบจัดการตารางกะฝ่ายผลิต')))),
+    h('div',{class:'sidebar-body'},h('nav',{},h('p',{class:'nav-section-title'},'เมนูการทำงาน'),...profile.nav.map(([view,label,symbol])=>h('button',{class:`nav-link ${ui.view===view||(view==='schedule'&&ui.view==='swap')?'active':''}`,title:label,'aria-label':label,onclick:()=>navigate(view),'aria-current':ui.view===view?'page':undefined},icon(symbol),navLabel(label))))));
   stage=h('main',{id:'main',class:'page-content',tabindex:'-1'});
   const alerts=['EMPLOYEE','SUPERVISOR','MANAGER'].includes(actor.role)?h('details',{class:'notifications'},h('summary',{class:'icon-btn','aria-label':'เปิดการแจ้งเตือน',title:'การแจ้งเตือน'},icon('bell')),h('div',{class:'notification-popover'},...notificationItems(data.notifications))):null;
   const topbar=h('header',{class:'topbar'},h('div',{class:'topbar-left'},external?null:h('button',{class:'icon-btn mobile-menu','aria-label':'เปิดเมนู','aria-controls':'sidebar','aria-expanded':String(ui.drawer),onclick:event=>{
     ui.drawer=!ui.drawer;document.querySelector('.sidebar').classList.toggle('open',ui.drawer);document.querySelector('.sidebar-backdrop').classList.toggle('open',ui.drawer);event.currentTarget.setAttribute('aria-expanded',String(ui.drawer));
   }},icon('menu')),h('div',{},h('div',{class:'breadcrumb'},external?'Shift schedule TNC':'ฝ่ายผลิต',h('span',{},'/'),actor.role==='HR'?'ฝ่ายบุคคล':actor.teamName??accountLabel(actor)),h('p',{class:'topbar-title'},viewTitle(actor,ui.view)))),
     h('div',{class:'top-actions'},h('button',{class:'icon-btn','aria-label':'โหลดล่าสุด',title:'โหลดล่าสุด',onclick:()=>{if(!ui.saving){shell();void render();}}},icon('refresh')),alerts,
-      h('button',{class:'btn account-switch','aria-label':'เปลี่ยนบัญชี',title:'เปลี่ยนบัญชีเดโม',onclick:logout},h('span',{class:'account-switch-label'},'เปลี่ยนบัญชี'),h('span',{},accountLabel(actor)),icon('logout')),h('span',{class:'avatar top-avatar',title:actor.name},initials(actor))));
+      h('div',{class:'top-user'},h('span',{class:'avatar','aria-hidden':'true'},initials(actor)),h('div',{class:'top-user-info'},h('strong',{},actor.name),h('small',{},accountLabel(actor)))),
+      h('button',{class:'btn account-switch','aria-label':'เปลี่ยนบัญชี',title:'เปลี่ยนบัญชีเดโม',onclick:logout},h('span',{class:'account-switch-label'},'เปลี่ยนบัญชี'),icon('logout'))));
   replace(root,h('div',{class:`app-layout ${external?'external-layout':''}`},external?null:h('button',{class:`sidebar-backdrop ${ui.drawer?'open':''}`,'aria-label':'ปิดเมนู',tabindex:'-1',onclick:()=>closeDrawer()}),sidebar,h('div',{class:'main-wrapper'},topbar,stage)));
 }
-async function login(actor) {
-  data.actor=actor;ui.view=profiles[actor.role].initial;ui.month='2026-10';ui.year=2026;ui.teamFilter='ALL';ui.peopleSearch='';ui.peopleTeam='ALL';ui.drawer=false;ui.assignmentId=null;
+async function login(actor,restore=false) {
+  const saved=restore?new URLSearchParams(location.search).get('view'):null;
+  data.actor=actor;ui.view=saved&&saved!=='swap'&&allowedView(actor,saved)?saved:profiles[actor.role].initial;rememberView(ui.view);ui.month='2026-10';ui.year=2026;ui.teamFilter='ALL';ui.peopleSearch='';ui.peopleTeam='ALL';ui.drawer=false;ui.sidebarOpen=false;ui.assignmentId=null;
   data.notifications=[];data.requests=[];data.schedule=null;shell();await render();
 }
 async function loadRecords(view) {
@@ -95,4 +107,4 @@ setInterval(()=>{
   const tag=document.activeElement?.tagName;
   if(data.actor&&['schedule','requests','history','audit','overview'].includes(ui.view)&&!ui.saving&&!document.querySelector('.decision-confirm')&&!document.querySelector('.employee-request-detail-button[aria-expanded="true"]')&&!document.querySelector('.month-popover:popover-open')&&!document.querySelector('.shift-swap-popover:popover-open')&&!['INPUT','SELECT','TEXTAREA'].includes(tag))void render(true);
 },30000);
-try {const session=await api('/me');await login(session.actor);}catch{await showLogin(root,login);}
+try {const session=await api('/me');await login(session.actor,true);}catch{await showLogin(root,login);}

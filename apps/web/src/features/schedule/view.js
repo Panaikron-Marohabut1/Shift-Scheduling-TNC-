@@ -1,4 +1,4 @@
-import { h, shiftBadge, shiftLabel, statusLabel, date, icon } from '../../shared/dom.js';
+import { h, shiftBadge, shiftLabel, date, icon } from '../../shared/dom.js';
 import { monthPicker } from '../../shared/month-picker.js';
 import { swapInspector } from './swap-inspector.js';
 
@@ -30,6 +30,7 @@ export function scheduleView(actor,result,onSwap,onMonth,requests=[],onRequests=
       h('div',{class:'operator-hero-meta'},
         h('div',{},h('small',{},'เวลาปฏิบัติงาน'),h('strong',{},selected.is_working?`${selected.start_time.slice(0,5)}–${selected.end_time.slice(0,5)}`:'วันหยุดตามตาราง')),
         h('div',{},h('small',{},'รหัสพนักงาน'),h('strong',{},selected.employee_code))));
+    const pending=requests.filter(r=>r.status==='PENDING');
     const sevenDays=h('section',{class:'panel seven-days'},
       h('div',{class:'panel-heading'},h('div',{},h('h2',{},`ตารางกะของฉัน · ${monthName(month)}`),h('p',{class:'muted'},'เลือกวันที่เพื่อดูรายละเอียดและขอสลับกะ')),monthControl),
       h('div',{class:'panel-body'},h('div',{class:'seven-day-strip','aria-label':'กะของคุณช่วง 7 วัน',onscroll:()=>inspector.dismiss()},...next.map(a=>{
@@ -40,15 +41,11 @@ export function scheduleView(actor,result,onSwap,onMonth,requests=[],onRequests=
         return day;
       })),
         h('p',{class:'strip-hint'},'เลื่อนซ้าย–ขวาเพื่อดูวันที่ถัดไป'),
-        h('button',{class:'btn secondary full-width',onclick:()=>document.getElementById('monthly-schedule')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'})},icon('schedule'),'ดูตารางกะของทีมทั้งเดือน')));
-    const requestActions=h('section',{class:'panel'},h('div',{class:'panel-heading'},h('div',{},h('h2',{},'ส่งคำขอ'),h('p',{class:'muted'},'เลือกคู่สลับ ก่อนส่งให้หัวหน้าทีมพิจารณา'))),
-      h('div',{class:'panel-body request-actions'},h('button',{class:'request-action-btn','aria-label':'ขอสลับกะ',onclick:()=>onSwap(swapAssignment.assignment_id)},h('span',{class:'action-icon'},icon('swap')),h('span',{class:'req-text'},h('strong',{},'ขอสลับกะกับเพื่อนร่วมงาน'),h('small',{},'เลือกพนักงานต่างทีม · หัวหน้าสองฝ่ายอนุมัติ')),icon('arrow')),
-        h('p',{class:'muted action-help'},'เลือกวันอื่นได้จากตารางกะของคุณ')));
-    const pending=requests.filter(r=>r.status==='PENDING');
-    const status=h('section',{class:'panel'},h('div',{class:'panel-heading'},h('div',{},h('h2',{},'สถานะคำขอของฉัน'),h('p',{class:'muted'},'ดูรายการคำขอและความคืบหน้าล่าสุด'))),
-      h('div',{class:'panel-body request-status-list'},...(pending.length?pending.slice(0,3).map(r=>h('button',{class:'request-status-row',onclick:onRequests},h('strong',{},`สลับกะ · ${date(r.snapshot.source.work_date)}`),h('span',{class:'pill pending'},statusLabel[r.status]),h('small',{},`รอ ${r.approvals.find(a=>a.status==='PENDING')?.name??'หัวหน้าทีม'}`))):[h('p',{class:'status-empty'},'ไม่มีคำขอที่รอดำเนินการในขณะนี้')]),
-        requests.length?h('button',{class:'btn quiet full-width',onclick:onRequests},'ดูคำขอทั้งหมด',icon('arrow')):null));
-    content.append(h('div',{class:'operator-layout'},h('div',{class:'operator-column'},hero,sevenDays),h('div',{class:'operator-column'},requestActions,status)));
+        h('div',{class:'schedule-actions'},
+          h('button',{class:'btn secondary',onclick:()=>document.getElementById('monthly-schedule')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'})},icon('schedule'),'ดูตารางกะของทีมทั้งเดือน'),
+          h('button',{class:'btn secondary','aria-label':'ขอสลับกะ',onclick:()=>onSwap(swapAssignment.assignment_id)},icon('swap'),'ขอสลับกะ'),
+          h('button',{class:'btn secondary',onclick:onRequests},icon('requests'),'คำขอของฉัน',pending.length?h('span',{class:'pill pending'},`รอดำเนินการ ${pending.length}`):null))));
+    content.append(h('div',{class:'operator-column'},hero,sevenDays));
   }
   const head=h('div',{class:'schedule-toolbar'},h('div',{class:'schedule-heading'},h('h2',{},'ตารางกะฝ่ายผลิต'),h('span',{class:`pill ${schedule.status==='PUBLISHED'?'approved':'neutral'}`},schedule.status==='PUBLISHED'?'เผยแพร่แล้ว':'แบบร่าง')),
     h('div',{class:'schedule-controls'},actor.role==='EMPLOYEE'?null:monthControl,
