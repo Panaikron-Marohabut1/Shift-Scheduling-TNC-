@@ -1,0 +1,25 @@
+{
+  "name": "shift-schedule-tnc",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "setup": "node scripts/local-postgres.mjs setup && node scripts/copy-fonts.mjs",
+    "demo:fresh": "node scripts/fresh-demo.mjs",
+    "db:start": "node scripts/local-postgres.mjs start",
+    "db:stop": "node scripts/local-postgres.mjs stop",
+    "db:migrate": "pnpm --filter @tnc/api migrate",
+    "db:seed": "pnpm --filter @tnc/api seed",
+    "dev": "pnpm --filter @tnc/api dev",
+    "build": "node scripts/copy-fonts.mjs && pnpm --filter @tnc/api build",
+    "start": "pnpm --filter @tnc/api start",
+    "test": "pnpm --filter @tnc/api test",
+    "test:browser": "pnpm --filter @tnc/api test:browser",
+    "check": "pnpm build && node scripts/check-project.mjs",
+    "audit:backlog": "node scripts/audit-backlog.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/noto-sans-thai": "^5.3.0"
+  }
+}
