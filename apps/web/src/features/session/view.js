@@ -4,7 +4,7 @@ export async function showLogin(root,onLogin) {
   const list=h('div',{class:'account-list',role:'group','aria-label':'บัญชีทดสอบ'});
   const message=h('div',{'aria-live':'polite'});
   replace(root,h('main',{id:'main',class:'login'},
-    h('header',{class:'login-header'},h('div',{class:'brand'},h('span',{class:'brand-mark'},icon('schedule')),h('span',{class:'brand-info'},h('strong',{},'Shift schedule TNC'),h('small',{},'ระบบจัดการตารางกะฝ่ายผลิต'))),h('p',{},'Alpha Demo · ข้อมูลสมมติเท่านั้น')),
+    h('header',{class:'login-header'},h('div',{class:'brand'},h('img',{class:'brand-logo',src:'/assets/tnc-logo.png',alt:'','aria-hidden':'true'}),h('span',{class:'brand-info'},h('strong',{},'Shift schedule TNC'),h('small',{},'ระบบจัดการตารางกะฝ่ายผลิต'))),h('p',{},'Alpha Demo · ข้อมูลสมมติเท่านั้น')),
     h('section',{class:'login-panel'},h('div',{class:'login-intro'},h('h1',{},'เลือกบัญชีเพื่อเริ่มใช้งาน'),h('p',{class:'muted'},'เลือกพนักงานเพื่อยื่นคำขอ หรือหัวหน้าทีมเพื่อทดลองอนุมัติ')),message,list,
       h('p',{class:'login-note'},'ระบบ Login บริษัทและ Power Apps อยู่ระหว่างรอข้อมูลยืนยัน เดโมนี้ใช้ข้อมูลทดสอบเท่านั้น'))));
   async function load() {

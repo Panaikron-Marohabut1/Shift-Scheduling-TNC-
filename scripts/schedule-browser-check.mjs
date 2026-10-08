@@ -37,7 +37,7 @@ try {
   // Weekend styling must not override the today marker or shift-code colours.
   await page.clock.setFixedTime(new Date('2026-10-10T05:00:00Z'));await page.reload();
   await page.locator('.day-heading th.weekend.day-today').waitFor();
-  assert.equal(await page.locator('.day-heading th.day-today').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(4, 120, 87)');
+  assert.equal(await page.locator('.day-heading th.day-today').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(45, 42, 116)');
   assert.equal(await page.locator('.own-row td.day-today').count(),1);
   await context.close();
  }

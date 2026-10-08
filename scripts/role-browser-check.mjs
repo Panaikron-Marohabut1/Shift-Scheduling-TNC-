@@ -8,7 +8,7 @@ const output=resolve('.local/ui-check');mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});
 const errors=[];
 const accounts=[
-  ['manager',/ผู้จัดการทดสอบ/,'ติดตามสถานะคำขอ',4],
+  ['manager',/ผู้จัดการทดสอบ/,'ติดตามสถานะคำขอ',5],
   ['supervisor-a',/หัวหน้าทดสอบ A0/,'คำขอที่ต้องตรวจสอบ',4],
   ['supervisor-b',/หัวหน้าทดสอบ B0/,'คำขอที่ต้องตรวจสอบ',4],
   ['supervisor-c',/หัวหน้าทดสอบ C0/,'คำขอที่ต้องตรวจสอบ',4],

@@ -1,14 +1,14 @@
 /* The shift colour stays intact; purple and the swap symbol mark its origin. */
-:root{--swap-ink:#6d28d9}
+:root{--swap-ink:#0e6377}
 .grid-shift.has-swap{position:relative;outline:1px solid var(--swap-ink);outline-offset:1px}
 .shift-swap-mark{position:absolute;right:-5px;top:-5px;display:grid;place-items:center;width:15px;height:15px;border:2px solid white;border-radius:4px;background:var(--swap-ink);color:white;pointer-events:none}
 .shift-swap-mark .icon{width:10px;height:10px;stroke-width:2}
 .shift-cell-actions,.day-card-wrap{position:relative;display:inline-grid}.day-card-wrap>.day-card{width:100%;height:100%}
-.shift-swap-detail{position:absolute;top:-12px;right:-12px;width:24px;height:24px;display:grid;place-items:center;border-radius:5px;color:var(--swap-ink)}.shift-swap-detail>.shift-swap-mark{position:static;pointer-events:none}.shift-swap-detail:hover{background:#f5f0ff}
+.shift-swap-detail{position:absolute;top:-12px;right:-12px;width:24px;height:24px;display:grid;place-items:center;border-radius:5px;color:var(--swap-ink)}.shift-swap-detail>.shift-swap-mark{position:static;pointer-events:none}.shift-swap-detail:hover{background:#e8f3f5}
 .day-card-wrap>.shift-swap-detail{top:calc(50% - 19px - 12px);left:calc(50% + 20px - 12px);right:auto}
 .schedule-table button.grid-shift.has-swap{cursor:pointer}.schedule-table button.grid-shift.has-swap:hover{filter:brightness(.96)}
 .swap-legend{display:inline-flex;align-items:center;gap:6px;color:var(--swap-ink);font-size:11px}.swap-legend>.icon{width:14px;height:14px}
-.shift-swap-popover{position:fixed;inset:auto;margin:0;width:300px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);box-shadow:0 8px 24px #102a4326;white-space:normal;line-height:1.55}
+.shift-swap-popover{position:fixed;inset:auto;margin:0;width:300px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);color:var(--ink);box-shadow:var(--shadow);white-space:normal;line-height:1.55}
 .shift-swap-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.shift-swap-heading>span{display:flex;align-items:center;gap:7px;color:var(--swap-ink);font-size:12px}.shift-swap-heading>span>.icon{width:16px;height:16px}
 .shift-swap-partner{display:block;font-size:15px;margin-top:2px;overflow-wrap:anywhere}.shift-swap-team{font-size:12px;color:var(--muted);margin-top:2px}
 .shift-swap-close{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;border-radius:6px;color:var(--muted)}.shift-swap-close:hover{background:var(--surface-muted)}

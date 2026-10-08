@@ -20,8 +20,10 @@ export function peopleView(result) {
 
 export function annualView(months,year,onYear,onMonth) {
   const assignments=months.flatMap(m=>m.assignments),people=roster(assignments);
-  const teams=h('div',{class:'annual-team-grid'},...teamCodes.map(code=>h('section',{class:'panel annual-team-card'},h('div',{class:'panel-body'},h('div',{class:'annual-team-heading'},h('h3',{},`ทีม ${code}`),h('small',{class:'muted'},people.length?`${people.filter(p=>p.team_code===code).length} คน`:'ยังไม่มีข้อมูล')),
-    h('div',{class:'rotation-options'},disabledButton('เช้าก่อน','การเปลี่ยนรอบกะยังไม่เชื่อม','sun'),disabledButton('ดึกก่อน','การเปลี่ยนรอบกะยังไม่เชื่อม','moon'))))));
+  // Rotation order stays disabled until the company confirms the rotation pattern.
+  const teams=dataTable(['ทีม','สมาชิก','ลำดับเริ่มต้น','สถานะ'],h('tbody',{},...teamCodes.map(code=>h('tr',{},h('th',{scope:'row'},`ทีม ${code}`),h('td',{},people.length?`${people.filter(p=>p.team_code===code).length} คน`:'ยังไม่มีข้อมูล'),
+    h('td',{},h('div',{class:'segmented',role:'group','aria-label':`ลำดับเริ่มต้นของทีม ${code}`},disabledButton('เช้าก่อน','การเปลี่ยนรอบกะยังไม่เชื่อม','sun'),disabledButton('ดึกก่อน','การเปลี่ยนรอบกะยังไม่เชื่อม','moon'))),
+    h('td',{},h('span',{class:'pill neutral'},'รอยืนยัน'))))),'ลำดับกะของแต่ละทีม');
   const cards=h('div',{class:'annual-month-grid'},...months.map((result,index)=>{
     const hasData=result.assignments.length>0,label=new Intl.DateTimeFormat('th-TH',{month:'long'}).format(new Date(year,index,1));
     return h('article',{class:'panel annual-month-card'},h('div',{class:'panel-body'},h('div',{class:'annual-month-heading'},h('h3',{},label),hasData?h('span',{class:'pill approved'},'ข้อมูลเดโม'):null),
@@ -31,7 +33,7 @@ export function annualView(months,year,onYear,onMonth) {
       }),h('button',{class:'btn quiet full-width',onclick:()=>onMonth(result.month)},'ดูตารางเดือนนี้',icon('arrow'))):h('p',{class:'annual-no-data'},'ยังไม่มีข้อมูล')));
   }));
   return h('div',{class:'view-stack annual-schedule-page'},heading('ตารางรายปี','สรุปจากข้อมูลในฐานข้อมูล · เดือนที่ไม่มีรายการจะไม่สร้างตารางจำลอง',h('div',{class:'annual-year-actions'},h('button',{class:'icon-btn','aria-label':'ปีก่อนหน้า',disabled:year<=2025,onclick:()=>onYear(year-1)},icon('left')),h('strong',{},String(year)),h('button',{class:'icon-btn','aria-label':'ปีถัดไป',disabled:year>=2027,onclick:()=>onYear(year+1)},icon('arrow')))),
-    h('section',{},h('div',{class:'section-intro'},h('h2',{},'ลำดับกะของแต่ละทีม'),h('p',{class:'muted'},'คงพื้นที่ตั้งค่าตามต้นแบบ · รูปแบบการหมุนเวียนยังรอยืนยัน')),teams),
+    section('ลำดับกะของแต่ละทีม','คงพื้นที่ตั้งค่าตามต้นแบบ · รูปแบบการหมุนเวียนยังรอยืนยัน',teams),
     section('วันหยุดนักขัตฤกษ์',`ปี ${year} · ยังไม่เชื่อมปฏิทินวันหยุดบริษัท`,h('div',{class:'panel-body'},h('p',{class:'muted'},'— / รอยืนยัน'),h('div',{class:'holiday-add'},h('input',{'aria-label':'ชื่อหรือวันที่วันหยุดใหม่',placeholder:'ชื่อหรือวันที่วันหยุดใหม่',disabled:true}),disabledButton('เพิ่มวันหยุด','การจัดการวันหยุดยังไม่เชื่อม')))),
     h('section',{},h('div',{class:'section-intro'},h('h2',{},'ภาพรวมทั้งปี'),h('p',{class:'muted'},'ตัวเลขนับรวมสมาชิกทุกคนในทีม หน่วยคน-วัน ไม่ใช่จำนวนวันของพนักงานคนเดียว'),h('div',{class:'legend compact'},...['M','N','O'].map(shiftBadge))),cards));
 }
