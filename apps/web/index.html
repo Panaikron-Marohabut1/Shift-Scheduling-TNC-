@@ -3,19 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#24235d">
-  <title>Shift schedule TNC</title>
+  <meta name="theme-color" content="#16294a">
+  <title>ShiftFlow ตารางกะฝ่ายผลิต</title>
   <link rel="icon" type="image/png" href="/assets/tnc-logo.png">
   <link rel="stylesheet" href="/styles/app.css">
-  <link rel="stylesheet" href="/styles/roles.css">
-  <link rel="stylesheet" href="/styles/workflow.css">
-  <link rel="stylesheet" href="/styles/requests-history.css">
-  <link rel="stylesheet" href="/styles/schedule-swaps.css">
   <script type="module" src="/src/app/main.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">ข้ามไปเนื้อหา</a>
-  <div id="app"><main id="main" class="initial"><h1>Shift schedule TNC</h1><p role="status">กำลังเชื่อมต่อข้อมูล…</p></main></div>
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="app"></div>
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-container" aria-live="polite"></div>
 </body>
 </html>

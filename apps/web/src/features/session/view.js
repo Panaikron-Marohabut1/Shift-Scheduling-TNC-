@@ -1,28 +1,56 @@
-import { h, icon, accountLabel, initials, errorBox, replace } from '../../shared/dom.js';
+/* ==========================================================================
+   หน้าเข้าสู่ระบบ — ชื่อบทบาท + รหัสผ่านทดลอง แล้วสร้าง session ที่ระบบหลังบ้าน
+   --------------------------------------------------------------------------
+   รหัสผ่าน 1234 ใช้เฉพาะช่วงทดลอง (ตรวจในหน้าเว็บ) เมื่อทีมเชื่อมระบบล็อกอินของบริษัทแล้ว
+   ให้เปลี่ยนที่ signIn() จุดเดียว — ตัวตนจริงยังมาจาก session ของระบบหลังบ้าน (/api/demo/session)
+   ========================================================================== */
+import { view } from '../../app/state.js';
+import { $, esc, js } from '../../shared/dom.js';
 import { api } from '../../api/client.js';
-export async function showLogin(root,onLogin) {
-  const list=h('div',{class:'account-list',role:'group','aria-label':'บัญชีทดสอบ'});
-  const message=h('div',{'aria-live':'polite'});
-  replace(root,h('main',{id:'main',class:'login'},
-    h('header',{class:'login-header'},h('div',{class:'brand'},h('img',{class:'brand-logo',src:'/assets/tnc-logo.png',alt:'','aria-hidden':'true'}),h('span',{class:'brand-info'},h('strong',{},'Shift schedule TNC'),h('small',{},'ระบบจัดการตารางกะฝ่ายผลิต'))),h('p',{},'Alpha Demo · ข้อมูลสมมติเท่านั้น')),
-    h('section',{class:'login-panel'},h('div',{class:'login-intro'},h('h1',{},'เลือกบัญชีเพื่อเริ่มใช้งาน'),h('p',{class:'muted'},'เลือกพนักงานเพื่อยื่นคำขอ หรือหัวหน้าทีมเพื่อทดลองอนุมัติ')),message,list,
-      h('p',{class:'login-note'},'ระบบ Login บริษัทและ Power Apps อยู่ระหว่างรอข้อมูลยืนยัน เดโมนี้ใช้ข้อมูลทดสอบเท่านั้น'))));
-  async function load() {
-    replace(list,h('p',{role:'status',class:'muted'},'กำลังโหลดบัญชี…'));
-    try {
-      const accounts=await api('/demo/accounts');
-      if(!accounts.length){replace(list,h('div',{class:'notice'},'ยังไม่มีบัญชีทดสอบ กรุณาให้ทีมเตรียมข้อมูลเดโมก่อนเริ่มใช้งาน'));return;}
-      accounts.sort((a,b)=>a.demoOrder-b.demoOrder);
-      const groups={MANAGER:['Manager','ติดตามภาพรวม'],SUPERVISOR:['Supervisor','ตรวจและอนุมัติคำขอ'],EMPLOYEE:['Shift employee','ยื่นคำขอสลับกะ'],HR:['HR','ตารางรวมและข้อมูล'],EXTERNAL:['External user','ตารางรับส่ง']};
-      replace(list,...['MANAGER','SUPERVISOR','EMPLOYEE','HR','EXTERNAL'].filter(role=>accounts.some(actor=>actor.role===role)).map(role=>h('section',{class:'account-group','aria-labelledby':`account-role-${role}`},
-        h('div',{class:'account-group-heading'},h('h2',{id:`account-role-${role}`},groups[role][0]),h('p',{},groups[role][1])),
-        h('div',{class:'account-group-options'},...accounts.filter(actor=>actor.role===role).map(actor=>h('button',{type:'button',class:'account',onclick:async event=>{
-        list.querySelectorAll('button').forEach(b=>b.disabled=true); event.currentTarget.setAttribute('aria-busy','true'); replace(message);
-        try {const session=await api('/demo/session',{method:'POST',body:{userId:actor.userId}});await onLogin(session.actor);}
-        catch(e) {replace(message,errorBox(e));list.querySelectorAll('button').forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy');});}
-      }},h('span',{class:'avatar','aria-hidden':'true'},initials(actor)),h('span',{class:'account-identity'},h('strong',{},accountLabel(actor)),h('small',{},actor.name)),icon('arrow'))))
-      )));
-    } catch(e) {replace(list,errorBox(e,load));}
+import { ROLE_LIST, norm, findRole, accountFor } from '../../app/profiles.js';
+
+const TRIAL_PASSWORD = '1234';
+
+export function loginHtml() {
+  return `
+    <div class="login">
+      <section class="login-side">
+        <div class="login-brand"><b>ShiftFlow</b><span>ระบบตารางกะฝ่ายผลิต</span></div>
+      </section>
+      <section class="login-main">
+        <form class="login-form" data-submit="SF.login()" novalidate>
+          <h1>เข้าสู่ระบบ</h1>
+          <div class="field">
+            <label for="lgUser">ชื่อบทบาท</label>
+            <input class="inp" id="lgUser" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(view.loginUser)}">
+            <div class="role-picks" aria-label="เลือกบทบาท">${ROLE_LIST.map(r => `<button type="button" class="${norm(view.loginUser) === norm(r[0]) ? 'on' : ''}" data-click="SF.pickRole(${js(r[0])})">${esc(r[0])}</button>`).join('')}</div>
+          </div>
+          <div class="field">
+            <label for="lgPass">รหัสผ่าน</label>
+            <input class="inp" id="lgPass" type="password" autocomplete="current-password">
+          </div>
+          ${view.loginErr ? `<p class="form-err" role="alert">${esc(view.loginErr)}</p>` : ''}
+          <button class="btn primary block" type="submit">เข้าสู่ระบบ</button>
+        </form>
+      </section>
+    </div>`;
+}
+
+// คืนค่า { roleKey, actor } เมื่อเข้าสู่ระบบสำเร็จ หรือ null พร้อมตั้งข้อความผิดพลาด
+export async function signIn() {
+  const name = ($('#lgUser') || {}).value || '';
+  const pass = ($('#lgPass') || {}).value || '';
+  view.loginUser = name;
+  if (!name.trim() || !pass) { view.loginErr = 'กรอกชื่อบทบาทและรหัสผ่าน'; return null; }
+  const role = findRole(name);
+  const account = role && accountFor(role[0]);
+  if (!role || pass !== TRIAL_PASSWORD) { view.loginErr = 'ชื่อบทบาทหรือรหัสผ่านไม่ถูกต้อง'; return null; }
+  if (!account) { view.loginErr = 'ยังไม่มีบัญชีของบทบาทนี้ในฐานข้อมูล (pnpm db:seed)'; return null; }
+  try {
+    const session = await api('/demo/session', { method: 'POST', body: { userId: account.userId } });
+    return { roleKey: role[0], actor: session.actor };
+  } catch (error) {
+    view.loginErr = error.message || 'เข้าสู่ระบบไม่สำเร็จ';
+    return null;
   }
-  await load();
 }
