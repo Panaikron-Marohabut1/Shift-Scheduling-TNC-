@@ -1121,7 +1121,17 @@ Features that can be delivered after the core scheduling workflow is stable:
 
 ---
 
-## 10. Suggested Sprint Plan
+## 10. Won't List
+
+Items in this section are explicitly out of scope for the product and are not merely deferred to a later phase.
+
+**Current status:** No items have been explicitly ruled out.
+
+When an item is added, record its title, reason for exclusion, decision date, and decision owner. Do not move deferred Phase 1 or Phase 2 items here unless the product owner confirms that they will not be delivered.
+
+---
+
+## 11. Suggested Sprint Plan
 
 Assuming a 2-week sprint cadence within the 12-week delivery timeline:
 
@@ -1138,7 +1148,7 @@ Assuming a 2-week sprint cadence within the 12-week delivery timeline:
 
 ---
 
-## 11. Definition of Ready
+## 12. Definition of Ready
 
 A Product Backlog Item is ready for development when:
 
@@ -1154,7 +1164,7 @@ A Product Backlog Item is ready for development when:
 
 ---
 
-## 12. Definition of Done
+## 13. Definition of Done
 
 A Product Backlog Item is considered Done when:
 
@@ -1172,7 +1182,7 @@ A Product Backlog Item is considered Done when:
 
 ---
 
-## 13. Open Questions for Detailed Requirements
+## 14. Open Questions for Detailed Requirements
 
 The following items should be confirmed before development of the related backlog items:
 
@@ -1194,7 +1204,7 @@ The following items should be confirmed before development of the related backlo
 
 ---
 
-## 14. Backlog Prioritization Legend
+## 15. Backlog Prioritization Legend
 
 | Priority | Meaning |
 | --- | --- |
@@ -1204,7 +1214,7 @@ The following items should be confirmed before development of the related backlo
 
 ---
 
-## 15. Product Success Criteria
+## 16. Product Success Criteria
 
 The Shift Schedule System should achieve the following outcomes:
 
