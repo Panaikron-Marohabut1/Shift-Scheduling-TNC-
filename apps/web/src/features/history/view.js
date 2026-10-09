@@ -2,10 +2,11 @@
    ประวัติ — ประวัติจากฐานข้อมูล (/api/audit) รวมกับประวัติของรายการเดโมในเครื่อง
    พนักงานเห็นเฉพาะรายการของตัวเอง
    ========================================================================== */
+
 import { state } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
-import { currentEmp } from '../../shared/scheduling.js';
-import { pageHead } from '../schedule/view.js';
+import { currentEmp } from '../../shared/scheduling/employees.js';
+import { pageHead } from '../../shared/ui.js';
 
 export function getVisibleAuditLogs() {
   if (state.activeRole !== 'Shift Employee') return state.auditLogs;

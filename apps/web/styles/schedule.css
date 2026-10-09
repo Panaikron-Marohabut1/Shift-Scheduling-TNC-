@@ -1,0 +1,163 @@
+/* ==========================================================================
+   ตารางกะ: ตารางรายเดือน มุมมองรายวัน คำอธิบายสัญลักษณ์ วันหยุด ช่องที่เปลี่ยนกะ
+   ========================================================================== */
+
+.mstatus { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; font-size: 0.93rem; color: var(--ink-2); margin-bottom: 12px; }
+
+/* ---------- ตารางกะรายเดือน ---------- */
+.grid-wrap { overflow: auto; max-height: calc(100vh - 226px); min-height: 280px; background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); }
+.roster { border-collapse: separate; border-spacing: 0; font-size: 0.93rem; min-width: 100%; }
+.roster th, .roster td { padding: 0; height: var(--row); border-right: 1px solid #eef1f5; border-bottom: 1px solid #eef1f5; text-align: center; white-space: nowrap; }
+.roster thead th { position: sticky; top: 0; z-index: 4; height: 48px; background: var(--surface); border-bottom: 1px solid var(--line-2); font-weight: 500; line-height: 1.2; min-width: 31px; }
+.roster thead th span { display: block; font-size: 0.78rem; color: var(--muted); }
+.roster thead th b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.roster thead th.we { background: var(--soft); }
+.roster thead th.hol b, .roster thead th.hol span { color: var(--bad); }
+.roster thead th.tdy { background: var(--primary); }
+.roster thead th.tdy b, .roster thead th.tdy span { color: #fff; }
+.roster .nm { position: sticky; left: 0; z-index: 3; width: 190px; min-width: 190px; max-width: 190px; background: var(--surface); border-right: 1px solid var(--line-2); text-align: left; font-weight: 400; }
+.roster thead .nm { z-index: 6; padding: 0 16px; font-weight: 600; color: var(--ink-2); }
+.roster .nm button { display: flex; align-items: center; gap: 8px; width: 100%; height: var(--row); padding: 0 16px; text-align: left; }
+.roster .nm button:hover .name { color: var(--primary); }
+.roster .name { overflow: hidden; text-overflow: ellipsis; }
+.roster .tag { margin-left: auto; flex: none; }
+.roster tr.team th, .roster tr.team td { background: var(--soft); height: 30px; border-right-color: transparent; }
+.roster tr.team .nm { padding: 0 16px; font-weight: 700; font-size: 0.87rem; color: var(--ink-2); border-right-color: var(--line-2); }
+.roster tbody tr:not(.team):hover .nm { background: var(--soft); }
+.roster tr.me .nm { background: var(--primary-tint); }
+.roster tr.me .name { font-weight: 700; color: var(--primary-dark); }
+.roster td button { display: block; width: 100%; min-width: 31px; height: calc(var(--row) - 1px); font-weight: 600; font-size: 0.87rem; line-height: 1; color: inherit; }
+.roster td .off { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+.roster td.is-long button { font-size: 0.72rem; letter-spacing: -0.02em; }
+.roster td button:hover { box-shadow: inset 0 0 0 2px var(--primary); }
+.roster td.tdy { box-shadow: inset 2px 0 0 var(--primary), inset -2px 0 0 var(--primary); }
+.roster .sm { width: 40px; min-width: 40px; background: var(--surface); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.roster thead .sm { font-size: 0.82rem; font-weight: 600; }
+.roster tbody td.sm:nth-last-child(3), .roster thead th.sm:nth-last-child(3) { border-left: 1px solid var(--line-2); font-weight: 700; color: var(--ink); }
+.roster tfoot th, .roster tfoot td { position: sticky; z-index: 2; height: 30px; background: var(--soft); font-variant-numeric: tabular-nums; font-size: 0.87rem; color: var(--ink-2); }
+.roster tfoot .r1 th, .roster tfoot .r1 td { bottom: 30px; border-top: 1px solid var(--line-2); }
+.roster tfoot .r2 th, .roster tfoot .r2 td { bottom: 0; border-bottom: 0; }
+.roster tfoot .nm { z-index: 5; padding: 0 16px; font-weight: 500; background: var(--soft); }
+.roster tfoot td.low { color: var(--bad); font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 14px; font-size: 0.93rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.mk-ot, .mk-chg { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+.mk-ot { background: var(--ot); }
+.mk-chg { background: var(--navy); }
+.legend .link { margin-left: auto; }
+
+/* ---------- มุมมองรายวัน ---------- */
+.dnav { display: inline-flex; align-items: center; gap: 4px; }
+.dnav-days { display: inline-flex; gap: 4px; }
+.dnav-days button { width: 44px; height: 46px; border-radius: 10px; line-height: 1.2; }
+.dnav-days button:hover { background: var(--line); }
+.dnav-days button span { display: block; font-size: 0.78rem; color: var(--muted); }
+.dnav-days button b { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 1.05rem; }
+.dnav-days button.tdy b { color: var(--primary); }
+.dnav-days button.on { background: var(--primary); }
+.dnav-days button.on span, .dnav-days button.on b { color: #fff; }
+.daytitle { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 4px 0 16px; }
+.daycols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; }
+.daycol { background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); min-width: 0; overflow: hidden; }
+.daycol header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; }
+.daycol header .t { color: var(--muted); font-size: 0.93rem; }
+.daycol header b { margin-left: auto; font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.daycol header b.low { color: var(--bad); }
+.daycol .none { padding: 0 18px 16px; }
+.plist li { display: flex; align-items: center; border-top: 1px solid #f0f2f6; }
+.prow { flex: 1; min-width: 0; display: grid; text-align: left; padding: 10px 18px; line-height: 1.4; }
+.prow:hover { background: var(--soft); }
+.pname { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmeta { font-size: 0.87rem; color: var(--muted); }
+.pmeta em { font-style: normal; margin-left: 8px; color: #c2410c; font-weight: 600; }
+.tel { font-variant-numeric: tabular-nums; white-space: nowrap; text-decoration: none; color: var(--primary); }
+.tel:hover { text-decoration: underline; }
+.plist .tel { padding: 10px 18px; font-size: 0.95rem; }
+.tbl.codes th, .tbl.codes td { padding: 9px 10px; }
+.tbl.codes td .sw + span { margin-left: 6px; color: var(--ink-2); }
+@media (max-width: 760px) {
+  .grid-wrap { max-height: calc(100vh - 330px); min-height: 320px; }
+  .roster .nm { width: 128px; min-width: 128px; max-width: 128px; }
+  .roster .nm button, .roster thead .nm, .roster tr.team .nm, .roster tfoot .nm { padding: 0 12px; }
+  .roster .tag { display: none; }
+  .roster thead th { min-width: 38px; }
+  .roster td button { min-width: 38px; }
+  .dnav { width: 100%; }
+  .dnav-days { flex: 1; }
+  .dnav-days button { flex: 1; width: auto; }
+  .daycols { grid-template-columns: 1fr; }
+  .prow, .plist .tel { padding-top: 12px; padding-bottom: 12px; }
+  .legend .link { margin-left: 0; }
+}
+
+/* จอโน้ตบุ๊ก 1280–1366 ให้ตารางทั้งเดือนยังพอดีจอ */
+@media (min-width: 761px) and (max-width: 1399px) {
+  .roster { font-size: 0.85rem; }
+  .roster .nm { width: 150px; min-width: 150px; max-width: 150px; }
+  .roster .nm button, .roster thead .nm, .roster tr.team .nm, .roster tfoot .nm { padding: 0 10px; }
+  .roster .tag { display: none; }
+  .roster thead th, .roster td button { min-width: 28px; }
+  .roster td button { font-size: 0.8rem; }
+  .roster td.is-long button { font-size: 0.62rem; }
+  .roster .sm { width: 34px; min-width: 34px; }
+}
+.roster tr.team td.team-note { text-align: left; padding: 0 12px; font-size: 0.85rem; color: var(--muted); }
+.roster .nm .nm-in { display: flex; align-items: center; gap: 8px; height: var(--row); padding: 0 16px; }
+.roster .you { font-size: 0.75rem; font-weight: 600; color: var(--primary); background: var(--primary-tint); padding: 0 6px; border-radius: 6px; flex: none; }
+.roster td > span { display: grid; place-items: center; height: calc(var(--row) - 1px); font-weight: 600; font-size: 0.87rem; }
+.roster td.proj > * { opacity: 0.6; }
+.roster tbody tr:hover .nm { background: var(--soft); }
+.roster tr.me .nm { background: var(--primary-tint); }
+.proj-note { margin: -4px 0 12px; }
+.roster .sm { width: 44px; min-width: 44px; }
+.roster { font-size: 0.95rem; }
+.roster td button, .roster td > span { font-size: 0.92rem; }
+.roster thead th span { font-size: 0.8rem; }
+@media (min-width: 761px) and (max-width: 1399px) {
+  .roster { font-size: 0.88rem; }
+  .roster td button, .roster td > span { font-size: 0.84rem; }
+}
+.roster thead th.we { background: var(--we-bg); }
+.roster thead th.we span, .roster thead th.we b { color: var(--we-ink); }
+.roster thead th.hol { background: var(--hol-bg); }
+.roster thead th.hol span, .roster thead th.hol b { color: var(--hol-ink); }
+.roster thead th.tdy { background: var(--primary); }
+.roster thead th.tdy span, .roster thead th.tdy b { color: #fff; }
+.roster td.c-O.we, .roster td.c-L.we { background: var(--we-bg); }
+.roster td.c-O.hol, .roster td.c-L.hol { background: var(--hol-bg); }
+.roster td.we:not(.c-O):not(.c-L) { box-shadow: inset 0 -3px 0 #f6c58e; }
+.roster td.hol:not(.c-O):not(.c-L) { box-shadow: inset 0 -3px 0 #ef9a9a; }
+.roster td.tdy.we, .roster td.tdy.hol, .roster td.tdy { box-shadow: inset 2px 0 0 var(--primary), inset -2px 0 0 var(--primary); }
+.roster tfoot td.we { background: #fbe5cc; }
+.roster tfoot td.hol { background: #f8cfcf; }
+.roster th.wk, .roster td.wk { border-left: 2px solid var(--wk-line); }
+.lg-day { display: inline-block; width: 14px; height: 14px; border-radius: 4px; }
+.lg-day.we { background: var(--we-bg); box-shadow: inset 0 0 0 1px #f6c58e; }
+.lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px #ef9a9a; }
+
+/* รายวัน */
+.dnav-days button.we:not(.on) b, .dnav-days button.we:not(.on) span { color: var(--we-ink); }
+.dnav-days button.hol:not(.on) b, .dnav-days button.hol:not(.on) span { color: var(--hol-ink); }
+.dnav-days button.we:not(.on) { background: var(--we-bg); }
+.dnav-days button.hol:not(.on) { background: var(--hol-bg); }
+.prow:disabled { cursor: default; }
+.prow:disabled:hover { background: none; }
+
+/* ช่องที่เปลี่ยนจากตารางเดิม: มุมแดงซ้ายบน (แบบช่องที่มีหมายเหตุใน Excel) */
+.roster td.chg { position: relative; }
+.roster td.chg::before { content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; border-style: solid; border-width: 9px 9px 0 0; border-color: #d62828 transparent transparent transparent; }
+.roster td.chg button, .roster td.chg > span { font-weight: 800; }
+.mk-corner { display: inline-block; width: 0; height: 0; border-style: solid; border-width: 10px 10px 0 0; border-color: #d62828 transparent transparent transparent; }
+
+/* แถวของคนที่ล็อกอินอยู่: เห็นชัดทันทีว่าแถวไหนเป็นของตัวเอง */
+.roster tr.me .nm, .roster tbody tr.me:hover .nm { background: var(--primary); box-shadow: inset 6px 0 0 #f2b705; }
+.roster tr.me .name { color: #fff; font-weight: 700; }
+.roster tr.me .you { background: #f2b705; color: #1b2433; font-weight: 700; }
+.roster tr.me .tag { color: #dfe7f5; }
+.roster tr.me td { box-shadow: inset 0 3px 0 var(--primary), inset 0 -3px 0 var(--primary); }
+.roster tr.me td.tdy { box-shadow: inset 0 3px 0 var(--primary), inset 0 -3px 0 var(--primary), inset 2px 0 0 var(--primary), inset -2px 0 0 var(--primary); }
+.roster tr.me td button { font-weight: 800; }
+.roster tr.me td.sm { background: var(--primary-tint); color: var(--primary-dark); font-weight: 700; }
+.plist li.me { background: var(--primary-tint); box-shadow: inset 6px 0 0 var(--primary); }
+.plist li.me .pname { color: var(--primary-dark); font-weight: 700; }
+.plist .you { font-size: 0.75rem; font-weight: 700; background: #f2b705; color: #1b2433; padding: 0 6px; border-radius: 6px; margin-left: 4px; }

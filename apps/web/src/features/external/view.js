@@ -4,11 +4,13 @@
    LOCAL: รายชื่อจุดรับส่งเป็นข้อมูลตัวอย่าง และการกด "รับทราบ" เก็บในเบราว์เซอร์
    จนกว่าระบบหลังบ้านจะมี API ตารางรับส่ง (ไม่โหลดข้อมูลพนักงานภายในให้บัญชีภายนอก)
    ========================================================================== */
-import { state, saveLocal } from '../../app/state.js';
-import { esc, showToast } from '../../shared/dom.js';
-import { daysIn } from '../../shared/scheduling.js';
-import { pageHead } from '../schedule/view.js';
+
 import { addLog } from '../../app/data.js';
+import { saveLocal, state } from '../../app/state.js';
+import { esc } from '../../shared/dom.js';
+import { daysIn } from '../../shared/scheduling/dates.js';
+import { showToast } from '../../shared/toast.js';
+import { pageHead } from '../../shared/ui.js';
 
 const ROWS = [
   ['Kanya Srisawat', 'กะเช้า', 'หัวหน้ากะ', 'ประตู 1', '06:30 น.'],
@@ -36,8 +38,8 @@ export function driverHtml() {
     <p class="muted small driver-note">เมื่อกดยืนยัน ระบบจะบันทึกเวลาเพื่อให้หัวหน้ากะทราบว่าคนขับได้รับข้อมูลแล้ว</p>`;
 }
 
-let rerender = () => {};
-export function onDriverChange(fn) { rerender = fn; }
+let redraw = () => {};
+export function onDriverChange(fn) { redraw = fn; }
 export function acknowledgeDriverSchedule() {
   const now = new Date();
   state.driverAcknowledged = true;
@@ -45,5 +47,5 @@ export function acknowledgeDriverSchedule() {
   addLog('คนขับรถตู้สาย A รับทราบและยืนยันตารางรับส่งประจำวัน');
   saveLocal();
   showToast('รับทราบและยืนยันตารางงานเรียบร้อยแล้ว');
-  rerender();
+  redraw();
 }

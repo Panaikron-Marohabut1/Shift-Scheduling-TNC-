@@ -116,7 +116,9 @@ let lastSaved = '';
 export function loadLocal() {
   let data = null;
   try { const raw = localStorage.getItem(LOCAL_KEY); data = raw ? JSON.parse(raw) : null; } catch { data = null; }
-  if (data) SAVED_FIELDS.forEach(k => { if (data[k] !== undefined) state[k] = data[k]; });
+  // รับเฉพาะค่าที่ชนิดตรงกับค่าตั้งต้น (กันข้อมูลในเครื่องเสียหรือถูกแก้ แล้วทำให้หน้าเว็บพัง)
+  const kind = v => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v);
+  if (data && kind(data) === 'object') SAVED_FIELDS.forEach(k => { if (data[k] !== undefined && (kind(data[k]) === kind(state[k]) || state[k] === null)) state[k] = data[k]; });
   lastSaved = JSON.stringify(snapshot());
   return !!data;
 }

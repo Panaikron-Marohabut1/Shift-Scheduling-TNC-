@@ -4,10 +4,11 @@
    รหัสผ่าน 1234 ใช้เฉพาะช่วงทดลอง (ตรวจในหน้าเว็บ) เมื่อทีมเชื่อมระบบล็อกอินของบริษัทแล้ว
    ให้เปลี่ยนที่ signIn() จุดเดียว — ตัวตนจริงยังมาจาก session ของระบบหลังบ้าน (/api/demo/session)
    ========================================================================== */
+
+import { api } from '../../api/client.js';
+import { accountFor, findRole, norm, ROLE_LIST } from '../../app/profiles.js';
 import { view } from '../../app/state.js';
 import { $, esc, js } from '../../shared/dom.js';
-import { api } from '../../api/client.js';
-import { ROLE_LIST, norm, findRole, accountFor } from '../../app/profiles.js';
 
 const TRIAL_PASSWORD = '1234';
 

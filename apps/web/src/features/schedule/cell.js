@@ -6,14 +6,19 @@
    - ช่องของตัวเอง: ปุ่มคำขอที่ยื่นได้ในวันนั้น
    ฝ่ายบุคคลดูอย่างเดียว · เดือนที่ผ่านไปแล้วและปีที่ยังไม่ประกาศใช้ยื่นคำขอไม่ได้
    ========================================================================== */
+
 import { state, view } from '../../app/state.js';
-import { $, esc, js, openModal } from '../../shared/dom.js';
-import {
-  findEmployeeById, getShiftCodeForDate, getEmployeeFacingShiftLabel, isMonthLocked, isYearPublished, isSupervisorRoleName, currentEmp,
-  getEligibleSwapColleagues, validateSwapBothSides, hasScheduleDataForMonth, shortDate
-} from '../../shared/scheduling.js';
-import { famOf, changeNote, holidaysOf, draftNote, telOf } from './view.js';
-import { kindsAllowed, kindButtons } from '../requests/forms.js';
+import { $, esc, js } from '../../shared/dom.js';
+import { openModal } from '../../shared/modal.js';
+import { isYearPublished } from '../../shared/scheduling/annual.js';
+import { shortDate } from '../../shared/scheduling/dates.js';
+import { currentEmp, findEmployeeById, getEmployeeFacingShiftLabel, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
+import { getShiftCodeForDate, hasScheduleDataForMonth, isMonthLocked } from '../../shared/scheduling/roster.js';
+import { getEligibleSwapColleagues, validateSwapBothSides } from '../../shared/scheduling/rules.js';
+import { telOf } from '../../shared/ui.js';
+import { kindButtons, kindsAllowed } from '../requests/new-request.js';
+import { changeNote, famOf } from './codes.js';
+import { draftNote, holidaysOf } from './days.js';
 
 export function openCell(empId, day) { view.cell = { empId: String(empId), day }; renderCell(); }
 
@@ -77,7 +82,7 @@ export function renderCell() {
   const foot = '<button class="btn" data-click="closeModal()">ปิด</button>';
   const box = $('#modalRoot .modal-body');
   const top = box ? box.scrollTop : 0;
-  openModal(`${esc(emp.name)} · ${esc(shortDate(y, m, d))}`, body, foot);
+  openModal(`${emp.name} · ${shortDate(y, m, d)}`, body, foot);
   const nb = $('#modalRoot .modal-body');
   if (nb) nb.scrollTop = top;
 }

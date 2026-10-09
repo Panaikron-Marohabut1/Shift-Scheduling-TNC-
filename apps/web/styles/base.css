@@ -1,0 +1,191 @@
+/* ==========================================================================
+   พื้นฐาน: ฟอนต์ สี ตัวแปร ปุ่ม ช่องกรอก สถานะ รหัสกะ ตารางข้อมูล ข้อความแจ้งผล
+   ========================================================================== */
+
+@font-face { font-family: 'Sarabun'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-400.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
+@font-face { font-family: 'Sarabun'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-500.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
+@font-face { font-family: 'Sarabun'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-600.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
+@font-face { font-family: 'Sarabun'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-700.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
+@font-face { font-family: 'Sarabun'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-400.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Sarabun'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-500.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Sarabun'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-600.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Sarabun'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-700.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
+:root { color-scheme: light; /* แถบเมนู */ --navy: #16294a; --navy-hover: #1f3560; --navy-on: #2b4a7e; --side-ink: #b9c6da; --side-dim: #8095b4; /* พื้นและตัวอักษร */ --bg: #f3f5f8; --surface: #ffffff; --soft: #f6f7fa; --ink: #1c2633; --ink-2: #485466; --muted: #7b8798; --line: #e7ebf0; --line-2: #d3dae3; /* สีหลัก */ --primary: #1f4f99; --primary-dark: #173d78; --primary-tint: #e9effa; /* สถานะ */ --ok: #1d7a4c; --warn: #b16a00; --bad: #c0392b; --bad-tint: #fdecea; /* ชนิดกะ */ --m-bg: #fff1c4;  --m-ink: #775300; --n-bg: #dde8fb;  --n-ink: #1e3e7a; --d-bg: #daf0e6;  --d-ink: #16604a; --l-bg: #eceff4;  --l-ink: #4b5768; --h-bg: #fbe1e7;  --h-ink: #8b1f3e; --x-bg: #fde4d2;  --x-ink: #8a3b0a; --ot: #e8590c; --font: 'Sarabun', 'Leelawadee UI', 'Noto Sans Thai', Tahoma, sans-serif; --side-w: 236px; --row: 34px; --card-shadow: 0 1px 2px rgba(22, 41, 74, 0.05), 0 2px 8px rgba(22, 41, 74, 0.04); }
+*, *::before, *::after { box-sizing: border-box; }
+html { font-family: var(--font); font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); min-height: 100vh; }
+body.modal-open { overflow: hidden; }
+h1, h2, h3, p, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+h1 { font-size: 1.75rem; font-weight: 700; line-height: 1.25; }
+h2 { font-size: 1.15rem; font-weight: 600; line-height: 1.35; }
+h3 { font-size: 1rem; font-weight: 600; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+button:disabled { cursor: not-allowed; }
+table { border-collapse: collapse; }
+a { color: var(--primary); }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.nowrap { white-space: nowrap; }
+.strong { font-weight: 700; }
+.muted { color: var(--muted); }
+.small { font-size: 0.87rem; }
+.zero { color: #c3cad4; }
+.err { color: var(--bad); }
+.boot { padding: 64px 20px; text-align: center; color: var(--muted); }
+
+/* ---------- ปุ่มและช่องกรอก ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: 8px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); font-weight: 500; white-space: nowrap; transition: background-color 0.12s; }
+.btn:hover { background: var(--soft); }
+.btn.primary { background: var(--primary); color: #fff; box-shadow: none; }
+.btn.primary:hover { background: var(--primary-dark); }
+.btn.ghost { background: transparent; box-shadow: none; color: var(--primary); }
+.btn.ghost:hover { background: var(--primary-tint); }
+.btn.danger { color: var(--bad); box-shadow: inset 0 0 0 1px #f0c3bd; }
+.btn.danger:hover { background: var(--bad-tint); }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 0.93rem; }
+.btn.block { width: 100%; height: 46px; font-size: 1.05rem; }
+.btn:disabled { opacity: 0.45; }
+.btn.primary:disabled:hover { background: var(--primary); }
+.sq { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; color: var(--ink-2); flex: none; }
+.sq:hover { background: var(--line); color: var(--ink); }
+.link { color: var(--primary); font-weight: 500; text-align: left; }
+.link:hover { text-decoration: underline; }
+.link.danger { color: var(--bad); }
+.inp { height: 40px; width: 100%; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 12px; background: var(--surface); }
+.inp:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-tint); }
+.inp:disabled { background: var(--soft); color: var(--muted); }
+textarea.inp { height: auto; padding: 9px 12px; line-height: 1.5; resize: vertical; }
+textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85rem; white-space: pre; overflow: auto; }
+.q { width: 200px; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; background: #e7ebf1; border-radius: 10px; }
+.seg button { height: 32px; padding: 0 14px; border-radius: 7px; color: var(--ink-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(22, 41, 74, 0.12); }
+.field { display: grid; gap: 6px; align-content: start; }
+.field label { font-size: 0.93rem; font-weight: 500; color: var(--ink-2); }
+.field small { font-size: 0.87rem; color: var(--muted); }
+.field.grow { flex: 1 1 180px; }
+.form { display: grid; gap: 14px; }
+.formrow { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 0.95rem; }
+.chk input { width: 16px; height: 16px; accent-color: var(--primary); }
+
+/* ---------- สถานะ ---------- */
+.st { display: inline-flex; align-items: center; gap: 7px; font-size: 0.93rem; font-weight: 500; white-space: nowrap; color: var(--ink-2); }
+.st::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #b8c1cd; flex: none; }
+.st.ok::before { background: var(--ok); }
+.st.wait::before, .st.warn::before { background: #f0a020; }
+.st.warn { color: var(--warn); }
+.st.bad::before { background: var(--bad); }
+.st.bad { color: var(--bad); }
+.badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #e5484d; color: #fff; font-size: 0.75rem; font-weight: 700; font-style: normal; line-height: 1; }
+.new { font-style: normal; font-size: 0.8rem; font-weight: 600; color: var(--primary); background: var(--primary-tint); padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+.note { font-size: 0.95rem; color: var(--ink-2); }
+.note.warn { color: var(--warn); }
+.empty { padding: 48px 16px; text-align: center; color: var(--muted); background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); }
+.none { padding: 14px 0; color: var(--muted); }
+
+/* ---------- รหัสกะ ---------- */
+.c-M { background: var(--m-bg); color: var(--m-ink); }
+.c-N { background: var(--n-bg); color: var(--n-ink); }
+.c-D { background: var(--d-bg); color: var(--d-ink); }
+.c-L { background: var(--l-bg); color: var(--l-ink); }
+.c-H { background: var(--h-bg); color: var(--h-ink); }
+.c-X { background: var(--x-bg); color: var(--x-ink); }
+.c-O { background: transparent; color: #b9c2ce; }
+.c-U { background: var(--bad-tint); color: var(--bad); }
+.is-ot, .is-chg { position: relative; }
+.is-ot::after { content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--ot); pointer-events: none; }
+.is-half::after { width: 6px; height: 6px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ot); }
+.is-chg::before { content: ''; position: absolute; bottom: 4px; left: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--navy); pointer-events: none; }
+.cd { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; vertical-align: middle; }
+.cd.c-M { background: #f2c94c; }
+.cd.c-N { background: #6f9ae0; }
+.cd.c-D { background: #4fb38c; }
+.cd.c-L { background: #a5aebb; }
+.cd.c-H { background: #e5809b; }
+.cd.c-X { background: #f08a4b; }
+.cd.c-O { background: transparent; box-shadow: inset 0 0 0 1.5px #b9c2ce; }
+.cd.c-U { background: var(--bad); }
+.sw { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+.tag { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+
+/* ---------- ตารางข้อมูล ---------- */
+.tbl-wrap { overflow-x: auto; }
+.tbl { width: 100%; }
+.tbl th, .tbl td { padding: 12px 18px; text-align: left; border-bottom: 1px solid #f0f2f6; vertical-align: middle; }
+.tbl thead th { font-weight: 600; font-size: 0.87rem; color: var(--muted); white-space: nowrap; border-bottom: 1px solid var(--line); }
+.tbl tbody th { font-weight: 500; }
+.tbl tbody tr:last-child > * { border-bottom: 0; }
+.tbl tbody tr:hover > td, .tbl tbody tr:hover > th { background: #fafbfd; }
+.tbl td small { display: block; font-size: 0.87rem; color: var(--muted); }
+.tbl .num { text-align: right; }
+.tbl .act { text-align: right; white-space: nowrap; width: 1%; }
+.tbl tr.grp th { background: var(--soft); font-weight: 700; font-size: 0.87rem; color: var(--ink-2); padding: 7px 18px; }
+.tbl tfoot td, .tbl tfoot th { background: var(--soft); border-bottom: 0; }
+
+/* ---------- ข้อความแจ้งผล ---------- */
+#toastRoot { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 80; display: grid; gap: 8px; justify-items: center; width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
+.toast { padding: 11px 18px; background: var(--ink); color: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(16, 26, 44, 0.25); max-width: 100%; }
+.toast.bad { background: var(--bad); }
+.toast.warn { background: #8a5300; }
+@media (max-width: 1100px) {
+  :root { --side-w: 76px; }
+}
+@media (max-width: 760px) {
+  html { font-size: 16px; }
+  :root { --row: 38px; }
+  h1 { font-size: 1.5rem; }
+  .btn, .inp, .sq { height: 44px; }
+  .seg button { height: 38px; }
+  .sq { width: 44px; }
+  .btn.sm { height: 36px; }
+  textarea.inp { height: auto; }
+  .q { width: 100%; }
+  #toastRoot { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+.foot-note { margin-right: auto; align-self: center; }
+.btn .ic { width: 16px; height: 16px; }
+
+/* ไอคอน (ชุดเดียวกับต้นแบบ) */
+.icon, .icon-lg, .icon-sm, .icon-xs { display: inline-block; vertical-align: middle; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.icon { width: 16px; height: 16px; }
+.icon-lg { width: 20px; height: 20px; }
+.icon-sm { width: 14px; height: 14px; }
+.icon-xs { width: 12px; height: 12px; }
+
+/* ปุ่มชื่อตามต้นแบบ (btn-primary ฯลฯ) ที่ใช้ในแบบฟอร์มคำขอ */
+.btn-primary { background: var(--primary); color: #fff; box-shadow: none; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-secondary { background: var(--surface); }
+.btn-danger { color: var(--bad); box-shadow: inset 0 0 0 1px #f0c3bd; }
+.btn-danger:hover { background: var(--bad-tint); }
+.btn-mint { background: var(--primary); color: #fff; box-shadow: none; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 0.93rem; }
+.btn-primary:disabled, .btn:disabled { opacity: 0.45; }
+.toast-container .toast { display: flex; align-items: center; gap: 10px; }
+.tbl th small { display: block; font-size: 0.85rem; font-weight: 400; color: var(--muted); }
+html { font-size: 16px; }
+.tbl th, .tbl td { padding: 13px 18px; }
+@media (max-width: 760px) {
+  html { font-size: 17px; }
+  .btn, .inp, .sq { height: 48px; }
+  .btn.sm, .btn-sm { height: 42px; }
+  .seg button { height: 42px; padding: 0 12px; }
+}
+:root { --side-w: 248px; }
+@media (max-width: 1100px) {
+  :root { --side-w: 76px; }
+}
+#toastRoot .toast:nth-last-child(n+4) { display: none; }
+:root { --we-bg: #fff0e0; --we-ink: #b45309; --hol-bg: #fddcdc; --hol-ink: #c0392b; --wk-line: #8a97aa; }
+.formrow.tight { margin-top: 0; }
+.seg button:disabled { opacity: .5; }

@@ -1,0 +1,80 @@
+/* ==========================================================================
+   กะของฉัน: กะวันนี้ ปฏิทินรายเดือน สรุปตัวเลข คำขอล่าสุด
+   ========================================================================== */
+
+.cal-d .off { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+
+/* ---------- กะของฉัน ---------- */
+.my { display: grid; grid-template-columns: minmax(320px, 26%) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: 'now cal' 'req cal'; gap: 18px; align-items: start; }
+.my-now { grid-area: now; display: grid; gap: 14px; }
+.my-cal { grid-area: cal; }
+.my-req { grid-area: req; }
+.my-date { color: var(--ink-2); }
+.my-shift { display: grid; gap: 2px; padding: 18px 20px; border-radius: 12px; }
+.my-shift.c-O { background: var(--soft); color: var(--ink); }
+.my-shift b { font-size: 1.9rem; font-weight: 700; line-height: 1.25; }
+.my-shift span { font-size: 1.05rem; }
+.my-next li { display: grid; grid-template-columns: 82px 14px 1fr; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #f0f2f6; }
+.my-next li span { color: var(--muted); }
+.my-next li b { font-weight: 500; }
+.my-cal .bar { margin-bottom: 12px; }
+.cal-head, .cal-body { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-head { margin-bottom: 6px; }
+.cal-head span { text-align: center; font-size: 0.87rem; color: var(--muted); }
+.cal-d { display: grid; grid-template-rows: auto 1fr; min-height: clamp(66px, 9vh, 110px); padding: 6px 9px 8px; text-align: left; border-radius: 10px; }
+.cal-d.c-O { background: var(--soft); }
+.cal-d .n { font-size: 0.87rem; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.cal-d b { align-self: center; justify-self: center; font-size: 1.15rem; font-weight: 700; }
+.cal-d.c-O .n { color: var(--ink-2); opacity: 1; }
+.cal-d.hol .n { color: var(--bad); font-weight: 700; opacity: 1; }
+.cal-d.past { opacity: 0.5; }
+.cal-d.tdy { box-shadow: 0 0 0 2px var(--primary); opacity: 1; }
+button.cal-d:hover { box-shadow: 0 0 0 2px var(--primary); }
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+.facts div { padding: 10px 14px; background: var(--soft); border-radius: 10px; min-width: 0; }
+.facts dt { font-size: 0.87rem; color: var(--muted); }
+.facts dd { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.facts.plain { grid-template-columns: 1fr; gap: 0; margin: 0; }
+.facts.plain div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 9px 0; background: none; border-radius: 0; border-bottom: 1px solid #f0f2f6; }
+.facts.plain dt { font-size: 0.95rem; }
+.facts.plain dd { font-size: 1rem; font-weight: 400; }
+.rlist { display: grid; }
+.rline { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 0; border-bottom: 1px solid #f0f2f6; }
+.rline:hover .rl-main b { color: var(--primary); }
+.rl-main { display: grid; min-width: 0; }
+.rl-main b { font-weight: 600; }
+.rl-main span { font-size: 0.9rem; color: var(--muted); }
+.rline .st { white-space: normal; text-align: right; flex: none; max-width: 46%; }
+.my-req .link { margin-top: 10px; }
+@media (max-width: 1100px) {
+  .my { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'now' 'cal' 'req'; }
+}
+@media (max-width: 760px) {
+  .my-cal .mnav { flex: 1; }
+  .my-cal .mnav-label { flex: 1; min-width: 0; }
+  .cal-body, .cal-head { gap: 4px; }
+  .cal-d { min-height: 56px; padding: 4px 6px 6px; }
+  .facts dd { font-size: 1.15rem; }
+  .facts.plain div { grid-template-columns: 100px 1fr; }
+}
+.my-meta { margin: 0; }
+.cal-d.proj b { opacity: 0.6; }
+@media (max-width: 760px) {
+  .cal-d { min-height: 60px; }
+}
+
+/* ปฏิทินกะของฉัน */
+.cal-head span.we { color: var(--we-ink); font-weight: 600; }
+.cal-d.we .n { color: var(--we-ink); font-weight: 700; opacity: 1; }
+.cal-d.we.c-O { background: var(--we-bg); }
+.cal-d.hol { box-shadow: inset 0 0 0 2px #ef9a9a; }
+.cal-d.hol.c-O { background: var(--hol-bg); }
+.cal-d.hol .n { color: var(--hol-ink); font-weight: 700; opacity: 1; }
+.cal-d .hn { display: block; font-size: 0.68rem; line-height: 1.2; color: var(--hol-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-d.tdy { box-shadow: 0 0 0 2px var(--primary); }
+@media (max-width: 760px) {
+  .cal-d .hn { display: none; }
+}
+.cal-d.chg { position: relative; }
+.cal-d.chg::before { content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; border-style: solid; border-width: 9px 9px 0 0; border-color: #d62828 transparent transparent transparent; }
+.cal-d.chg::before { border-width: 14px 14px 0 0; border-top-left-radius: 10px; }

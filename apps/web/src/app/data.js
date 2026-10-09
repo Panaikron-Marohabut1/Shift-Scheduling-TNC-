@@ -10,9 +10,12 @@
      GET  /api/audit?view=personal|activity                 ประวัติ → state.apiLogs
    ยังเป็นเดโมในเบราว์เซอร์ (ดู "LOCAL" ในไฟล์นี้และ state.js) จนกว่าระบบหลังบ้านจะมี API
    ========================================================================== */
+
 import { api } from '../api/client.js';
-import { state, saveLocal } from './state.js';
-import { TEAM_KEYS, monthKey, pad2, thaiMonthName, getAllEmployees, findEmployeeById, clearPatternCache } from '../shared/scheduling.js';
+import { saveLocal, state } from './state.js';
+import { monthKey, pad2, thaiMonthName } from '../shared/scheduling/dates.js';
+import { findEmployeeById, getAllEmployees, TEAM_KEYS } from '../shared/scheduling/employees.js';
+import { clearPatternCache } from '../shared/scheduling/roster.js';
 
 const fmtTime = iso => (iso ? new Date(iso).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'เมื่อสักครู่');
 export const nowText = () => fmtTime(new Date().toISOString());

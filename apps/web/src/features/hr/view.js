@@ -2,11 +2,19 @@
    ข้อมูลและส่งออก CSV (ฝ่ายบุคคล) — สรุปรายคนรายเดือน และไฟล์ส่งออก 4 แบบ
    ไฟล์ส่งออกสร้างในเบราว์เซอร์จากข้อมูลที่แสดงอยู่ (ตารางจริง + รายการที่อนุมัติ)
    ========================================================================== */
-import { state } from '../../app/state.js';
-import { esc, icon, showToast } from '../../shared/dom.js';
-import { daysIn, getAllEmployees, getShiftCodeForDate, TEAM_KEYS, isYearPublished, thaiMonthName, holidayDates } from '../../shared/scheduling.js';
-import { pageHead, monthNav, famOf } from '../schedule/view.js';
+
 import { addLog, nowText } from '../../app/data.js';
+import { state } from '../../app/state.js';
+import { esc } from '../../shared/dom.js';
+import { icon } from '../../shared/icons.js';
+import { holidayDates, isYearPublished } from '../../shared/scheduling/annual.js';
+import { daysIn, thaiMonthName } from '../../shared/scheduling/dates.js';
+import { getAllEmployees, TEAM_KEYS } from '../../shared/scheduling/employees.js';
+import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
+import { showToast } from '../../shared/toast.js';
+import { pageHead } from '../../shared/ui.js';
+import { famOf } from '../schedule/codes.js';
+import { monthNav } from '../schedule/month-nav.js';
 
 export function hrHtml() {
   const all = getAllEmployees();
@@ -56,7 +64,9 @@ export function hrHtml() {
 
 /* ---------- ไฟล์ส่งออก (เปิดด้วย Excel ได้) ---------- */
 function download(rows, filename) {
-  const cell = c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`;
+  // ข้อความที่ขึ้นต้นด้วย = + - @ ถูก Excel มองเป็นสูตร (CSV injection) จึงเติม ' นำหน้าให้เป็นข้อความธรรมดา
+  const safe = v => (/^[=+\-@\t\r]/.test(v) && !/^-?\d+(\.\d+)?$/.test(v) && v !== '-' ? `'${v}` : v);
+  const cell = c => `"${safe(String(c == null ? '' : c)).replace(/"/g, '""')}"`;
   const csv = rows.map(r => r.map(cell).join(',')).join('\r\n');
   const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');

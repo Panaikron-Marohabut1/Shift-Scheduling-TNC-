@@ -3,14 +3,19 @@
    ปฏิทินนี้คือข้อมูลชุดเดียวกับตารางกะ: เดือนที่เปิด สถานะประกาศ/ล็อก และการกดวัน
    (เปิดหน้าต่างเดียวกับการกดช่องของตัวเองในตารางกะ) ใช้กฎเดียวกันทั้งหมด
    ========================================================================== */
-import { state, DEMO_TODAY } from '../../app/state.js';
+
+import { DEMO_TODAY, state } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
-import {
-  TH_DW, daysIn, shortDate, getAllEmployees, getShiftCodeForDate, getEmployeeFacingShiftLabel, hasScheduleDataForMonth, isYearPublished,
-  countMonthlySwapRequests, currentEmp
-} from '../../shared/scheduling.js';
-import { codeClass, famOf, cellText, changeNote, holidaysOf, draftNote, pageHead, monthNav, statusChips, scheduleState } from './view.js';
-import { statusCls } from '../requests/view.js';
+import { isYearPublished } from '../../shared/scheduling/annual.js';
+import { daysIn, shortDate, TH_DW } from '../../shared/scheduling/dates.js';
+import { currentEmp, getAllEmployees, getEmployeeFacingShiftLabel } from '../../shared/scheduling/employees.js';
+import { getShiftCodeForDate, hasScheduleDataForMonth } from '../../shared/scheduling/roster.js';
+import { countMonthlySwapRequests } from '../../shared/scheduling/rules.js';
+import { pageHead } from '../../shared/ui.js';
+import { statusCls } from '../requests/list.js';
+import { cellText, changeNote, codeClass, famOf } from './codes.js';
+import { draftNote, holidaysOf } from './days.js';
+import { monthNav, scheduleState, statusChips } from './month-nav.js';
 
 export function myHtml() {
   const emp = currentEmp();
@@ -89,7 +94,7 @@ export function myHtml() {
       <section class="panel my-req">
         <div class="panel-h"><h2>คำขอของฉัน</h2><span class="muted">สิทธิ์สลับกะเหลือ ${left}/${state.managerConfig.swapRequestMonthlyLimit}</span></div>
         ${mine.length ? `<ul class="rlist">${mine.slice(0, 4).map(r => `
-          <li><button class="rline" data-click="openRequestDetails(${r.id})">
+          <li><button class="rline" data-click="openRequestDetails(${js(r.id)})">
             <span class="rl-main"><b>${esc(r.type)} · ${esc(r.date)}</b><span>${esc(r.targetPerson ? `กับ ${r.targetPerson}` : r.reason)}</span></span>
             <span class="st ${statusCls(r)}">${esc(r.status)}</span>
           </button></li>`).join('')}</ul>

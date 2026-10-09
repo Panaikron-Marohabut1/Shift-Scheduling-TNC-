@@ -1,10 +1,13 @@
 /* ==========================================================================
    ภาพรวมกำลังพล (หัวหน้ากะ) — ตัวเลขจากตารางกะและคำขอจริงของวันนี้
    ========================================================================== */
-import { state, DEMO_TODAY } from '../../app/state.js';
+
+import { DEMO_TODAY, state } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
-import { getAllEmployees, getShiftCodeForDate, TEAM_KEYS } from '../../shared/scheduling.js';
-import { pageHead, famOf } from './view.js';
+import { getAllEmployees, TEAM_KEYS } from '../../shared/scheduling/employees.js';
+import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
+import { pageHead } from '../../shared/ui.js';
+import { famOf } from './codes.js';
 
 // กะของทีมในวันนี้: ดูจากหัวหน้ากะ ถ้าวันนี้หยุดให้บอกกะถัดไปของรอบ
 function teamToday(team) {
