@@ -24,6 +24,7 @@ import {
 } from '../features/manager/annual.js';
 import { filterEmployeeSearch, filterEmployeeTeam, openEmployeeForm, saveEmployeeProfile } from '../features/manager/people.js';
 import { updateManagerRule, updateManagerShiftTime } from '../features/manager/settings.js';
+import { openNotification, readAllNotifications } from '../features/notifications/view.js';
 import { approveRequest, confirmRejectRequest, promptRejectRequest, resetTestcases, withdrawRequest } from '../features/requests/decisions.js';
 import { openRequestDetails } from '../features/requests/detail.js';
 import { openForm, renderForm } from '../features/requests/form.js';
@@ -54,7 +55,7 @@ function filterScheduleShiftType(t) { state.selectedShiftFilter = t; renderApp()
 const SF = {
   nav(id) {
     view.moreNav = false;
-    if (id === 'driver') { renderApp(); return; }
+    if (id === 'driver') { switchView('driver'); return; }
     if (id === 'team-schedule') state.operatorShowFullGrid = false;
     state.monthPickerOpen = false;
     switchView(id);
@@ -130,5 +131,5 @@ register({
   submitColleagueSwapRequest, submitOperatorShiftRequest, submitLeaveRequest, submitDayOffChangeRequest, submitOTRequest, submitPublicHolidayChoice,
   filterEmployeeTeam, filterEmployeeSearch, openEmployeeForm, saveEmployeeProfile,
   jumpAnnualYear, jumpAnnualYearTo, updateAnnualTeamFamily, addAnnualHoliday, holidayKey, removeAnnualHoliday,
-  updateManagerShiftTime, updateManagerRule, exportMonthlyCSV, exportLeaveRecordsCSV, exportOTRecordsCSV, acknowledgeDriverSchedule
+  updateManagerShiftTime, updateManagerRule, exportMonthlyCSV, exportLeaveRecordsCSV, exportOTRecordsCSV, acknowledgeDriverSchedule, openNotification, readAllNotifications
 });

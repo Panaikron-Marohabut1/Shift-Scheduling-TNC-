@@ -11,6 +11,7 @@ import { esc } from '../../shared/dom.js';
 import { daysIn } from '../../shared/scheduling/dates.js';
 import { showToast } from '../../shared/toast.js';
 import { pageHead } from '../../shared/ui.js';
+import { notify } from '../notifications/store.js';
 
 const ROWS = [
   ['Kanya Srisawat', 'กะเช้า', 'หัวหน้ากะ', 'ประตู 1', '06:30 น.'],
@@ -45,6 +46,7 @@ export function acknowledgeDriverSchedule() {
   state.driverAcknowledged = true;
   state.driverAckTime = `วันนี้ ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} น.`;
   addLog('คนขับรถตู้สาย A รับทราบและยืนยันตารางรับส่งประจำวัน');
+  notify('mgr', 'คนขับรถรับทราบตารางรับส่งแล้ว', `สาย A · ${state.driverAckTime}`);
   saveLocal();
   showToast('รับทราบและยืนยันตารางงานเรียบร้อยแล้ว');
   redraw();

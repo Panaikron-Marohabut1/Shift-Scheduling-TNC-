@@ -15,6 +15,7 @@ import { clearPatternCache, dataMonth, getShiftCodeForDate, hasScheduleDataForMo
 import { showToast } from '../../shared/toast.js';
 import { pageHead } from '../../shared/ui.js';
 import { changed, rerender } from './refresh.js';
+import { notify } from '../notifications/store.js';
 
 /* ==========================================================================
    ตารางรายปี และการประกาศใช้ทั้งปี
@@ -110,6 +111,7 @@ export function addAnnualHoliday(year) {
   if (!value) { showToast('กรุณาระบุชื่อ/วันที่วันหยุด', 'alert'); return; }
   getAnnualConfig(year).holidays.push(value);
   addLog(`เพิ่มวันหยุดนักขัตฤกษ์ ${value}`);
+  notify('all', 'เพิ่มวันหยุดนักขัตฤกษ์', `${value} (ปี ${year + 543})`);
   showToast('เพิ่มวันหยุดนักขัตฤกษ์เรียบร้อยแล้ว');
   changed();
 }
@@ -117,6 +119,7 @@ export function holidayKey(ev, year) { if (ev && ev.key === 'Enter') addAnnualHo
 export function removeAnnualHoliday(year, index) {
   const [gone] = getAnnualConfig(year).holidays.splice(index, 1);
   addLog(`ลบวันหยุดนักขัตฤกษ์ ${gone || ''}`);
+  if (gone) notify('all', 'ยกเลิกวันหยุดนักขัตฤกษ์', `${gone} (ปี ${year + 543})`);
   showToast('ลบวันหยุดนักขัตฤกษ์เรียบร้อยแล้ว');
   changed();
 }
@@ -131,6 +134,7 @@ export function publishYear(y) {
   if (isYearPublished(y)) { showToast(`ตารางกะปี ${y + 543} ประกาศใช้แล้ว`); return; }
   for (let m = 0; m < 12; m++) { const k = `${y}-${pad2(m + 1)}`; if (state.publishedMonths.indexOf(k) < 0) state.publishedMonths.push(k); }
   addLog(`อนุมัติและประกาศใช้ตารางกะทั้งปี ${y + 543}`);
+  notify('all', `ประกาศใช้ตารางกะปี ${y + 543} แล้ว`, 'ดูตารางกะทั้งปีได้แล้ว และยื่นคำขอในปีนี้ได้ตามปกติ');
   showToast(`ประกาศใช้ตารางกะปี ${y + 543} แล้ว ทุกคนเริ่มใช้งานได้`);
   changed();
 }
@@ -143,6 +147,7 @@ export function unpublishYear(y) {
   if (state.activeRole !== 'Manager') { showToast('ผู้จัดการเท่านั้นที่ยกเลิกการประกาศได้', 'alert'); return; }
   state.publishedMonths = state.publishedMonths.filter(k => k.indexOf(`${y}-`) !== 0);
   addLog(`ยกเลิกการประกาศตารางกะปี ${y + 543} (กลับเป็นฉบับร่าง)`);
+  notify('all', `ตารางกะปี ${y + 543} กลับเป็นฉบับร่าง`, 'ผู้จัดการกำลังปรับตาราง ระหว่างนี้ยังยื่นคำขอในปีนี้ไม่ได้');
   showToast(`ตารางกะปี ${y + 543} กลับเป็นฉบับร่างแล้ว`);
   changed();
 }

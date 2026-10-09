@@ -11,6 +11,7 @@ import { hrHtml } from '../features/hr/view.js';
 import { annualHtml } from '../features/manager/annual.js';
 import { peopleHtml } from '../features/manager/people.js';
 import { settingsHtml } from '../features/manager/settings.js';
+import { notificationsHtml } from '../features/notifications/view.js';
 import { requestsHtml } from '../features/requests/list.js';
 import { myHtml } from '../features/schedule/my-shift.js';
 import { overviewHtml } from '../features/schedule/overview.js';
@@ -18,6 +19,7 @@ import { scheduleHtml } from '../features/schedule/page.js';
 
 export function viewHtml() {
   const r = state.activeRole, v = state.activeView;
+  if (v === 'notifications') return notificationsHtml();
   if (r === 'Contractor / Van Driver') return driverHtml();
   if (isSupervisorRoleName(r)) {
     if (v === 'schedule') return scheduleHtml();

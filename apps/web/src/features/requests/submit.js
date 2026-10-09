@@ -8,6 +8,7 @@ import { saveLocal, state } from '../../app/state.js';
 import { closeModal } from '../../shared/modal.js';
 import { findEmployeeById } from '../../shared/scheduling/employees.js';
 import { showToast } from '../../shared/toast.js';
+import { notify, partiesOf, stepKey } from '../notifications/store.js';
 import { routeApprovers } from './form-parts.js';
 
 /* ==========================================================================
@@ -24,6 +25,9 @@ export function saveLocalRequest(req, logText, actor) {
   const roles = routeApprovers(requester, req.approvers.map(a => a.role));
   req.approvers = roles.map(role => ({ role, status: 'pending' }));
   state.localRequests.unshift({ id, ts: id, y: state.currentYear, m: state.currentMonth, submittedAt: 'เมื่อสักครู่', ...req });
+  // แจ้งผู้อนุมัติขั้นแรก และคนที่ถูกระบุในคำขอ (คู่สลับ / ผู้มาทำแทน)
+  notify(stepKey(req.approvers[0] && req.approvers[0].role), 'คำขอใหม่รอการอนุมัติของคุณ', `${req.person} · ${req.type} · ${req.date}`, id);
+  notify(partiesOf(req).filter(k => k !== `emp:${req.requesterId}`), 'มีคำขอที่เกี่ยวข้องกับคุณ', `${req.person} ระบุชื่อคุณในคำขอ${req.type} · ${req.date}`, id);
   addLog(logText, { actor: actor.name, employeeId: actor.id, avatar: actor.initials });
   saveLocal();
 }

@@ -11,6 +11,7 @@ import { findEmployeeById, getAllEmployees } from '../../shared/scheduling/emplo
 import { showToast } from '../../shared/toast.js';
 import { pageHead, telOf } from '../../shared/ui.js';
 import { changed, rerender } from './refresh.js';
+import { notify } from '../notifications/store.js';
 
 /* ==========================================================================
    พนักงานและทีม
@@ -108,6 +109,10 @@ export function saveEmployeeProfile(employeeId) {
   }
   closeModal();
   addLog(employee ? `แก้ไขข้อมูลพนักงาน ${name}` : `เพิ่มพนักงาน ${name} (${team})`);
+  // แจ้งเจ้าตัว และหัวหน้ากะของทีม (ทั้งทีมเดิมและทีมใหม่ถ้าย้ายทีม)
+  const teams = [team, employee && employee.shiftType].filter(Boolean).map(t => `sup:${t.slice(-1)}`);
+  if (employee) notify([`emp:${employee.id}`, ...teams], 'ข้อมูลพนักงานถูกแก้ไข', `${name} (${employee.id}) · ${team}`);
+  else notify(teams, 'มีพนักงานใหม่ในทีม', `${name} (${code}) · ${team}`);
   showToast(employee ? 'บันทึกข้อมูลพนักงานแล้ว' : 'เพิ่มพนักงานแล้ว');
   rebuildSchedule();
   changed();

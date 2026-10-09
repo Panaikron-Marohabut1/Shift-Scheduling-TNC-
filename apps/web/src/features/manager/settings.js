@@ -10,6 +10,7 @@ import { getHolidaysForYear } from '../../shared/scheduling/annual.js';
 import { showToast } from '../../shared/toast.js';
 import { pageHead } from '../../shared/ui.js';
 import { changed, rerender } from './refresh.js';
+import { notify } from '../notifications/store.js';
 
 /* ==========================================================================
    ตั้งค่าระบบ — บันทึกทันทีเมื่อเปลี่ยนค่า
@@ -50,6 +51,7 @@ export function settingsHtml() {
 export function updateManagerShiftTime(code, value) {
   state.managerConfig.shiftTimes[code] = value;
   addLog(`แก้ไขช่วงเวลากะ ${code} เป็น ${value}`);
+  notify('all', `เปลี่ยนเวลากะ ${code}`, `เวลาใหม่: ${value}`);
   showToast(`อัปเดตช่วงเวลากะ ${code} เรียบร้อยแล้ว`);
   saveLocal();
 }
@@ -57,7 +59,9 @@ export function updateManagerRule(key, rawValue) {
   const value = parseInt(rawValue, 10);
   if (Number.isNaN(value) || value <= 0) { showToast('กรุณาระบุตัวเลขที่มากกว่า 0', 'alert'); rerender(); return; }
   state.managerConfig[key] = value;
-  addLog(`แก้ไขค่า${key === 'maxConsecutiveWorkDays' ? 'วันทำงานติดต่อกันสูงสุด' : 'คำขอสลับ/เปลี่ยนกะต่อเดือน'} เป็น ${value}`);
+  const what = key === 'maxConsecutiveWorkDays' ? 'วันทำงานติดต่อกันสูงสุด' : 'คำขอสลับ/เปลี่ยนกะต่อเดือน';
+  addLog(`แก้ไขค่า${what} เป็น ${value}`);
+  notify('all', 'เปลี่ยนกฎการยื่นคำขอ', `${what}: ${value}`);
   showToast('บันทึกค่าคอนฟิกเรียบร้อยแล้ว');
   changed();
 }

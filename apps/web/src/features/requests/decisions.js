@@ -12,6 +12,7 @@ import { closeModal, openModal } from '../../shared/modal.js';
 import { parseThaiDate } from '../../shared/scheduling/dates.js';
 import { setShiftOverride } from '../../shared/scheduling/roster.js';
 import { showToast } from '../../shared/toast.js';
+import { notify, partiesOf, stepKey } from '../notifications/store.js';
 import { findReq } from './detail.js';
 import { canWithdrawRequest, empOf } from './permissions.js';
 
@@ -56,6 +57,11 @@ function applyApprovedRequestToSchedule(req) {
 }
 
 /* ---------- อนุมัติ / ไม่อนุมัติ / ยกเลิก ---------- */
+// อนุมัติครบแล้ว: แจ้งผู้ยื่นและคนที่เกี่ยวข้อง ถ้าเป็นการลาหรือ OT แจ้งฝ่ายบุคคลด้วย (ใช้คิดเงินเดือน)
+function notifyApproved(req) {
+  notify(partiesOf(req), 'คำขออนุมัติแล้ว', `${req.type} · ${req.date} · ตารางกะเปลี่ยนตามคำขอแล้ว`, req.id);
+  if (/ลา|OT/.test(req.type)) notify('hr', 'มีการลา/OT ที่อนุมัติแล้ว', `${req.person} · ${req.type} · ${req.date}`, req.id);
+}
 const roleNow = () => state.roles[state.activeRole] || { name: state.activeRole, initials: '--' };
 const timeNow = () => new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 async function viaApi(work, message, kind) {
@@ -78,11 +84,14 @@ export async function approveRequest(reqId) {
       req.status = 'อนุมัติแล้ว';
       applyApprovedRequestToSchedule(req);
       addLog(`อนุมัติคำขอ ${req.type} ของ ${req.person} ครบ 2 หัวหน้ากะแล้ว (วันที่ ${req.date})`);
+      notifyApproved(req);
       showToast(`อนุมัติคำขอของ ${req.person} ครบ 2 หัวหน้ากะเรียบร้อยแล้ว ✓`);
     } else {
       const nextPending = req.approvers.find(a => a.status !== 'approved');
       req.status = `รออนุมัติครบ 2 ฝ่าย (${nextPending ? nextPending.role : ''})`.trim();
       addLog(`ผ่านการยืนยันโดย "${step ? step.role : me.name}" สำหรับคำขอ ${req.type} ของ ${req.person} — รอหัวหน้ากะอีกฝ่ายยืนยัน`);
+      notify(stepKey(nextPending && nextPending.role), 'คำขอรอการอนุมัติของคุณ', `${req.person} · ${req.type} · ${req.date} (ผ่านขั้นก่อนหน้าแล้ว)`, req.id);
+      notify(partiesOf(req), 'คำขอผ่านการอนุมัติขั้นแรก', `${req.type} · ${req.date} · รอ ${nextPending ? nextPending.role : 'ขั้นถัดไป'}`, req.id);
       showToast(`กดยืนยันแล้ว — รอ ${nextPending ? nextPending.role : 'หัวหน้ากะอีกฝ่าย'}`);
     }
   } else {
@@ -90,6 +99,7 @@ export async function approveRequest(reqId) {
     req.status = 'อนุมัติแล้ว';
     applyApprovedRequestToSchedule(req);
     addLog(`อนุมัติคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date})`);
+    notifyApproved(req);
     showToast(`อนุมัติคำขอของ ${req.person} เรียบร้อยแล้ว`);
   }
   saveLocal();
@@ -119,6 +129,7 @@ export async function confirmRejectRequest(reqId) {
   req.status = 'ไม่อนุมัติ';
   req.rejectReason = reason;
   addLog(`ไม่อนุมัติคำขอ ${req.type} ของ ${req.person} (เหตุผล: ${reason})`);
+  notify(partiesOf(req), 'คำขอไม่ได้รับการอนุมัติ', `${req.type} · ${req.date} · เหตุผล: ${reason}`, req.id);
   saveLocal();
   closeModal();
   showToast('บันทึกการไม่อนุมัติคำขอเรียบร้อยแล้ว', 'alert');
@@ -130,6 +141,8 @@ export async function withdrawRequest(reqId) {
   if (req.api) { await viaApi(() => cancelApi(req), 'ยกเลิกคำขอเรียบร้อยแล้ว'); return; }
   req.status = 'ยกเลิกแล้ว';
   addLog(`ถอนคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date}) — ถอนก่อนการตรวจสอบ`);
+  const waiting = (req.approvers || []).find(a => a.status !== 'approved');
+  notify([stepKey(waiting && waiting.role), ...partiesOf(req)], 'คำขอถูกยกเลิก', `${req.person} ยกเลิก${req.type} · ${req.date} ตารางกะยังคงเดิม`, req.id);
   saveLocal();
   closeModal();
   showToast('ยกเลิกคำขอเรียบร้อยแล้ว');

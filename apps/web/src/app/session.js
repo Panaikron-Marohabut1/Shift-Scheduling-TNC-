@@ -3,13 +3,15 @@
    ========================================================================== */
 
 import { api } from '../api/client.js';
-import { loadYear, merge, refreshAll, reloadLoadedYears, resetData } from './data.js';
+import { loadNotifications, loadYear, merge, refreshAll, reloadLoadedYears, resetData } from './data.js';
 import { buildRole, roleKeyOf } from './profiles.js';
 import { pendingYears, renderApp } from './render.js';
 import { DEMO_TODAY, saveLocal, state, view } from './state.js';
 import { $ } from '../shared/dom.js';
 import { closeModal } from '../shared/modal.js';
 import { showToast } from '../shared/toast.js';
+import { unreadCount } from '../features/notifications/store.js';
+import { newSinceLastCheck, resetNotificationCheck } from '../features/notifications/view.js';
 
 /* ---------- เข้า-ออกระบบ ---------- */
 export async function enter(roleKey, actor) {
@@ -27,10 +29,14 @@ export async function enter(roleKey, actor) {
   renderApp();
   try {
     if (actor.role !== 'EXTERNAL') await Promise.all([loadYear(state.currentYear), refreshAll()]);
+    else await loadNotifications();
   } catch (error) { showToast(error.message || 'โหลดข้อมูลไม่สำเร็จ', 'alert'); }
   view.loading = false;
   window.scrollTo(0, 0);
   renderApp();
+  resetNotificationCheck();
+  const unread = newSinceLastCheck(unreadCount());
+  if (unread) showToast(`คุณมีแจ้งเตือนที่ยังไม่อ่าน ${unread} รายการ`);
 }
 export async function logout() {
   closeModal();
@@ -44,6 +50,8 @@ export function leave() {
   state.roles = {};
   state.apiRequests = [];
   state.apiLogs = [];
+  state.apiNotifications = [];
+  resetNotificationCheck();
   resetData();
   Object.keys(pendingYears).forEach(y => { delete pendingYears[y]; });
   merge();
@@ -56,4 +64,17 @@ export function leave() {
 export async function afterApi() {
   try { await Promise.all([refreshAll(), reloadLoadedYears()]); } catch { /* แสดงข้อมูลเดิม */ }
   renderApp();
+  announceNew();
+}
+// ผู้ใช้ภายนอก (คนขับรถ) ไม่โหลดตารางพนักงาน รีเฟรชเฉพาะแจ้งเตือน
+export async function refreshNotificationsOnly() {
+  await loadNotifications();
+  renderApp();
+  announceNew();
+}
+// มีแจ้งเตือนใหม่ระหว่างใช้งาน (เช่น คนอื่นอนุมัติคำขอของเรา) → ขึ้นข้อความแจ้งมุมล่าง
+function announceNew() {
+  if (!view.signed) return;
+  const added = newSinceLastCheck(unreadCount());
+  if (added) showToast(`มีแจ้งเตือนใหม่ ${added} รายการ — ดูได้ที่เมนูแจ้งเตือน`);
 }

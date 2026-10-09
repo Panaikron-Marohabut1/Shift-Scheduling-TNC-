@@ -6,6 +6,7 @@ import { state, view } from './state.js';
 import { esc, js } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { currentEmp, isSupervisorRoleName } from '../shared/scheduling/employees.js';
+import { unreadCount } from '../features/notifications/store.js';
 import { canUserReviewRequestForRole } from '../features/requests/permissions.js';
 
 export const DATA_LABEL = 'เชื่อมฐานข้อมูลแล้ว';
@@ -32,26 +33,31 @@ export function navBadges() {
 }
 function navList() {
   const role = state.roles[state.activeRole];
-  if (state.activeRole === 'Contractor / Van Driver') return [{ id: 'driver', label: 'ตารางรับส่งพนักงาน', icon: 'driver' }];
+  const bell = { id: 'notifications', label: 'แจ้งเตือน', icon: 'bell', badge: unreadCount() };
+  if (state.activeRole === 'Contractor / Van Driver') return [{ id: 'driver', label: 'ตารางรับส่งพนักงาน', icon: 'driver' }, bell];
   const items = (role ? role.nav : []).map(n => ({ id: n.id, label: shortLabel(n.label), icon: NAV_ICON[n.id], badge: n.badge }));
   // หัวหน้ากะก็เป็นพนักงาน: มี "กะของฉัน" และยื่นคำขอของตัวเองได้
   if (isSupervisorRoleName(state.activeRole)) items.splice(1, 0, { id: 'my-shift', label: 'กะของฉัน', icon: 'my' });
   // พนักงาน: ตารางกะรวมเป็นเมนูแยก
   if (state.activeRole === 'Shift Employee') items.splice(1, 0, { id: 'schedule', label: 'ตารางกะ', icon: 'schedule' });
+  items.push(bell); // แจ้งเตือนอยู่ท้ายเมนูซ้ายเสมอ (บนมือถืออยู่มุมขวาบน)
   return items;
 }
 
 export function shellHtml(content) {
   const items = navList();
-  const active = state.activeRole === 'Contractor / Van Driver' ? 'driver'
+  const active = state.activeView === 'notifications' ? 'notifications'
+    : state.activeRole === 'Contractor / Van Driver' ? 'driver'
     : (isSupervisorRoleName(state.activeRole) && state.activeView === 'my-requests') ? 'requests'
       : (state.activeRole === 'Manager' && state.activeView === 'schedule') ? 'annual-schedule'
         : (state.activeView === 'team-schedule' && state.operatorShowFullGrid) ? 'schedule' : state.activeView;
   const role = state.roles[state.activeRole] || {};
   const btn = it => `<button class="${it.id === active ? 'on' : ''}" data-click="SF.nav(${js(it.id)})" title="${esc(it.label)}" ${it.id === active ? 'aria-current="page"' : ''}>${icon(it.icon)}<span>${esc(it.label)}</span>${it.badge ? `<em class="badge">${it.badge}</em>` : ''}</button>`;
-  const many = items.length > 4;
-  const bottom = many ? items.slice(0, 3) : items;
-  const more = many ? items.slice(3) : [];
+  const bellItem = items.find(i => i.id === 'notifications');
+  const mobile = items.filter(i => i.id !== 'notifications'); // บนมือถือ แจ้งเตือนอยู่ที่แถบบน
+  const many = mobile.length > 4;
+  const bottom = many ? mobile.slice(0, 3) : mobile;
+  const more = many ? mobile.slice(3) : [];
   const rail = view.mode === 'month' && (state.activeView === 'schedule' || (state.activeView === 'team-schedule' && state.operatorShowFullGrid));
   return `
     <div class="shell ${rail ? 'rail' : ''}">
@@ -66,11 +72,14 @@ export function shellHtml(content) {
       <div class="main">
         <header class="mtop">
           <div class="mtop-brand">ShiftFlow</div>
-          <button class="mtop-user" data-click="SF.account()">${esc(role.name)}</button>
+          <div class="mtop-r">
+            <button class="mtop-bell ${active === 'notifications' ? 'on' : ''}" data-click="SF.nav('notifications')" aria-label="แจ้งเตือน${bellItem.badge ? ` ยังไม่อ่าน ${bellItem.badge} รายการ` : ''}">${icon('bell')}${bellItem.badge ? `<em class="badge">${bellItem.badge}</em>` : ''}</button>
+            <button class="mtop-user" data-click="SF.account()">${esc(role.name)}</button>
+          </div>
         </header>
         <main class="page" id="main">${content}</main>
       </div>
-      ${items.length > 1 ? `
+      ${mobile.length > 1 ? `
         <nav class="bottom" aria-label="เมนูหลัก">
           ${bottom.map(btn).join('')}
           ${many ? `<button class="${more.some(i => i.id === active) ? 'on' : ''}" data-click="SF.more()">${icon('more')}<span>อื่น ๆ</span></button>` : ''}

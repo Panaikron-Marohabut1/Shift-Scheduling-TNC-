@@ -127,8 +127,12 @@ export function merge() {
   state.requests = [...state.localRequests, ...state.apiRequests].sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
   state.auditLogs = [...state.localLogs, ...state.apiLogs].sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
+/* ---------- แจ้งเตือน ---------- */
+export async function loadNotifications() {
+  try { state.apiNotifications = await api('/notifications'); } catch { state.apiNotifications = []; }
+}
 export async function refreshAll() {
-  await Promise.all([loadRequests(), loadLogs()]);
+  await Promise.all([loadRequests(), loadLogs(), loadNotifications()]);
   merge();
 }
 
