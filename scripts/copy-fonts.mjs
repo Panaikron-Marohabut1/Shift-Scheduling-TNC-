@@ -9,4 +9,8 @@ for(const [font,subset] of [['inter','latin'],['noto-sans-thai','thai'],['noto-s
  for(const weight of [400,600,700]) copyFileSync(resolve(location,`files/${font}-${subset}-${weight}-normal.woff2`),resolve(destination,`${font}-${subset}-${weight}.woff2`));
  copyFileSync(resolve(location,'LICENSE'),resolve(destination,`${font}-LICENSE.txt`));
 }
+// Sarabun: ฟอนต์หลักของหน้าจอ ShiftFlow
+const sarabun=dirname(require.resolve('@fontsource/sarabun/package.json'));
+for(const subset of ['thai','latin']) for(const weight of [400,500,600,700]) copyFileSync(resolve(sarabun,`files/sarabun-${subset}-${weight}-normal.woff2`),resolve(destination,`sarabun-${subset}-${weight}.woff2`));
+copyFileSync(resolve(sarabun,'LICENSE'),resolve(destination,'sarabun-LICENSE.txt'));
 console.log('Local demo fonts ready.');

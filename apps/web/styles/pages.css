@@ -1,0 +1,45 @@
+/* ==========================================================================
+   หน้าอื่น: ภาพรวมกำลังพล ผู้จัดการ (พนักงาน ตารางรายปี ตั้งค่า) ฝ่ายบุคคล คนขับรถ
+   ========================================================================== */
+
+/* ---------- ผู้จัดการ และฝ่ายบุคคล ---------- */
+.settings .panel { margin-bottom: 16px; }
+.tbl.sum { min-width: 1040px; width: 100%; }
+.tbl.sum th, .tbl.sum td { padding: 9px 12px; }
+.tbl.sum thead th { white-space: normal; vertical-align: bottom; line-height: 1.3; }
+.tbl.chg th, .tbl.chg td { padding: 9px 10px; }
+.tbl.chg td .sw + span { margin-left: 6px; color: var(--ink-2); }
+.tbl.log td:last-child { min-width: 280px; }
+.tbl.year td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.yr { display: inline-flex; align-items: center; gap: 5px; margin-right: 12px; }
+.cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
+.rows li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f2f6; }
+.rows-l { display: grid; line-height: 1.4; }
+.rows-l b { font-weight: 600; }
+.cols2 .panel > .muted { margin-top: 10px; }
+
+/* ---------- ภาพรวมกำลังพล ---------- */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { display: grid; gap: 2px; text-align: left; padding: 16px 18px; background: var(--surface); border-radius: 10px; box-shadow: var(--card-shadow); }
+.kpi:hover { box-shadow: 0 0 0 1px var(--line-2), var(--card-shadow); }
+.kpi span { color: var(--ink-2); font-size: 0.93rem; }
+.kpi b { font-size: 1.9rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.kpi b.warn { color: var(--warn); }
+.kpi small { color: var(--muted); font-size: 0.85rem; }
+.tbl tr.me th, .tbl tr.me td { background: var(--primary-tint); }
+.linkrow { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+@media (max-width: 1100px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.kpis3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpis .kpi { cursor: default; }
+.kpis button.kpi { cursor: pointer; }
+/* ---------- ตั้งค่า และคนขับรถ ---------- */
+.numfield { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.numfield .inp { width: 80px; text-align: center; }
+.driver-note { margin-top: 12px; }
+@media (max-width: 760px) {
+  .kpis3 { grid-template-columns: 1fr; }
+}
+.yr-act { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+#employeeForm { display: grid; gap: 14px; }

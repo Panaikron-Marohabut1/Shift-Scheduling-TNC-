@@ -1,0 +1,169 @@
+/* ==========================================================================
+   คำขอ: หน้าต่างย่อย ช่องกะ แบบฟอร์มคำขอ ผลตรวจกฎ ขั้นอนุมัติ ตารางคำขอ
+   ========================================================================== */
+
+.form-err { color: var(--bad); font-size: 0.95rem; }
+
+/* ---------- หน้าต่างย่อย ---------- */
+.overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: rgba(16, 26, 44, 0.45); }
+.modal { display: flex; flex-direction: column; width: min(580px, 100%); max-height: calc(100vh - 40px); background: var(--surface); border-radius: 14px; box-shadow: 0 20px 50px rgba(16, 26, 44, 0.25); }
+.modal:focus { outline: none; }
+.modal.wide { width: min(780px, 100%); }
+.modal > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 14px 8px 22px; }
+.modal-body { padding: 6px 22px 20px; overflow: auto; display: grid; gap: 14px; align-content: start; }
+.modal > footer { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding: 14px 22px; background: var(--soft); border-radius: 0 0 14px 14px; }
+.modal-body h3 { margin-top: 6px; }
+.cellinfo { position: relative; display: grid; gap: 2px; padding: 16px 18px; border-radius: 12px; }
+.cellinfo.c-O { background: var(--soft); color: var(--ink); }
+.cellinfo b { font-size: 1.3rem; font-weight: 700; }
+.cellinfo span { font-size: 0.95rem; opacity: 0.85; }
+.cellinfo i { position: absolute; top: 14px; right: 18px; font-style: normal; font-weight: 700; font-size: 1.1rem; }
+.optlabel { font-size: 0.87rem; color: var(--muted); margin-bottom: -6px; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.opts button { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 8px; }
+.opts button.c-O { background: var(--soft); color: var(--ink); }
+.opts button b { font-weight: 700; }
+.opts button span { color: var(--ink-2); font-size: 0.93rem; }
+.opts button:hover { box-shadow: inset 0 0 0 1px rgba(22, 41, 74, 0.25); }
+.opts button.on { box-shadow: 0 0 0 2px var(--primary); }
+.kinds { display: grid; gap: 8px; }
+.kinds li button { display: grid; width: 100%; text-align: left; padding: 12px 16px; border-radius: 10px; background: var(--soft); line-height: 1.4; }
+.kinds li button:hover { background: var(--primary-tint); }
+.kinds b { font-weight: 600; }
+.kinds span { font-size: 0.9rem; color: var(--muted); }
+.checks { display: grid; gap: 2px; }
+.checks-t { font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
+.checks li { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; font-size: 0.95rem; }
+.checks li .ic { margin-top: 3px; }
+.checks li.pass .ic { color: var(--ok); }
+.checks li.warn { color: var(--warn); }
+.checks li.fail { color: var(--bad); font-weight: 500; }
+.steps { display: grid; gap: 8px; counter-reset: step; }
+.steps li { display: grid; grid-template-columns: 26px 1fr; column-gap: 10px; counter-increment: step; }
+.steps li::before { content: counter(step); grid-row: span 2; width: 24px; height: 24px; border-radius: 50%; background: var(--soft); color: var(--muted); display: grid; place-items: center; font-size: 0.82rem; font-weight: 700; }
+.steps li.approved::before { background: var(--ok); color: #fff; content: '✓'; }
+.steps li.rejected::before { background: var(--bad); color: #fff; content: '✕'; }
+.steps li b { font-weight: 600; }
+.steps li span { font-size: 0.9rem; color: var(--muted); }
+.steps li.approved span { color: var(--ok); }
+.steps li.rejected span { color: var(--bad); }
+.howto { list-style: decimal; padding-left: 22px; color: var(--ink-2); }
+.reqstatus .st { font-size: 1.05rem; }
+@media (max-width: 760px) {
+  .opts button { height: 42px; }
+  .overlay { padding: 0; place-items: end stretch; }
+  .modal, .modal.wide { width: 100%; max-height: 92vh; border-radius: 16px 16px 0 0; }
+  .modal > footer { border-radius: 0; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .modal > footer .btn { flex: 1; }
+}
+
+/* ข้อความแจ้งในหน้าต่างย่อย */
+.notice { padding: 10px 14px; border-radius: 10px; background: var(--soft); color: var(--ink-2); }
+.notice.bad { background: var(--bad-tint); color: var(--bad); }
+.tbl.reqs td { vertical-align: top; }
+.tbl.reqs td.act { width: 1%; }
+.tbl.reqs .acts { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.wait-for { white-space: normal; text-align: right; max-width: 220px; }
+.steps-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; font-size: 0.85rem; color: var(--muted); }
+.steps-inline span.done { color: var(--ok); }
+.steps-inline span.now { color: var(--warn); font-weight: 600; }
+.steps-inline i { font-style: normal; color: #b9c2ce; }
+.rcards { display: grid; gap: 10px; }
+.rc-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.rc-act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* แบบฟอร์มคำขอ (ชื่อคลาสตามต้นแบบ) */
+.modal-body form { display: grid; gap: 14px; }
+.form-group { display: grid; gap: 6px; }
+.form-group label { font-size: 0.93rem; font-weight: 500; color: var(--ink-2); }
+.form-control { height: 40px; width: 100%; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 12px; background: var(--surface); }
+.form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-tint); }
+textarea.form-control { height: auto; padding: 9px 12px; line-height: 1.5; }
+.form-control:disabled { background: var(--soft); color: var(--muted); }
+.form-intro { color: var(--ink-2); }
+.form-hint { font-size: 0.87rem; color: var(--muted); }
+.form-readonly { padding: 10px 14px; border-radius: 10px; background: var(--soft); }
+.form-readonly-name { font-weight: 600; }
+.form-readonly-meta { font-size: 0.9rem; color: var(--muted); }
+.form-check { display: flex; gap: 8px; align-items: center; font-size: 0.95rem; color: var(--ink-2); }
+.form-check input { width: 16px; height: 16px; accent-color: var(--primary); }
+.validation-panel { display: grid; gap: 4px; padding: 12px 14px; border-radius: 10px; background: var(--soft); }
+.validation-panel:empty { display: none; }
+.validation-panel-title { font-size: 0.9rem; font-weight: 600; color: var(--ink-2); margin-top: 2px; }
+.validation-check-item { display: flex; gap: 8px; align-items: flex-start; font-size: 0.93rem; }
+.validation-check-item svg { margin-top: 4px; }
+.validation-check-item.pass { color: var(--ink-2); }
+.validation-check-item.pass svg { color: var(--ok); }
+.validation-check-item.warn { color: var(--warn); }
+.validation-check-item.fail { color: var(--bad); font-weight: 500; }
+.request-action-btn { display: flex; align-items: center; gap: 12px; width: 100%; height: auto; padding: 12px 16px; border-radius: 10px; background: var(--soft); box-shadow: none; text-align: left; }
+.request-action-btn:hover { background: var(--primary-tint); }
+.request-action-btn .avatar { display: none; }
+.request-action-btn .req-text { flex: 1; min-width: 0; display: grid; line-height: 1.4; }
+.request-action-btn .req-text strong { font-weight: 600; }
+.request-action-btn .req-text small { font-size: 0.9rem; color: var(--muted); }
+.modal-body .shift-badge-cell { display: inline-grid !important; place-items: center; border-radius: 8px; font-weight: 700; }
+.shift-badge-cell.M, .shift-badge-cell.MT { background: var(--m-bg); color: var(--m-ink); }
+.shift-badge-cell.N, .shift-badge-cell.NT { background: var(--n-bg); color: var(--n-ink); }
+.shift-badge-cell.D { background: var(--d-bg); color: var(--d-ink); }
+.shift-badge-cell.O { background: var(--surface); color: var(--muted); }
+.shift-badge-cell.leave { background: var(--l-bg); color: var(--l-ink); }
+.shift-badge-cell.swap { background: var(--soft); color: var(--ink); font-size: 0.75rem; }
+.shift-badge-cell.OT { background: var(--x-bg); color: var(--x-ink); }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 6px; font-size: 0.87rem; font-weight: 600; background: var(--soft); color: var(--ink-2); white-space: nowrap; }
+.pill-approved { background: #e6f3ec; color: var(--ok); }
+.pill-pending { background: #fdf1dc; color: #8a5200; }
+.pill-rejected { background: var(--bad-tint); color: var(--bad); }
+.request-detail-view { display: grid; gap: 14px; }
+.request-detail-status { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--soft); color: var(--ink-2); }
+.request-detail-list { display: grid; margin: 0; }
+.request-detail-row { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f0f2f6; }
+.request-detail-list dt { color: var(--muted); }
+.request-detail-list dd { margin: 0; }
+@media (max-width: 760px) {
+  .request-detail-row { grid-template-columns: 100px 1fr; }
+}
+@media (max-width: 760px) {
+  .form-control { height: 48px; }
+  .request-action-btn, .kinds li button { padding: 14px 16px; }
+  .modal > footer .btn { height: 50px; }
+  .rc-act .btn { flex: 1; }
+}
+
+/* ตารางคำขอ */
+.tbl.reqs { min-width: 860px; }
+.tbl.reqs .rq-type { font-weight: 600; }
+.tbl.reqs td:nth-child(1) { min-width: 190px; }
+.tbl.reqs td:nth-child(3) { min-width: 240px; }
+.tbl.reqs td:nth-child(4) { min-width: 150px; }
+.tbl.reqs td:nth-child(4) .st { white-space: normal; }
+.tbl.reqs td.act { width: 1%; }
+.tbl.reqs .acts { flex-wrap: nowrap; }
+.tbl.reqs .acts:has(.wait-for) { flex-wrap: wrap; justify-content: flex-end; min-width: 200px; }
+.tbl.reqs td:nth-child(1) small { white-space: nowrap; }
+
+/* แบบฟอร์มคำขอ */
+.checks .mk { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-top: 3px; border-radius: 50%; font-style: normal; font-size: 0.72rem; font-weight: 700; flex: none; }
+.checks li.pass .mk { background: #e6f3ec; color: var(--ok); }
+.checks li.warn .mk { background: #fdf1dc; color: #8a5200; }
+.checks li.fail .mk { background: var(--bad-tint); color: var(--bad); }
+.checks li b { font-weight: 600; margin-right: 4px; }
+.steps li { grid-template-rows: auto; align-items: center; }
+.steps li::before { grid-row: auto; }
+.cellinfo.c-H { background: var(--h-bg); }
+
+/* หน้าต่างช่องกะ */
+.opts button { flex-direction: column; align-items: flex-start; gap: 0; height: auto; min-height: 44px; padding: 6px 12px; line-height: 1.25; text-align: left; }
+.opts button b { font-size: 0.95rem; }
+.opts button span { font-size: 0.8rem; }
+.opts button.cur { box-shadow: inset 0 0 0 1.5px rgba(22, 41, 74, 0.35); outline: 1.5px dashed rgba(22, 41, 74, 0.45); outline-offset: 2px; }
+.opts button.on { box-shadow: 0 0 0 2.5px var(--primary); outline: 0; }
+.opts.small button { min-height: 38px; padding: 4px 10px; }
+.opts button.c-O { background: var(--soft); }
+.cellinfo.chg::before { content: ''; position: absolute; top: 0; left: 0; border-style: solid; border-width: 16px 16px 0 0; border-color: #d62828 transparent transparent transparent; border-top-left-radius: 12px; }
+.modal-body .note b { font-weight: 700; }
+
+/* ---------- ระบบหลังบ้านไม่อนุญาต style="..." ในหน้าเว็บ (CSP) จึงย้ายมาเป็นคลาส ---------- */
+.reject-body { display: flex; flex-direction: column; gap: 12px; }
+.reject-text { font-size: 12px; color: var(--ink-secondary); }
+.form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

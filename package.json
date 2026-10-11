@@ -15,11 +15,13 @@
     "start": "pnpm --filter @tnc/api start",
     "test": "pnpm --filter @tnc/api test",
     "test:browser": "pnpm --filter @tnc/api test:browser",
-    "check": "pnpm build && node scripts/check-project.mjs",
+    "check": "pnpm build && node scripts/check-project.mjs && node scripts/web-safety-check.mjs",
+    "check:web": "node scripts/web-safety-check.mjs",
     "audit:backlog": "node scripts/audit-backlog.mjs"
   },
   "devDependencies": {
     "@fontsource/inter": "^5.3.0",
-    "@fontsource/noto-sans-thai": "^5.3.0"
+    "@fontsource/noto-sans-thai": "^5.3.0",
+    "@fontsource/sarabun": "^5.3.0"
   }
 }

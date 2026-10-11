@@ -1,0 +1,24 @@
+/* ==========================================================================
+   หน้าเข้าสู่ระบบ
+   ========================================================================== */
+
+/* ---------- เข้าสู่ระบบ ---------- */
+.login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.login-side { background: var(--navy); display: flex; align-items: flex-end; padding: 56px; }
+.login-brand { display: grid; gap: 4px; }
+.login-brand b { font-size: 2.6rem; font-weight: 700; color: #fff; line-height: 1.1; }
+.login-brand span { font-size: 1.2rem; color: var(--side-ink); }
+.login-main { display: grid; place-items: center; padding: 40px 24px; background: var(--surface); }
+.login-form { width: min(380px, 100%); display: grid; gap: 18px; }
+.login-form h1 { margin-bottom: 6px; }
+.login-form .inp { height: 46px; font-size: 1.05rem; }
+@media (max-width: 760px) {
+  .login { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .login-side { padding: 40px 24px 28px; }
+  .login-brand b { font-size: 2rem; }
+  .login-main { place-items: start center; padding: 32px 24px; }
+}
+.role-picks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.role-picks button { padding: 5px 10px; border-radius: 8px; background: var(--soft); color: var(--ink-2); font-size: 0.85rem; }
+.role-picks button:hover { background: var(--primary-tint); color: var(--primary); }
+.role-picks button.on { background: var(--primary); color: #fff; }
