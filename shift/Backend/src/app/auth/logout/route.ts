@@ -13,5 +13,5 @@ export async function POST(request: Request) {
     return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
   }
 
-  return NextResponse.redirect(new URL("/login", getAuthConfig().authHost || request.url));
+  return NextResponse.redirect(new URL("/login", getAuthConfig().authHost || request.url), 303);
 }

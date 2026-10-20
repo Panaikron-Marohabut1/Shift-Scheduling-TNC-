@@ -15,8 +15,8 @@ export async function POST(request: Request) {
     const loginUrl = new URL("/login", request.url);
     if (redirectTo) loginUrl.searchParams.set("redirect_to", redirectTo);
     loginUrl.searchParams.set("error", "invalid_credentials");
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(loginUrl, 303);
   }
 
-  return NextResponse.redirect(loginRedirectTarget(redirectTo));
+  return NextResponse.redirect(loginRedirectTarget(redirectTo), 303);
 }
