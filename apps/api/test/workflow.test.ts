@@ -3,6 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
+import { createServer, Server } from 'node:http';
 import { seed } from '../seeds/demo';
 import { start } from '../src/main';
 import { migrate } from '../src/database/migrate';
@@ -10,6 +11,21 @@ let app:any,admin:Pool,serverAdmin:Pool;
 const testName=`tnc_test_${Date.now()}`;
 const port=3019,base=`http://localhost:${port}`;
 const accounts:Record<string,any>={},cookies:Record<string,string>={};
+// Stand-in for the central login service (shift/Backend): a session cookie names a Supabase user id.
+const authPort=3029,sessions=new Set<string>();let authServer:Server;
+const loginUrl=()=>`http://localhost:${authPort}/login?redirect_to=${encodeURIComponent(`${base}/`)}`;
+function startAuthStub() {
+ return new Promise<Server>(ready=>{
+  const server=createServer((req,res)=>{
+   const id=/(?:^|;\s*)sb-session=([0-9a-f-]{36})/.exec(req.headers.cookie??'')?.[1];
+   if(req.url==='/api/auth/session'){const ok=!!id&&sessions.has(id);res.writeHead(ok?200:401,{'Content-Type':'application/json'});res.end(JSON.stringify({user:ok?{id}:null}));return;}
+   if(req.url==='/auth/logout'&&req.method==='POST'){if(id)sessions.delete(id);res.writeHead(303,{Location:'/login','Set-Cookie':'sb-session=; Path=/; Max-Age=0'});res.end();return;}
+   res.writeHead(404);res.end();
+  });
+  server.listen(authPort,()=>ready(server));
+ });
+}
+function signIn(label:string) {const identity=randomUUID();sessions.add(identity);cookies[label]=`sb-session=${identity}`;return identity;}
 async function request(role:string|undefined,path:string,method='GET',body?:unknown,key?:string) {
  const response=await fetch(`${base}/api${path}`,{method,headers:{Origin:base,...(role?{Cookie:cookies[role]}:{}),...(body?{'Content-Type':'application/json'}:{}),...(key?{'Idempotency-Key':key}:{})},...(body?{body:JSON.stringify(body)}:{})});
  return {status:response.status,body:await response.json(),headers:response.headers};
@@ -39,27 +55,52 @@ before(async()=>{
  await serverAdmin.query(`CREATE DATABASE "${testName}"`);
  owner.pathname=`/${testName}`;process.env.DATABASE_ADMIN_URL=owner.toString();
  const runtime=new URL(process.env.DATABASE_URL!);runtime.pathname=`/${testName}`;process.env.DATABASE_URL=runtime.toString();
- process.env.PORT=String(port);process.env.APP_ORIGIN=base;
+ process.env.PORT=String(port);process.env.APP_ORIGIN=base;process.env.AUTH_URL=`http://localhost:${authPort}`;
+ authServer=await startAuthStub();
  admin=new Pool({connectionString:owner.toString()});
  await migrate();
  await seed();app=await start();
- const result=await request(undefined,'/demo/accounts');assert.equal(result.status,200);
- assert.equal(result.body.length,9);
- for(const [label,role,team] of [['worker','EMPLOYEE','A'],['target','EMPLOYEE','B'],['a','SUPERVISOR','A'],['b','SUPERVISOR','B'],['c','SUPERVISOR','C'],['d','SUPERVISOR','D'],['hr','HR','A'],['manager','MANAGER',null],['external','EXTERNAL',null]]) {
-  const actor=result.body.find((x:any)=>x.role===role&&x.teamCode===team);assert.ok(actor);accounts[label]=actor;
-  const session=await request(undefined,'/demo/session','POST',{userId:actor.userId});assert.equal(session.status,201);
-  const cookie=session.headers.get('set-cookie')!;assert.match(cookie,/HttpOnly/i);assert.match(cookie,/SameSite=Strict/i);cookies[label]=cookie.split(';')[0];
+ const users=(await admin.query(`SELECT u.user_id,r.role_name AS role,t.team_code AS team FROM users u JOIN roles r USING(role_id)
+  LEFT JOIN employees e USING(employee_id) LEFT JOIN teams t USING(team_id) WHERE u.demo_order IS NOT NULL ORDER BY u.demo_order`)).rows;
+ assert.equal(users.length,9);
+ for(const [label,role,team] of [['worker','EMPLOYEE','A'],['target','EMPLOYEE','B'],['a','SUPERVISOR','A'],['b','SUPERVISOR','B'],['c','SUPERVISOR','C'],['d','SUPERVISOR','D'],['hr','HR','A'],['manager','MANAGER',null],['external','EXTERNAL',null]] as [string,string,string|null][]) {
+  const user=users.find((x:any)=>x.role===role&&x.team===team);assert.ok(user);
+  await admin.query('UPDATE users SET azure_object_id=$2 WHERE user_id=$1',[user.user_id,signIn(label)]);
+  const me=await request(label,'/me');assert.equal(me.status,200,JSON.stringify(me.body));accounts[label]=me.body.actor;
  }
 });
 after(async()=>{
- if(app)await app.close();if(admin)await admin.end();
+ if(app)await app.close();if(admin)await admin.end();if(authServer)authServer.close();
  if(serverAdmin) {await serverAdmin.query(`DROP DATABASE IF EXISTS "${testName}" WITH (FORCE)`);await serverAdmin.end();}
 });
 test('unauthenticated reads and cross-origin commands are blocked',async()=>{
- assert.equal((await request(undefined,'/schedules?month=2026-10')).status,401);
- const cross=await fetch(`${base}/api/demo/session`,{method:'POST',headers:{Origin:'https://other.example','Content-Type':'application/json'},body:JSON.stringify({userId:accounts.worker.userId})});
+ const anonymous=await request(undefined,'/schedules?month=2026-10');assert.equal(anonymous.status,401);
+ assert.equal(anonymous.body.code,'SESSION_REQUIRED');assert.equal(anonymous.body.loginUrl,loginUrl());
+ const cross=await fetch(`${base}/api/requests`,{method:'POST',headers:{Origin:'https://other.example',Cookie:cookies.worker,'Content-Type':'application/json'},body:'{}'});
  assert.equal(cross.status,403);
  const forged=await request('worker','/requests','POST',{...await swapInput('2026-10-08'),assignmentId:1},randomUUID());assert.ok([403,404].includes(forged.status));
+});
+test('Supabase sessions must be valid and linked to an active user',async()=>{
+ const stranger=signIn('stranger'),unlinked=await request('stranger','/me');
+ assert.equal(unlinked.status,403);assert.equal(unlinked.body.code,'ACCOUNT_NOT_LINKED');
+ sessions.delete(stranger);cookies.stranger=`sb-session=${randomUUID()}`; // a session the login service does not know
+ const expired=await request('stranger','/schedules?month=2026-10');assert.equal(expired.status,401);assert.equal(expired.body.code,'SESSION_EXPIRED');
+ const count=async(action:string,userId:number)=>(await admin.query('SELECT count(*)::int n FROM audit_logs WHERE action=$1 AND user_id=$2',[action,userId])).rows[0].n;
+ const opened=await count('APP_SESSION_OPENED',accounts.worker.userId);
+ await request('worker','/me');
+ assert.equal(await count('APP_SESSION_OPENED',accounts.worker.userId),opened+1,'Opening the app is recorded for the signed-in user');
+ // Signing out ends the Supabase session and the cleared cookie is passed back to the browser.
+ const own=(await admin.query('SELECT azure_object_id FROM users WHERE user_id=$1',[accounts.external.userId])).rows[0].azure_object_id;
+ await admin.query('UPDATE users SET azure_object_id=$2 WHERE user_id=$1',[accounts.external.userId,signIn('leaving')]);
+ assert.equal((await request('leaving','/me')).status,200);
+ const ended=await count('APP_SESSION_ENDED',accounts.external.userId);
+ const out=await request('leaving','/auth/logout','POST');assert.equal(out.status,201);
+ assert.match(out.headers.get('set-cookie')??'',/sb-session=;/);assert.equal(out.body.loginUrl,loginUrl());
+ assert.equal((await request('leaving','/me')).status,401,'A signed-out session is not reused from the verification cache');
+ assert.equal(await count('APP_SESSION_ENDED',accounts.external.userId),ended+1);
+ await admin.query('UPDATE users SET azure_object_id=$2 WHERE user_id=$1',[accounts.external.userId,own]);
+ // A signed-in account that is not linked can still sign out.
+ signIn('stranger');assert.equal((await request('stranger','/auth/logout','POST')).status,201);
 });
 test('fresh request, first approval, month navigation and server restart preserve state',async()=>{
  const input=await swapInput('2026-10-08'),before=[...await assignments(),...await assignments('target')];
@@ -156,17 +197,19 @@ test('seven-account database upgrades to nine profiles without losing data; migr
  await admin.query('ALTER TABLE users DROP CONSTRAINT users_demo_order_check; ALTER TABLE users ADD CONSTRAINT users_demo_order_check CHECK (demo_order BETWEEN 1 AND 7)');
  await admin.query("DELETE FROM schema_migrations WHERE name='003_four_team_demo.sql'");
  const before=await snapshot();await migrate();await seed();await seed();await migrate();assert.deepEqual(await snapshot(),before);
- const available=await request(undefined,'/demo/accounts');assert.equal(available.body.length,9);
- assert.deepEqual(available.body.map((x:any)=>x.demoOrder),[1,2,3,4,5,6,7,8,9]);
- assert.deepEqual(available.body.filter((x:any)=>x.role==='EMPLOYEE').map((x:any)=>x.teamCode),['A','B']);
- assert.deepEqual(available.body.filter((x:any)=>x.role==='SUPERVISOR').map((x:any)=>x.teamCode),['A','B','C','D']);
+ const available=(await admin.query(`SELECT u.demo_order,r.role_name AS role,t.team_code AS team FROM users u JOIN roles r USING(role_id)
+  LEFT JOIN employees e USING(employee_id) LEFT JOIN teams t USING(team_id) WHERE u.demo_order IS NOT NULL ORDER BY u.demo_order`)).rows;
+ assert.deepEqual(available.map((x:any)=>x.demo_order),[1,2,3,4,5,6,7,8,9]);
+ assert.deepEqual(available.filter((x:any)=>x.role==='EMPLOYEE').map((x:any)=>x.team),['A','B']);
+ assert.deepEqual(available.filter((x:any)=>x.role==='SUPERVISOR').map((x:any)=>x.team),['A','B','C','D']);
+ assert.equal((await admin.query('SELECT count(*)::int n FROM users WHERE azure_object_id IS NOT NULL')).rows[0].n,9,'Migrate and seed keep Supabase links');
  for(const role of ['manager','external']){const me=await request(role,'/me');assert.equal(me.status,200);assert.equal(me.body.actor.employeeId,null);assert.equal(me.body.actor.teamId,null);}
  for(const team of ['C','D']){
-  const hidden=(await admin.query('SELECT user_id FROM users JOIN employees USING(employee_id) WHERE employee_code=$1',[`DEMO-${team}1`])).rows[0];
-  assert.equal((await request(undefined,'/demo/session','POST',{userId:hidden.user_id})).status,404,'C/D employee logins remain hidden');
+  const hidden=(await admin.query('SELECT azure_object_id FROM users JOIN employees USING(employee_id) WHERE employee_code=$1',[`DEMO-${team}1`])).rows[0];
+  assert.equal(hidden.azure_object_id,null,'C/D employees have no linked login');
   assert.equal((await request(team.toLowerCase(),'/me')).status,200,'Existing C/D supervisor identities are now selectable');
  }
- assert.ok((await request('manager','/audit')).body.some((x:any)=>x.action==='DEMO_SESSION_STARTED'&&x.actor_name==='ผู้จัดการทดสอบ'));
+ assert.ok((await request('manager','/audit')).body.some((x:any)=>x.action==='APP_SESSION_OPENED'&&x.actor_name==='ผู้จัดการทดสอบ'));
 });
 
 test('all scheduling readers see A-D; External APIs are denied; HR hides unpublished schedules',async()=>{

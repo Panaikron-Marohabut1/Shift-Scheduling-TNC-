@@ -18,7 +18,7 @@
  * ---------------------------------------------------------------------------
  */
 
-const AUTH_BACKEND_URL = 'http://localhost:3000';
+const AUTH_BACKEND_URL = 'http://localhost:3001';
 const AUTH_FRONTEND_URL = window.location.origin;
 
 async function requireAuthentication() {

@@ -1,54 +1,13 @@
 /* ==========================================================================
    บทบาทและเมนู
    --------------------------------------------------------------------------
-   ชื่อบทบาทที่พิมพ์/เลือกในหน้าเข้าสู่ระบบ → บัญชีในฐานข้อมูล (/api/demo/accounts)
+   บัญชีที่เข้าสู่ระบบ (จาก /api/me) → ชื่อบทบาท ตำแหน่ง และเมนูที่แสดง
    สิทธิ์จริงตรวจที่ระบบหลังบ้านเสมอ เมนูนี้กำหนดเฉพาะหน้าที่แสดง
    ========================================================================== */
 
 import { state } from './state.js';
 
-export const ROLE_LIST = [
-  ['Manager', 'ผู้จัดการฝ่ายผลิต'],
-  ['Shift Supervisor A', 'หัวหน้ากะ A'],
-  ['Shift Supervisor B', 'หัวหน้ากะ B'],
-  ['Shift Supervisor C', 'หัวหน้ากะ C'],
-  ['Shift Supervisor D', 'หัวหน้ากะ D'],
-  ['Shift Employee', 'พนักงานปฏิบัติ'],
-  ['HR', 'ฝ่ายบุคคล'],
-  ['Contractor / Van Driver', 'ผู้ใช้ภายนอก (คนขับรถ)']
-];
-// พิมพ์ชื่อเหล่านี้ได้ด้วย (ไม่ขึ้นเป็นปุ่ม) — "Shift Employee B" ใช้ทดสอบฝั่งพนักงานทีม B
-const ROLE_ALIASES = {
-  'Manager': ['ผู้จัดการ', 'mgr'],
-  'Shift Supervisor A': ['supervisor a', 'sup a', 'หัวหน้า a'],
-  'Shift Supervisor B': ['supervisor b', 'sup b', 'หัวหน้า b'],
-  'Shift Supervisor C': ['supervisor c', 'sup c', 'หัวหน้า c'],
-  'Shift Supervisor D': ['supervisor d', 'sup d', 'หัวหน้า d'],
-  'Shift Employee': ['employee', 'พนักงาน', 'พนักงานกะ', 'shift employee a', 'employee a'],
-  'Shift Employee B': ['employee b', 'พนักงาน b'],
-  'HR': ['ฝ่ายบุคคล', 'ฝ่ายทรัพยากรบุคคล'],
-  'Contractor / Van Driver': ['contractor', 'van driver', 'driver', 'คนขับรถ', 'ผู้ใช้ภายนอก', 'external user']
-};
-export const norm = s => String(s || '').toLowerCase().replace(/[\s/\-_.()]+/g, '');
-export function findRole(name) {
-  const n = norm(name);
-  if (!n) return null;
-  const all = [...ROLE_LIST, ['Shift Employee B', 'พนักงานปฏิบัติ B']];
-  return all.find(r => norm(r[0]) === n || norm(r[1]) === n || (ROLE_ALIASES[r[0]] || []).some(a => norm(a) === n)) || null;
-}
-// บัญชีในฐานข้อมูลของแต่ละบทบาท
-export function accountFor(roleKey) {
-  const acc = state.accounts;
-  if (roleKey === 'Manager') return acc.find(a => a.role === 'MANAGER');
-  if (roleKey === 'HR') return acc.find(a => a.role === 'HR');
-  if (roleKey === 'Contractor / Van Driver') return acc.find(a => a.role === 'EXTERNAL');
-  if (roleKey === 'Shift Employee') return acc.find(a => a.role === 'EMPLOYEE' && a.teamCode === 'A') || acc.find(a => a.role === 'EMPLOYEE');
-  if (roleKey === 'Shift Employee B') return acc.find(a => a.role === 'EMPLOYEE' && a.teamCode === 'B');
-  const sup = /^Shift Supervisor ([A-D])$/.exec(roleKey);
-  if (sup) return acc.find(a => a.role === 'SUPERVISOR' && a.teamCode === sup[1]);
-  return null;
-}
-// ชื่อบทบาทในหน้าจอ จากบัญชีที่เข้าสู่ระบบ ("Shift Employee B" แสดงเป็นพนักงานปฏิบัติเหมือนกัน)
+// ชื่อบทบาทในหน้าจอ จากบัญชีที่เข้าสู่ระบบ (พนักงานทุกทีมใช้หน้าพนักงานปฏิบัติเหมือนกัน)
 export function roleKeyOf(actor) {
   if (actor.role === 'MANAGER') return 'Manager';
   if (actor.role === 'SUPERVISOR') return `Shift Supervisor ${actor.teamCode}`;

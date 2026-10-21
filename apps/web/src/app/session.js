@@ -7,15 +7,16 @@ import { loadNotifications, loadYear, merge, refreshAll, reloadLoadedYears, rese
 import { buildRole, roleKeyOf } from './profiles.js';
 import { pendingYears, renderApp } from './render.js';
 import { DEMO_TODAY, saveLocal, state, view } from './state.js';
-import { $ } from '../shared/dom.js';
 import { closeModal } from '../shared/modal.js';
 import { showToast } from '../shared/toast.js';
 import { unreadCount } from '../features/notifications/store.js';
 import { newSinceLastCheck, resetNotificationCheck } from '../features/notifications/view.js';
+import { goToLogin } from '../features/session/view.js';
 
 /* ---------- เข้า-ออกระบบ ---------- */
-export async function enter(roleKey, actor) {
-  const key = roleKey === 'Shift Employee B' ? 'Shift Employee' : roleKeyOf(actor);
+// actor มาจาก /api/me (ระบบหลังบ้านตรวจ session ของ Supabase และบัญชีที่ผูกกับพนักงานแล้ว)
+export async function enter(actor) {
+  const key = roleKeyOf(actor);
   state.actor = actor;
   state.roles = { [key]: buildRole(key, actor) };
   state.activeRole = key;
@@ -25,7 +26,7 @@ export async function enter(roleKey, actor) {
   state.currentYear = DEMO_TODAY.getFullYear();
   state.currentMonth = DEMO_TODAY.getMonth();
   state.annualScheduleYear = DEMO_TODAY.getFullYear();
-  Object.assign(view, { signed: true, loginErr: '', loginUser: '', moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: true });
+  Object.assign(view, { signed: true, authMsg: '', unlinked: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: true });
   renderApp();
   try {
     if (actor.role !== 'EXTERNAL') await Promise.all([loadYear(state.currentYear), refreshAll()]);
@@ -38,14 +39,18 @@ export async function enter(roleKey, actor) {
   const unread = newSinceLastCheck(unreadCount());
   if (unread) showToast(`คุณมีแจ้งเตือนที่ยังไม่อ่าน ${unread} รายการ`);
 }
+// ออกจากระบบกลางด้วย (ลบ cookie ของ Supabase) แล้วกลับไปหน้าเข้าสู่ระบบ
 export async function logout() {
   closeModal();
   saveLocal();
-  try { await api('/auth/logout', { method: 'POST' }); } catch { /* session หมดอายุแล้ว */ }
-  leave();
+  let result;
+  try { result = await api('/auth/logout', { method: 'POST' }); }
+  catch (error) { showToast(error.message || 'ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง', 'alert'); return; }
+  leave(result.loginUrl, 'ออกจากระบบแล้ว');
+  goToLogin(result.loginUrl);
 }
-export function leave() {
-  Object.assign(view, { signed: false, loading: false, loginErr: '', loginUser: '' });
+export function leave(loginUrl = view.loginUrl, message = '') {
+  Object.assign(view, { signed: false, loading: false, authMsg: message, loginUrl: loginUrl || '', unlinked: false });
   state.actor = null;
   state.roles = {};
   state.apiRequests = [];
@@ -56,8 +61,6 @@ export function leave() {
   Object.keys(pendingYears).forEach(y => { delete pendingYears[y]; });
   merge();
   renderApp();
-  const el = $('#lgUser');
-  if (el) el.focus();
 }
 
 /* ---------- หลังมีการเปลี่ยนแปลงข้อมูล ---------- */
