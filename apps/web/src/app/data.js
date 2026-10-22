@@ -2,7 +2,7 @@
    ข้อมูลจากระบบหลังบ้าน (API) และจุดเชื่อมของข้อมูลเดโม
    --------------------------------------------------------------------------
    ต่อฐานข้อมูลแล้ว:
-     GET  /api/demo/accounts, POST /api/demo/session, GET /api/me, POST /api/auth/logout
+     GET  /api/me, POST /api/auth/logout                  ผู้ใช้ที่เข้าสู่ระบบ (Supabase ผ่าน shift/Backend) / ออกจากระบบ
      GET  /api/schedules?month=YYYY-MM                     ตารางกะรายเดือน → state.shiftsData, apiCodes
      GET  /api/requests                                     คำขอสลับกะ → state.apiRequests
      POST /api/requests                                     ยื่นสลับกะ (พนักงานทีม A/B สลับกันวันเดียวกัน)

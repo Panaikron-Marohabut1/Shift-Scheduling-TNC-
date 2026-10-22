@@ -39,7 +39,6 @@ export const state = {
 
   // ---------- จากฐานข้อมูล ----------
   actor: null,            // ผู้ใช้ที่เข้าสู่ระบบ (จาก /api/me)
-  accounts: [],           // บัญชีเดโม (จาก /api/demo/accounts)
   apiMonths: {},          // "ปี-เดือน(0-11)" → ผลของ /api/schedules (มี assignments)
   apiCodes: {},           // รหัสพนักงาน → "YYYY-MM-DD" → รหัสกะ (รวมการสลับที่อนุมัติแล้ว เช่น "N/M")
   apiAssign: {},          // รหัสพนักงาน → "YYYY-MM-DD" → รายการกะจาก API (ใช้ยื่นสลับกะ)
@@ -112,7 +111,8 @@ export const state = {
 };
 
 // หน้าจอที่ยังไม่เกี่ยวกับข้อมูล (มุมมอง ช่องค้นหา ฟอร์มที่กำลังกรอก)
-export const view = { signed: false, loginErr: '', loginUser: '', moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false };
+// authMsg/loginUrl/unlinked ใช้ในหน้าเข้าสู่ระบบ (features/session/view.js)
+export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false };
 
 /* ---------- เก็บข้อมูลเดโมในเบราว์เซอร์ ---------- */
 let lastSaved = '';

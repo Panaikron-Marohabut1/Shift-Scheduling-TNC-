@@ -4,7 +4,7 @@ export async function api(path,{method='GET',body,key}={}) {
   try {
     const response=await fetch(`/api${path}`,{method,credentials:'same-origin',signal:controller.signal,headers:{...(body?{'Content-Type':'application/json'}:{}),...(key?{'Idempotency-Key':key}:{})},...(body?{body:JSON.stringify(body)}:{})});
     const payload=await response.json();
-    if(!response.ok) { if(response.status===401) window.dispatchEvent(new Event('session-expired')); throw new ApiError(payload.message??'ไม่สามารถดำเนินการได้',response.status,payload.code,payload); }
+    if(!response.ok) { if(response.status===401) window.dispatchEvent(new CustomEvent('session-expired',{detail:payload})); throw new ApiError(payload.message??'ไม่สามารถดำเนินการได้',response.status,payload.code,payload); }
     return payload;
   } catch(e) {
     if(e instanceof ApiError) throw e;

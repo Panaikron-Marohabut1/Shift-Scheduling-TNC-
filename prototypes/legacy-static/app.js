@@ -18,6 +18,50 @@
  * ---------------------------------------------------------------------------
  */
 
+const AUTH_BACKEND_URL = 'http://localhost:3001';
+const AUTH_FRONTEND_URL = window.location.origin;
+
+async function requireAuthentication() {
+  if (window.location.protocol === 'file:') {
+    throw new Error('เปิดแอปผ่าน http://localhost:5500 เพื่อเชื่อมต่อระบบล็อกอิน');
+  }
+
+  const response = await fetch(`${AUTH_BACKEND_URL}/api/auth/session`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  });
+
+  if (response.status === 401) {
+    window.location.replace(`${AUTH_BACKEND_URL}/login?redirect_to=${encodeURIComponent(`${AUTH_FRONTEND_URL}/`)}`);
+    return false;
+  }
+
+  if (!response.ok) throw new Error(`ตรวจสอบการเข้าสู่ระบบไม่สำเร็จ (${response.status})`);
+
+  const { user } = await response.json();
+  if (!user) {
+    window.location.replace(`${AUTH_BACKEND_URL}/login?redirect_to=${encodeURIComponent(`${AUTH_FRONTEND_URL}/`)}`);
+    return false;
+  }
+
+  window.shiftFlowUser = user;
+  return true;
+}
+
+async function logout() {
+  try {
+    const response = await fetch(`${AUTH_BACKEND_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error(`ออกจากระบบไม่สำเร็จ (${response.status})`);
+    window.location.replace(`${AUTH_BACKEND_URL}/login?redirect_to=${encodeURIComponent(`${AUTH_FRONTEND_URL}/`)}`);
+  } catch (error) {
+    console.error(error);
+    showToast('ออกจากระบบไม่สำเร็จ กรุณาลองใหม่');
+  }
+}
+
 // --------------------------------------------------------------------------
 // Rotation Pattern Generator (2-on / 2-off, 8-day cycle: M,M,O,O,N,N,O,O)
 // Used to generate realistic 31-day rosters for Shift C & Shift D, and for
@@ -4194,6 +4238,7 @@ function renderApp() {
             <strong>${role.name}</strong>
             <small>${role.title}</small>
           </div>
+          <button class="icon-btn" onclick="logout()" aria-label="ออกจากระบบ" title="ออกจากระบบ">↪</button>
         </div>
       `;
     }
@@ -4259,6 +4304,17 @@ function renderApp() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  renderApp();
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    if (await requireAuthentication()) renderApp();
+  } catch (error) {
+    console.error(error);
+    document.getElementById('pageContent').innerHTML = `
+      <div class="card"><div class="card-body">
+        <h2>เชื่อมต่อระบบเข้าสู่ระบบไม่ได้</h2>
+        <p>${error.message}</p>
+        <button class="btn btn-primary" onclick="location.reload()">ลองใหม่</button>
+      </div></div>
+    `;
+  }
 });
