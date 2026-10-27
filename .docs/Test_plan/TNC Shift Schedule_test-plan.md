@@ -272,10 +272,10 @@ The planned activities cover Unit Testing, Integration Testing, End-to-End Testi
 
 | Test Level | Responsible Role | Owner | Responsibility |
 | --- | --- | --- | --- |
-| Unit Testing | Developer | `Juladit Teekawiwat` | Test individual functions and business rules |
-| Integration Testing | Developer / QA Tester | `Parichat Sriagsorn` | Verify interactions between connected components |
-| End-to-End Testing | QA Tester | `Parichat Sriagsorn` | Execute complete workflows and record results |
-| User Acceptance Testing | Team member running the sessions | `Parichat Sriagsorn` | Run the sessions, observe, and record results |
+| Unit Testing | Developer | Juladit Teekawiwat | Test individual functions and business rules |
+| Integration Testing | Developer / QA Tester | Alisa Pansomkid | Verify interactions between connected components |
+| End-to-End Testing | QA Tester | Alisa Pansomkid | Execute complete workflows and record results |
+| User Acceptance Testing | Team member running the sessions | Charuwan Kasaempan | Run the sessions, observe, and record results |
 | User Acceptance Testing | Employee / Shift Supervisor (participants) | Participant IDs U01 to U05 | Perform assigned tasks and provide feedback |
 | Test data and accounts | Developer / QA Tester | `Parichat Sriagsorn` | Prepare and reset test accounts and data before each test run and each UAT session |
 
