@@ -17,6 +17,8 @@ import { getShiftCodeForDate, hasScheduleDataForMonth, isMonthLocked } from '../
 import { getEligibleSwapColleagues, validateSwapBothSides } from '../../shared/scheduling/rules.js';
 import { telOf } from '../../shared/ui.js';
 import { kindButtons, kindsAllowed } from '../requests/new-request.js';
+import { getVisibleRequests } from '../requests/permissions.js';
+import { changeInfoRows, changeSource } from './change-info.js';
 import { changeNote, famOf } from './codes.js';
 import { draftNote, holidaysOf } from './days.js';
 
@@ -32,6 +34,7 @@ export function renderCell() {
   const def = state.shiftDefs[code] || state.shiftDefs.O;
   const hol = holidaysOf(y)[`${m}-${d}`];
   const chg = changeNote(emp, y, m, d, code);
+  const source = chg ? changeSource(emp, y, m, d) : null; // คำขอที่ทำให้ช่องนี้เปลี่ยน
   const locked = isMonthLocked(y, m) || !isYearPublished(y);
   const role = state.activeRole;
   const me = currentEmp();
@@ -48,6 +51,7 @@ export function renderCell() {
       <div><dt>พนักงาน</dt><dd>${esc(emp.name)} (${esc(emp.id)}) · ${esc(emp.position || '')} · ${esc(emp.shiftType)}</dd></div>
       <div><dt>โทรศัพท์</dt><dd>${telOf(emp.phone)}</dd></div>
       ${chg ? `<div><dt>การเปลี่ยนแปลง</dt><dd>${esc(chg)}</dd></div>` : ''}
+      ${chg ? changeInfoRows(source, emp, y, m, d) : ''}
       ${hol ? `<div><dt>วันหยุด</dt><dd>${esc(hol)}</dd></div>` : ''}
       ${!hasScheduleDataForMonth(y, m) ? '<div><dt>ที่มา</dt><dd>คาดการณ์ตามรอบกะปกติ</dd></div>' : ''}
     </dl>`;
@@ -57,12 +61,11 @@ export function renderCell() {
 
   if (canRequest) {
     if (isMine) {
+      // วันทำงาน: สลับกะ / ลา / OT · วันหยุดหรือวันหยุดนักขัตฤกษ์: ย้ายวันหยุด / OT · วันลา: ไม่มี
       let kinds;
-      if (code === 'H') kinds = ['holiday'];
+      if (code === 'H' || def.family === 'O' || hol) kinds = ['dayoff', 'ot'];
       else if (def.leave) kinds = [];
-      else if (def.family === 'O') kinds = ['dayoff', 'ot'];
-      else kinds = ['swap', 'change', 'leave', 'ot'];
-      if (hol && code !== 'H' && !def.leave) kinds.push('holiday');
+      else kinds = ['swap', 'leave', 'ot'];
       const list = kindsAllowed().filter(x => kinds.includes(x.k));
       if (list.length) body += `<h3>ยื่นคำขอของฉันในวันนี้</h3>${kindButtons(list, d)}`;
     } else if (getEligibleSwapColleagues(me).some(e => e.id === emp.id)) {
@@ -79,7 +82,8 @@ export function renderCell() {
     }
   }
 
-  const foot = '<button class="btn" data-click="closeModal()">ปิด</button>';
+  const canSee = source && getVisibleRequests().some(r => String(r.id) === String(source.id));
+  const foot = `${canSee ? `<button class="btn" data-click="openRequestDetails(${js(source.id)})">ดูคำขอที่ทำให้เปลี่ยน</button>` : ''}<button class="btn" data-click="closeModal()">ปิด</button>`;
   const box = $('#modalRoot .modal-body');
   const top = box ? box.scrollTop : 0;
   openModal(`${emp.name} · ${shortDate(y, m, d)}`, body, foot);

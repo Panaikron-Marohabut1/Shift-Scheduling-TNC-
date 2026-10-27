@@ -7,6 +7,8 @@
 
 import { state } from '../../app/state.js';
 import { currentEmp, findEmployeeById, getAllEmployees, getSupervisorShiftType, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
+import { isMonthLocked } from '../../shared/scheduling/roster.js';
+import { stepKey } from '../notifications/store.js';
 
 /* ---------- สิทธิ์ ---------- */
 export const empOf = (id, name) => findEmployeeById(id) || getAllEmployees().find(e => e.name === name) || null;
@@ -41,11 +43,19 @@ export function canWithdrawRequest(req) {
   if (!req || !req.status || !req.status.includes('รอ')) return false;
   return (req.approvers || []).every(a => a.status === 'pending');
 }
+// ยกเลิกคำขอที่อนุมัติแล้ว (คืนตารางเดิม): ผู้ยื่นหรือผู้จัดการ · คำขอเดโมที่ระบบจดช่องที่เปลี่ยนไว้ · เดือนยังไม่ถูกล็อก
+export function canCancelApproved(req) {
+  if (!req || req.api || req.status !== 'อนุมัติแล้ว' || !(req.applied || []).length) return false;
+  if (req.applied.some(a => isMonthLocked(a.y, a.m))) return false;
+  const me = currentEmp();
+  return state.activeRole === 'Manager' || !!(me && req.requesterId === me.id);
+}
 export function getVisibleRequests() {
   if (state.activeRole === 'Manager' || state.activeRole === 'HR') return state.requests;
   if (state.activeRole === 'Shift Employee') {
     const me = currentEmp();
-    return state.requests.filter(req => req.requesterId === (me && me.id) || req.person === (me && me.name) || req.targetPerson === (me && me.name));
+    return state.requests.filter(req => req.requesterId === (me && me.id) || req.person === (me && me.name) || req.targetPerson === (me && me.name)
+      || (me && (req.helpers || []).some(h => h.id === me.id)));
   }
   if (isSupervisorRoleName(state.activeRole)) {
     const supShift = getSupervisorShiftType(state.activeRole);
@@ -54,7 +64,10 @@ export function getVisibleRequests() {
       const requester = empOf(req.requesterId, req.person);
       if (requester && requester.shiftType === supShift) return true;
       const target = req.targetPerson && empOf(req.targetId, req.targetPerson);
-      return !!(target && target.shiftType === supShift);
+      if (target && target.shiftType === supShift) return true;
+      // คนมาช่วยทำ OT จากทีมนี้ หรือมีขั้นอนุมัติของหัวหน้ากะทีมนี้
+      if ((req.helpers || []).some(h => { const e = findEmployeeById(h.id); return e && e.shiftType === supShift; })) return true;
+      return (req.approvers || []).some(a => stepKey(a.role) === `sup:${supShift.slice(-1)}`);
     });
   }
   return state.requests;

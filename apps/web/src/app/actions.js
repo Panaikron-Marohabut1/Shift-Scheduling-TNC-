@@ -25,15 +25,15 @@ import {
 import { filterEmployeeSearch, filterEmployeeTeam, openEmployeeForm, saveEmployeeProfile } from '../features/manager/people.js';
 import { updateManagerRule, updateManagerShiftTime } from '../features/manager/settings.js';
 import { openNotification, readAllNotifications } from '../features/notifications/view.js';
-import { approveRequest, confirmRejectRequest, promptRejectRequest, resetTestcases, withdrawRequest } from '../features/requests/decisions.js';
+import {
+  approveRequest, confirmCancelApproved, confirmRejectRequest, promptCancelApproved, promptRejectRequest, resetTestcases, withdrawRequest
+} from '../features/requests/decisions.js';
 import { openRequestDetails } from '../features/requests/detail.js';
 import { openForm, renderForm } from '../features/requests/form.js';
 import { LOCKED_NOTE, newRequestModal } from '../features/requests/new-request.js';
-import { submitOperatorShiftRequest } from '../features/requests/types/change.js';
 import { submitDayOffChangeRequest } from '../features/requests/types/dayoff.js';
-import { submitPublicHolidayChoice } from '../features/requests/types/holiday.js';
 import { submitLeaveRequest } from '../features/requests/types/leave.js';
-import { submitOTRequest } from '../features/requests/types/ot.js';
+import { submitOTRequest, toggleOtHelper } from '../features/requests/types/ot.js';
 import { submitColleagueSwapRequest } from '../features/requests/types/swap.js';
 import { openCell } from '../features/schedule/cell.js';
 import { codesModal } from '../features/schedule/page.js';
@@ -67,7 +67,16 @@ const SF = {
   form: openForm,
   cell: openCell,
   swapWith(id, d) { openForm('swap', d); if (view.rq) { view.rq.partner = String(id); renderForm(); } },
-  rq(key, val) { if (view.rq) { view.rq[key] = val; if (key === 'oldDay') view.rq.newDay = ''; renderForm(); } },
+  rq(key, val) {
+    if (!view.rq) return;
+    view.rq[key] = val;
+    // ค่าที่ขึ้นกับช่องนี้ต้องเลือกใหม่
+    if (key === 'oldDay') Object.assign(view.rq, { newDay: '', workCode: '' });
+    if (key === 'newDay') view.rq.workCode = '';
+    if (key === 'partner' || key === 'mode') view.rq.payDay = '';
+    renderForm();
+  },
+  rqHelper(id, checked) { toggleOtHelper(id, checked); renderForm(); },
   rqKeep(key, val) { if (view.rq) view.rq[key] = val; },
   rqDate(v) {
     const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
@@ -124,7 +133,7 @@ register({
   ...Object.fromEntries(Object.entries(SF).map(([k, v]) => [`SF.${k}`, v])),
   switchView, changeScheduleMonth, jumpToScheduleMonth, toggleMonthPicker, filterScheduleShiftType,
   openRequestDetails, approveRequest, promptRejectRequest, confirmRejectRequest, withdrawRequest, resetTestcases,
-  submitColleagueSwapRequest, submitOperatorShiftRequest, submitLeaveRequest, submitDayOffChangeRequest, submitOTRequest, submitPublicHolidayChoice,
+  submitColleagueSwapRequest, submitLeaveRequest, submitDayOffChangeRequest, submitOTRequest, promptCancelApproved, confirmCancelApproved,
   filterEmployeeTeam, filterEmployeeSearch, openEmployeeForm, saveEmployeeProfile,
   jumpAnnualYear, jumpAnnualYearTo, updateAnnualTeamFamily, addAnnualHoliday, holidayKey, removeAnnualHoliday,
   updateManagerShiftTime, updateManagerRule, exportMonthlyCSV, exportLeaveRecordsCSV, exportOTRecordsCSV, acknowledgeDriverSchedule, openNotification, readAllNotifications
