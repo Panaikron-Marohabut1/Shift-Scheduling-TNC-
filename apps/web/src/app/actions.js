@@ -6,10 +6,10 @@
    ========================================================================== */
 
 import { renderApp } from './render.js';
-import { enter, logout } from './session.js';
+import { logout } from './session.js';
 import { DATA_LABEL } from './shell.js';
 import { clearLocal, DEMO_TODAY, state, view } from './state.js';
-import { $, esc } from '../shared/dom.js';
+import { esc } from '../shared/dom.js';
 import { register } from '../shared/events.js';
 import { openModal } from '../shared/modal.js';
 import { isYearPublished } from '../shared/scheduling/annual.js';
@@ -37,7 +37,7 @@ import { submitOTRequest } from '../features/requests/types/ot.js';
 import { submitColleagueSwapRequest } from '../features/requests/types/swap.js';
 import { openCell } from '../features/schedule/cell.js';
 import { codesModal } from '../features/schedule/page.js';
-import { signIn } from '../features/session/view.js';
+import { goToLogin } from '../features/session/view.js';
 
 /* ---------- เปลี่ยนหน้า เดือน และมุมมอง ---------- */
 function switchView(id) { state.activeView = id; view.moreNav = false; state.monthPickerOpen = false; renderApp(); }
@@ -62,7 +62,6 @@ const SF = {
     window.scrollTo(0, 0);
   },
   more() { view.moreNav = !view.moreNav; renderApp(); },
-  pickRole(r) { view.loginUser = r; view.loginErr = ''; renderApp(); const el = $('#lgPass'); if (el) el.focus(); },
   codes: codesModal,
   newRequest: newRequestModal,
   form: openForm,
@@ -92,11 +91,8 @@ const SF = {
     renderApp();
   },
   whoToday() { view.mode = 'day'; view.day = DEMO_TODAY.getDate(); state.currentYear = DEMO_TODAY.getFullYear(); state.currentMonth = DEMO_TODAY.getMonth(); SF.nav('schedule'); },
-  async login() {
-    const result = await signIn();
-    if (!result) { renderApp(); const el = $('#lgPass'); if (el) el.focus(); return; }
-    await enter(result.roleKey, result.actor);
-  },
+  toLogin() { goToLogin(); renderApp(); },
+  retry() { window.location.reload(); },
   account() {
     const role = state.roles[state.activeRole] || {};
     openModal('ผู้ใช้งาน', `

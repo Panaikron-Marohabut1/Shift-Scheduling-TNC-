@@ -22,7 +22,7 @@ export function getAuthConfig() {
   return {
     supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
     supabasePublishableKey: required("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
-    authHost: process.env.AUTH_HOST || "http://localhost:3000",
+    authHost: process.env.AUTH_HOST || "http://localhost:3001",
     trustedOrigins,
     cookieName: process.env.AUTH_COOKIE_NAME || "sb-session",
     cookieDomain,

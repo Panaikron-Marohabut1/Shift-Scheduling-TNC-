@@ -18,7 +18,3 @@
   .login-brand b { font-size: 2rem; }
   .login-main { place-items: start center; padding: 32px 24px; }
 }
-.role-picks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.role-picks button { padding: 5px 10px; border-radius: 8px; background: var(--soft); color: var(--ink-2); font-size: 0.85rem; }
-.role-picks button:hover { background: var(--primary-tint); color: var(--primary); }
-.role-picks button.on { background: var(--primary); color: #fff; }

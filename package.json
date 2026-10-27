@@ -10,6 +10,7 @@
     "db:stop": "node scripts/local-postgres.mjs stop",
     "db:migrate": "pnpm --filter @tnc/api migrate",
     "db:seed": "pnpm --filter @tnc/api seed",
+    "link-user": "pnpm --filter @tnc/api link-user",
     "dev": "pnpm --filter @tnc/api dev",
     "build": "node scripts/copy-fonts.mjs && pnpm --filter @tnc/api build",
     "start": "pnpm --filter @tnc/api start",

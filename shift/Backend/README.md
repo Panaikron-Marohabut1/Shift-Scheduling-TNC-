@@ -40,7 +40,7 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) with your browser to see the result. Port 3001 keeps port 3000 free for `apps/api` (ShiftFlow), which reads this service's `sb-session` cookie.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

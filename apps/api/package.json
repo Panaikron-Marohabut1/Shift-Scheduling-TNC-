@@ -8,6 +8,7 @@
     "start": "node dist/main.js",
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx seeds/demo.ts",
+    "link-user": "tsx seeds/link-user.ts",
     "test": "tsx --test --test-concurrency=1 test/*.test.ts",
     "test:browser": "tsx test/browser.ts"
   },

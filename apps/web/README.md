@@ -44,7 +44,7 @@ apps/web/
     │   ├── main.js            จุดเริ่ม: เปิดเว็บ ผูกส่วนต่าง ๆ เข้าด้วยกัน รีเฟรชทุก 30 วินาที
     │   ├── state.js           สถานะของหน้าเว็บ รหัสกะ และข้อมูลเดโมในเบราว์เซอร์
     │   ├── data.js            โหลด/แปลงข้อมูลจาก API และคำสั่งที่ส่งไป API
-    │   ├── profiles.js        บทบาท ชื่อเข้าสู่ระบบ และเมนูของแต่ละบทบาท
+    │   ├── profiles.js        บทบาท ตำแหน่ง และเมนูของแต่ละบทบาท
     │   ├── session.js         เข้าสู่ระบบ / ออกจากระบบ
     │   ├── shell.js           เมนูซ้าย แถบบน/ล่าง ตัวเลขแจ้งเตือน
     │   ├── routes.js          เลือกหน้าตามบทบาทและเมนู
@@ -73,7 +73,7 @@ apps/web/
         ├── history/view.js    ประวัติการเปลี่ยนแปลง
         ├── hr/view.js         ข้อมูลและส่งออก CSV
         ├── external/view.js   ตารางรับส่งพนักงาน (คนขับรถ)
-        └── session/view.js    หน้าเข้าสู่ระบบ
+        └── session/view.js    หน้าเข้าสู่ระบบ (พาไประบบกลาง / บัญชียังไม่ผูก)
 ```
 
 ## กฎความปลอดภัย (ทุกคนในทีมต้องทำตาม)
@@ -93,7 +93,7 @@ apps/web/
 
 | ส่วน | API |
 |---|---|
-| เข้าสู่ระบบ / ออกจากระบบ | `GET /api/demo/accounts`, `POST /api/demo/session`, `POST /api/auth/logout` |
+| เข้าสู่ระบบ / ออกจากระบบ | `GET /api/me` (401 → ไปหน้าเข้าสู่ระบบของ `shift/Backend`), `POST /api/auth/logout` |
 | พนักงานและตารางกะรายเดือน | `GET /api/schedules?month=YYYY-MM` |
 | ยื่นสลับกะ (พนักงานแลกกะวันเดียวกัน กับเดือนที่มีข้อมูลจริง) | `POST /api/requests` |
 | รายการคำขอสลับกะ | `GET /api/requests` |
@@ -141,6 +141,5 @@ apps/web/
 | ส่งออก CSV | `hr/view.js` | สร้างในเบราว์เซอร์ได้อยู่แล้ว ถ้าต้องการไฟล์จากเซิร์ฟเวอร์ให้เพิ่ม `GET /api/exports/...` |
 | แจ้งเตือนของเรื่องที่ยังเป็น LOCAL | `notifications/store.js` → `notify` (จุดเดียว) | ให้ API ของแต่ละเรื่องสร้างแถวในตาราง `notifications` (มีตารางแล้ว) |
 | สถานะอ่านแล้ว | `notifications/store.js` → `markRead`, `markAllRead` | `PATCH /api/notifications/:id/read` (ตาราง `notifications` มีคอลัมน์ `is_read` แล้ว) |
-| รหัสผ่านทดลอง 1234 | `session/view.js` → `signIn` | ระบบล็อกอินของบริษัท (Authentication) |
 
 เดือนที่ยังไม่มีตารางในฐานข้อมูลแสดงเป็น "ตารางคาดการณ์" ตามรอบ 2 วันสลับ 2 วันของเดือนแรกที่มีข้อมูลจริง (`shared/scheduling/roster.js` → `getShiftCodeForDate`)
