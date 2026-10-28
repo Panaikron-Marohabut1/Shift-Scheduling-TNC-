@@ -1,5 +1,12 @@
 import { Pool, PoolClient } from 'pg';
 import '../src/config';
+// ชื่อพนักงานเดโม (ชื่อสมมติชุดเดียวกับต้นแบบ ShiftFlow) — ใช้ทั้งตอนสร้างข้อมูลใหม่และตอนรัน seed ซ้ำ
+const DEMO_NAMES:Record<string,[string,string]>={
+ 'DEMO-A0':['อดิศร','ดีเลิศ'],'DEMO-A1':['ยุทธนา','ศรีสวัสดิ์'],'DEMO-A2':['ทวีศักดิ์','ชัยมงคล'],
+ 'DEMO-B0':['สุรชัย','มั่นคง'],'DEMO-B1':['พงศกร','แสงทอง'],'DEMO-B2':['มานพ','พรหมมา'],
+ 'DEMO-C0':['ไกรสร','ดวงดี'],'DEMO-C1':['นพดล','ใจกล้า'],'DEMO-C2':['อนุชา','บัวแก้ว'],
+ 'DEMO-D0':['ศักดิ์ชัย','สายบุญ'],'DEMO-D1':['ณรงค์','ศรีงาม'],'DEMO-D2':['คมกริช','เจริญสุข']
+};
 async function profiles(c:PoolClient) {
  const roleIds:Record<string,number>={};
  for(const role of ['MANAGER','EXTERNAL']) roleIds[role]=(await c.query('INSERT INTO roles(role_name) VALUES($1) ON CONFLICT(role_name) DO UPDATE SET role_name=EXCLUDED.role_name RETURNING role_id',[role])).rows[0].role_id;
@@ -12,6 +19,8 @@ async function profiles(c:PoolClient) {
   const result=await c.query(`UPDATE users u SET demo_profile=$2,demo_order=$3 FROM employees e WHERE u.employee_id=e.employee_id AND e.employee_code=$1 AND u.identity_source='DEMO'`,[code,profile,order]);
   if(result.rowCount!==1)throw new Error(`Missing existing synthetic account ${code}. No fixture data was reset.`);
  }
+ for(const [code,[first,last]] of Object.entries(DEMO_NAMES))
+  await c.query("UPDATE employees SET first_name=$2,last_name=$3,updated_at=now() WHERE employee_code=$1 AND department='DEMO'",[code,first,last]);
 }
 export async function seed() {
  if(process.env.APP_MODE!=='DEMO') throw new Error('Seeding is available only in DEMO mode.');
@@ -31,7 +40,7 @@ export async function seed() {
    for(let slot=0;slot<3;slot++) {
     const supervisor=slot===0;
     const employeeId=(await c.query(`INSERT INTO employees(employee_code,first_name,last_name,department,position,team_id,employment_status)
-     VALUES($1,$2,$3,'DEMO',$4,$5,'ACTIVE') RETURNING employee_id`,[`DEMO-${letter}${slot}`,supervisor?'หัวหน้าทดสอบ':'พนักงานทดสอบ',`${letter}${slot}`,supervisor?'SUPERVISOR':'FIELD_OPERATOR',teamId])).rows[0].employee_id;
+     VALUES($1,$2,$3,'DEMO',$4,$5,'ACTIVE') RETURNING employee_id`,[`DEMO-${letter}${slot}`,DEMO_NAMES[`DEMO-${letter}${slot}`][0],DEMO_NAMES[`DEMO-${letter}${slot}`][1],supervisor?'SUPERVISOR':'FIELD_OPERATOR',teamId])).rows[0].employee_id;
     employees.push({id:employeeId,team,slot,supervisor});
     if(supervisor||slot===1) {
      const userId=(await c.query("INSERT INTO users(employee_id,role_id,identity_source) VALUES($1,$2,'DEMO') RETURNING user_id",[employeeId,roles[supervisor?'SUPERVISOR':'EMPLOYEE']])).rows[0].user_id;
