@@ -12,20 +12,21 @@ const testName=`tnc_test_${Date.now()}`;
 const port=3019,base=`http://localhost:${port}`;
 const accounts:Record<string,any>={},cookies:Record<string,string>={};
 // Stand-in for the central login service (shift/Backend): a session cookie names a Supabase user id.
-const authPort=3029,sessions=new Set<string>();let authServer:Server;
+const authPort=3029,sessions=new Map<string,{email?:string;provider?:string}>();let authServer:Server;
 const loginUrl=()=>`http://localhost:${authPort}/login?redirect_to=${encodeURIComponent(`${base}/`)}`;
 function startAuthStub() {
  return new Promise<Server>(ready=>{
   const server=createServer((req,res)=>{
    const id=/(?:^|;\s*)sb-session=([0-9a-f-]{36})/.exec(req.headers.cookie??'')?.[1];
-   if(req.url==='/api/auth/session'){const ok=!!id&&sessions.has(id);res.writeHead(ok?200:401,{'Content-Type':'application/json'});res.end(JSON.stringify({user:ok?{id}:null}));return;}
+   if(req.url==='/api/auth/session'){const ok=!!id&&sessions.has(id),who=ok?sessions.get(id!)!:{};res.writeHead(ok?200:401,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({user:ok?{id,email:who.email,app_metadata:{provider:who.provider??'email',providers:[who.provider??'email']}}:null}));return;}
    if(req.url==='/auth/logout'&&req.method==='POST'){if(id)sessions.delete(id);res.writeHead(303,{Location:'/login','Set-Cookie':'sb-session=; Path=/; Max-Age=0'});res.end();return;}
    res.writeHead(404);res.end();
   });
   server.listen(authPort,()=>ready(server));
  });
 }
-function signIn(label:string) {const identity=randomUUID();sessions.add(identity);cookies[label]=`sb-session=${identity}`;return identity;}
+function signIn(label:string,who:{email?:string;provider?:string}={}) {const identity=randomUUID();sessions.set(identity,who);cookies[label]=`sb-session=${identity}`;return identity;}
 async function request(role:string|undefined,path:string,method='GET',body?:unknown,key?:string) {
  const response=await fetch(`${base}/api${path}`,{method,headers:{Origin:base,...(role?{Cookie:cookies[role]}:{}),...(body?{'Content-Type':'application/json'}:{}),...(key?{'Idempotency-Key':key}:{})},...(body?{body:JSON.stringify(body)}:{})});
  return {status:response.status,body:await response.json(),headers:response.headers};
@@ -101,6 +102,28 @@ test('Supabase sessions must be valid and linked to an active user',async()=>{
  await admin.query('UPDATE users SET azure_object_id=$2 WHERE user_id=$1',[accounts.external.userId,own]);
  // A signed-in account that is not linked can still sign out.
  signIn('stranger');assert.equal((await request('stranger','/auth/logout','POST')).status,201);
+});
+test('first Microsoft 365 sign-in links itself only to one matching, unlinked employee email',async()=>{
+ const [c1,d1]=(await admin.query(`SELECT u.user_id,u.employee_id FROM users u JOIN employees e USING(employee_id) JOIN teams t USING(team_id)
+  WHERE u.azure_object_id IS NULL AND u.is_active AND t.team_code IN ('C','D') ORDER BY u.user_id`)).rows;
+ assert.ok(d1,'Two unlinked C/D users exist');
+ const setEmail=(user:any,email:string|null)=>admin.query('UPDATE employees SET email=$2 WHERE employee_id=$1',[user.employee_id,email]);
+ const linkOf=async(user:any)=>(await admin.query('SELECT azure_object_id FROM users WHERE user_id=$1',[user.user_id])).rows[0].azure_object_id;
+ await setEmail(c1,'shared@thainitrate.com');await setEmail(d1,'shared@thainitrate.com');
+ signIn('shared',{email:'shared@thainitrate.com',provider:'azure'});
+ assert.equal((await request('shared','/me')).status,403,'An email shared by two employees links nobody');
+ assert.equal(await linkOf(c1),null);assert.equal(await linkOf(d1),null);
+ await setEmail(c1,'c1@thainitrate.com');
+ signIn('c1password',{email:'c1@thainitrate.com',provider:'email'});
+ assert.equal((await request('c1password','/me')).status,403,'Only Microsoft 365 sign-ins link automatically');
+ const id=signIn('c1',{email:'C1@ThaiNitrate.com',provider:'azure'});
+ const me=await request('c1','/me');assert.equal(me.status,200,JSON.stringify(me.body));assert.equal(me.body.actor.userId,c1.user_id);
+ assert.equal(await linkOf(c1),id);
+ assert.equal((await admin.query("SELECT count(*)::int n FROM audit_logs WHERE action='IDENTITY_LINKED' AND user_id=$1",[c1.user_id])).rows[0].n,1);
+ signIn('c1again',{email:'c1@thainitrate.com',provider:'azure'});
+ assert.equal((await request('c1again','/me')).status,403,'An already-linked user is never taken over by another account');
+ await admin.query('UPDATE users SET azure_object_id=NULL WHERE user_id=$1',[c1.user_id]);
+ for(const user of [c1,d1]) await setEmail(user,null);
 });
 test('fresh request, first approval, month navigation and server restart preserve state',async()=>{
  const input=await swapInput('2026-10-08'),before=[...await assignments(),...await assignments('target')];
