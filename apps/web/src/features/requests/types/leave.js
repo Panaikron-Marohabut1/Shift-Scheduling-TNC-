@@ -1,9 +1,10 @@
 /* ==========================================================================
    คำขอลา (LOCAL)
    --------------------------------------------------------------------------
-   เลือกคนมาทำแทนได้ (ทีมไหนก็ได้) คนที่มาแทนได้กะเป็น OT ในวันที่ลา
+   ต้องระบุคนมาทำแทนทุกครั้ง (ทีมไหนก็ได้) คนที่มาแทนได้กะเป็น OT ในวันที่ลา
+   ข้อตกลงกับหัวหน้ากะ: เปลี่ยนกะหรือหยุดโดยไม่มีคนแทนไม่ได้
    อนุมัติ 2 ฝั่ง: หัวหน้ากะของผู้ลา แล้วหัวหน้ากะของคนที่มาแทน
-   (คนมาแทนอยู่ทีมเดียวกัน หรือไม่ระบุคนมาแทน → ฝั่งที่ 2 เป็นผู้จัดการฝ่ายผลิต)
+   (คนมาแทนอยู่ทีมเดียวกัน → ฝั่งที่ 2 เป็นผู้จัดการฝ่ายผลิต)
    ตัวอย่าง: B รับมาทำแทน A ไว้แล้วแต่มาไม่ได้ → B ยื่นลาวันนั้น แล้วเลือก C มาทำแทน
    ========================================================================== */
 
@@ -33,14 +34,14 @@ export function leaveForm({ f, emp, y, m, n, myCode }) {
   const groups = {};
   coversFor(emp).forEach(e => { (groups[e.shiftType] = groups[e.shiftType] || []).push(e); });
   fields.push(`
-    <div class="field"><label for="leaveCoverSelect">คนที่มาทำงานแทน</label>
+    <div class="field"><label for="leaveCoverSelect">คนที่มาทำงานแทน (จำเป็น)</label>
       <select class="inp" id="leaveCoverSelect" data-change="SF.rq('cover', this.value)">
-        ${opt('', 'ไม่ระบุ ให้หัวหน้ากะจัดคนแทนภายหลัง', f.cover)}
+        ${opt('', 'เลือกคนที่มาทำแทน (จำเป็น)', f.cover)}
         ${Object.keys(groups).sort().map(t => `<optgroup label="${esc(t)}">${groups[t].map(e => opt(e.id, `${e.name} · วันนั้น ${getShiftCodeForDate(e, y, m, f.day)}`, f.cover)).join('')}</optgroup>`).join('')}
       </select><small>คนที่มาแทนจะได้กะเป็น OT ในวันที่คุณลา · คนมาแทนต่างทีม หัวหน้ากะของทีมนั้นอนุมัติเป็นฝั่งที่ 2</small></div>`);
   rows = [{ e: emp, date: shortDate(y, m, f.day), from: myCode, to: f.leave }];
-  ready = true;
   const c = f.cover && findEmployeeById(f.cover);
+  if (!c) note = '<p class="notice">ต้องเลือกคนที่มาทำแทนก่อน จึงจะส่งใบลาได้ (ลาโดยไม่มีคนแทนไม่ได้)</p>';
   if (c) {
     fields.push(`<div class="field"><label for="leaveCoverOtCode">OT ที่ ${esc(c.name)} ทำแทน</label>
       <select class="inp" id="leaveCoverOtCode" data-change="SF.rq('coverOt', this.value)">${OT_PICK.map(x => opt(x, `${getEmployeeFacingShiftLabel(x)} (${x})`, f.coverOt)).join('')}</select></div>`);
@@ -67,11 +68,12 @@ export function submitLeaveRequest(empId) {
   const coverEmp = f.cover ? findEmployeeById(f.cover) : null;
   const coverOtCode = f.coverOt || 'MT';
   const dateLabel = `${day} ${monthText()}`;
-  if (coverEmp && !validateOTRequest(coverEmp.id, day, coverOtCode).valid) { showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบฝั่งผู้มาทำแทนไม่ผ่านเงื่อนไข', 'alert'); return; }
-  const coverNote = coverEmp ? ` — ${coverEmp.name} มาทำแทน (OT ${coverOtCode})` : '';
+  if (!coverEmp) { showToast('กรุณาเลือกคนที่มาทำแทน — ลาโดยไม่มีคนแทนไม่ได้', 'alert'); return; }
+  if (!validateOTRequest(coverEmp.id, day, coverOtCode).valid) { showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบฝั่งผู้มาทำแทนไม่ผ่านเงื่อนไข', 'alert'); return; }
+  const coverNote = ` — ${coverEmp.name} มาทำแทน (OT ${coverOtCode})`;
   const roles = leaveApprovalChain(emp, coverEmp);
   const changes = [{ empId: emp.id, y, m, d: day, to: leaveCode }];
-  if (coverEmp) changes.push({ empId: coverEmp.id, y, m, d: day, to: coverOtCode });
+  changes.push({ empId: coverEmp.id, y, m, d: day, to: coverOtCode });
   saveLocalRequest({
     kind: 'leave', type: `ขอลา (${leaveCode})${isRetroactive ? ' — ย้อนหลัง' : ''}`, person: emp.name, requesterId: emp.id, day, leaveCode,
     coverId: coverEmp ? coverEmp.id : null, coverOtCode, initials: emp.initials, roleCategory: emp.roleCategory,

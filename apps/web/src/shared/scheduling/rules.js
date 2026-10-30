@@ -119,7 +119,7 @@ export function getEligibleSwapColleagues(aEmp) {
   return others.filter(e => e.shiftType !== aEmp.shiftType && e.roleCategory !== 'Shift Supervisor');
 }
 // ลำดับผู้อนุมัติใบลา 2 ฝั่ง: หัวหน้ากะของผู้ลา แล้วหัวหน้ากะของคนที่มาแทน
-// (คนมาแทนอยู่ทีมเดียวกัน หรือไม่ระบุคนมาแทน → ฝั่งที่ 2 เป็นผู้จัดการฝ่ายผลิต)
+// (คนมาแทนอยู่ทีมเดียวกัน → ฝั่งที่ 2 เป็นผู้จัดการฝ่ายผลิต)
 export const SECOND_SIDE_MANAGER = 'ผู้จัดการฝ่ายผลิต (อนุมัติฝั่งที่ 2)';
 export function leaveApprovalChain(aEmp, coverEmp) {
   const own = buildApprovalChain(aEmp).chain[0].role;
