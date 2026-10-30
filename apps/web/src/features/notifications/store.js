@@ -42,7 +42,7 @@ export function stepKey(role) {
 }
 // คนที่เกี่ยวข้องกับคำขอ: ผู้ยื่น คู่สลับ และผู้มาทำแทน
 export function partiesOf(req) {
-  return [req.requesterId, req.targetId, req.coverId].filter(Boolean).map(id => `emp:${id}`);
+  return [req.requesterId, req.targetId, req.coverId, ...(req.helpers || []).map(h => h.id)].filter(Boolean).map(id => `emp:${id}`);
 }
 
 // LOCAL: สร้างแจ้งเตือน — ตอนระบบหลังบ้านมี API ให้ส่ง POST ไปที่นี่แทน

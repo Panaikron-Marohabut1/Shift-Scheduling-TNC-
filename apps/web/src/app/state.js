@@ -72,7 +72,8 @@ export const state = {
       D: '08:00–17:00'
     },
     standardHeadcount: { supervisor: 1, operator: 6 },
-    swapRequestMonthlyLimit: 2,
+    swapRequestMonthlyLimit: 1,   // ข้อตกลงกับหัวหน้ากะ: 1 คนขอเปลี่ยนได้ 1 ครั้งต่อเดือน
+    rulesVersion: 2,
     maxConsecutiveWorkDays: 6
   },
   annualScheduleConfig: {},
@@ -122,6 +123,8 @@ export function loadLocal() {
   // รับเฉพาะค่าที่ชนิดตรงกับค่าตั้งต้น (กันข้อมูลในเครื่องเสียหรือถูกแก้ แล้วทำให้หน้าเว็บพัง)
   const kind = v => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v);
   if (data && kind(data) === 'object') SAVED_FIELDS.forEach(k => { if (data[k] !== undefined && (kind(data[k]) === kind(state[k]) || state[k] === null)) state[k] = data[k]; });
+  // ค่าตั้งค่าที่เก็บไว้ก่อนปรับกฎตามที่ประชุมกับหัวหน้ากะ (สิทธิ์ 2 ครั้ง/เดือน) → ใช้ค่าใหม่ 1 ครั้ง/เดือน
+  if ((state.managerConfig.rulesVersion || 1) < 2) Object.assign(state.managerConfig, { swapRequestMonthlyLimit: 1, rulesVersion: 2 });
   lastSaved = JSON.stringify(snapshot());
   return !!data;
 }

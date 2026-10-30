@@ -11,9 +11,7 @@ import { currentEmp, getEmployeeFacingRoleLabel } from '../../shared/scheduling/
 import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
 import { approversList, changesTable, routeApprovers } from './form-parts.js';
 import { draftBlocked, kindLabel } from './new-request.js';
-import { changeForm } from './types/change.js';
 import { dayoffForm } from './types/dayoff.js';
-import { holidayForm } from './types/holiday.js';
 import { leaveForm } from './types/leave.js';
 import { otForm } from './types/ot.js';
 import { swapForm } from './types/swap.js';
@@ -30,17 +28,17 @@ export function openForm(k, day) {
     k, day: d, partner: '', mode: 'mutual', leave: 'V', ot: 'MT', cover: '', coverOt: 'MT',
     code: (state.shiftDefs[code] || {}).family === 'M' ? 'N' : 'M',
     ...(((state.shiftDefs[code] || {}).family === 'N' || String(code).startsWith('N')) ? { ot: 'NT', coverOt: 'NT' } : {}),
-    oldDay: code === 'O' ? d : (offDays[0] || ''), newDay: '', hol: '', reason: '', retro: false
+    oldDay: code === 'O' || code === 'H' ? d : (offDays[0] || ''), newDay: '', workCode: '', payDay: '', helpers: [], reason: '', retro: false
   };
   renderForm();
 }
 
 // แต่ละประเภทคำขอมีไฟล์ของตัวเองใน types/ (ช่องกรอก + ผลตรวจกฎ + การส่งคำขอ)
-const FORMS = { swap: swapForm, change: changeForm, leave: leaveForm, dayoff: dayoffForm, ot: otForm, holiday: holidayForm };
+const FORMS = { swap: swapForm, leave: leaveForm, dayoff: dayoffForm, ot: otForm };
 
 export function renderForm() {
   const f = view.rq;
-  if (!f) return;
+  if (!f || !FORMS[f.k]) return;
   const emp = currentEmp();
   const y = state.currentYear, m = state.currentMonth, n = daysIn(y, m);
   const myCode = getShiftCodeForDate(emp, y, m, f.day);

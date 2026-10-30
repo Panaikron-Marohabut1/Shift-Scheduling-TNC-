@@ -6,7 +6,7 @@ import { state } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { currentEmp, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
 import { pageHead } from '../../shared/ui.js';
-import { canUserReviewRequest, canWithdrawRequest, getVisibleRequests, managerCanAct } from './permissions.js';
+import { canCancelApproved, canUserReviewRequest, canWithdrawRequest, getVisibleRequests, managerCanAct } from './permissions.js';
 
 export function statusCls(req) {
   if (req.status === 'อนุมัติแล้ว') return 'ok';
@@ -26,8 +26,9 @@ function reqActions(req) {
   const withdraw = () => (canWithdrawRequest(req)
     ? `<button class="btn sm danger" data-click="withdrawRequest(${js(req.id)})" title="ยกเลิกได้จนกว่าหัวหน้ากะจะเริ่มตรวจสอบ">ยกเลิกคำขอ</button>`
     : pending ? '<button class="btn sm" disabled title="ยกเลิกไม่ได้ คำขอนี้ผ่านการตรวจสอบไปแล้ว">ยกเลิกคำขอ</button>' : '');
-  if (state.activeRole === 'Manager') return (managerCanAct(req) ? decide : '') + detail;
-  if (mine) return detail + withdraw();
+  const undo = canCancelApproved(req) ? `<button class="btn sm danger" data-click="promptCancelApproved(${js(req.id)})" title="ยกเลิกคำขอที่อนุมัติแล้ว และคืนตารางกะเป็นแบบเดิม">ยกเลิกและคืนตาราง</button>` : '';
+  if (state.activeRole === 'Manager') return (managerCanAct(req) ? decide : '') + detail + undo;
+  if (mine) return detail + withdraw() + undo;
   if (canUserReviewRequest(req) && pending) return decide;
   if (isSupervisorRoleName(state.activeRole) && pending) return `<span class="muted small wait-for">รอ ${esc(next ? next.role : 'หัวหน้ากะอีกฝ่าย')}</span>${detail}`;
   return detail;

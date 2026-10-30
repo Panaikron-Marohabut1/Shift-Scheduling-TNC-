@@ -167,3 +167,9 @@ textarea.form-control { height: auto; padding: 9px 12px; line-height: 1.5; }
 .reject-body { display: flex; flex-direction: column; gap: 12px; }
 .reject-text { font-size: 12px; color: var(--ink-secondary); }
 .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* คนที่มาช่วยทำ OT (เลือกได้หลายคน) */
+.helpers { border: 0; padding: 0; margin: 0; min-width: 0; }
+.helpers legend { padding: 0; margin-bottom: 6px; font-size: 0.93rem; font-weight: 500; color: var(--ink-2); }
+.helper-team { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 8px 0; border-top: 1px solid #f0f2f6; }
+.helper-team > .muted { width: 100%; }

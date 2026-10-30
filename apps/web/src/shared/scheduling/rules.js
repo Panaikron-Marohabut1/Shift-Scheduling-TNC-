@@ -118,6 +118,14 @@ export function getEligibleSwapColleagues(aEmp) {
   if (aEmp.roleCategory === 'Shift Supervisor') return others.filter(e => e.roleCategory === 'Shift Supervisor' && e.shiftType !== aEmp.shiftType);
   return others.filter(e => e.shiftType !== aEmp.shiftType && e.roleCategory !== 'Shift Supervisor');
 }
+// ลำดับผู้อนุมัติใบลา 2 ฝั่ง: หัวหน้ากะของผู้ลา แล้วหัวหน้ากะของคนที่มาแทน
+// (คนมาแทนอยู่ทีมเดียวกัน → ฝั่งที่ 2 เป็นผู้จัดการฝ่ายผลิต)
+export const SECOND_SIDE_MANAGER = 'ผู้จัดการฝ่ายผลิต (อนุมัติฝั่งที่ 2)';
+export function leaveApprovalChain(aEmp, coverEmp) {
+  const own = buildApprovalChain(aEmp).chain[0].role;
+  if (coverEmp && coverEmp.shiftType !== aEmp.shiftType) return [own, buildApprovalChain(coverEmp).chain[0].role];
+  return [own, SECOND_SIDE_MANAGER];
+}
 // ลำดับผู้อนุมัติสลับกะ: หัวหน้ากะของทั้งสองทีม
 export function buildApprovalChain(aEmp, bEmp) {
   const sup = e => { const t = state.shiftsData[getTeamKeyByLabel(e.shiftType)]; return t ? t.employees.find(x => x.id === t.supervisorId) : null; };

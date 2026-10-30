@@ -5,7 +5,7 @@
 import { state } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { openModal } from '../../shared/modal.js';
-import { canWithdrawRequest } from './permissions.js';
+import { canCancelApproved, canWithdrawRequest } from './permissions.js';
 
 /* ---------- รายละเอียด ---------- */
 export const findReq = id => state.requests.find(r => r.id === Number(id) || r.id === id);
@@ -28,11 +28,13 @@ export function openRequestDetails(reqId) {
         <div class="request-detail-row request-detail-row-long"><dt>รายละเอียด</dt><dd>${esc(req.reason)}</dd></div>
         <div class="request-detail-row"><dt>ส่งคำขอเมื่อ</dt><dd>${esc(req.submittedAt)}</dd></div>
         <div class="request-detail-row"><dt>ผู้ตรวจสอบ</dt><dd>${esc(req.approvers.map(a => a.role).join(', '))}</dd></div>
+        ${req.cancelReason ? `<div class="request-detail-row request-detail-row-long"><dt>เหตุผลที่ยกเลิก</dt><dd>${esc(req.cancelReason)}${req.cancelledAfterApproval ? ' (ยกเลิกหลังอนุมัติ ตารางกะกลับเป็นแบบเดิมแล้ว)' : ''}</dd></div>` : ''}
         ${req.rejectReason ? `<div class="request-detail-row request-detail-row-long"><dt>เหตุผลที่ไม่อนุมัติ</dt><dd>${esc(req.rejectReason)}</dd></div>` : ''}
       </dl>
     </div>`;
-  const foot = canWithdrawRequest(req)
-    ? `<button class="btn btn-secondary" data-click="closeModal()">ปิด</button><button class="btn btn-danger" data-click="withdrawRequest(${js(req.id)})">ยกเลิกคำขอ</button>`
-    : '<button class="btn btn-secondary" data-click="closeModal()">ปิด</button>';
+  const close = '<button class="btn btn-secondary" data-click="closeModal()">ปิด</button>';
+  const foot = canWithdrawRequest(req) ? `${close}<button class="btn btn-danger" data-click="withdrawRequest(${js(req.id)})">ยกเลิกคำขอ</button>`
+    : canCancelApproved(req) ? `${close}<button class="btn btn-danger" data-click="promptCancelApproved(${js(req.id)})">ยกเลิกและคืนตาราง</button>`
+      : close;
   openModal('รายละเอียดคำขอ', body, foot);
 }

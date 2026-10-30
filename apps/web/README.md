@@ -13,7 +13,7 @@
 | ตารางกะรายเดือน / รายวัน | `styles/schedule.css`, `src/features/schedule/month-grid.js`, `day-view.js`, `page.js` |
 | กดช่องกะในตาราง | `src/features/schedule/cell.js` |
 | หน้ากะของฉัน (ปฏิทิน) | `styles/my-shift.css`, `src/features/schedule/my-shift.js` |
-| แบบฟอร์มคำขอประเภทใดประเภทหนึ่ง | `src/features/requests/types/<ประเภท>.js` (swap, change, leave, dayoff, ot, holiday) |
+| แบบฟอร์มคำขอประเภทใดประเภทหนึ่ง | `src/features/requests/types/<ประเภท>.js` (swap, leave, dayoff, ot) |
 | กฎตรวจคำขอ (6 วันติด, ดึกต่อเช้า, OT, สิทธิ์ต่อเดือน, ±7 วัน) | `src/shared/scheduling/rules.js` |
 | ลำดับผู้อนุมัติ / ใครอนุมัติขั้นไหนได้ | `src/shared/scheduling/rules.js` → `buildApprovalChain`, `src/features/requests/permissions.js`, `form-parts.js` → `routeApprovers` |
 | ตารางคำขอและปุ่มอนุมัติ | `styles/requests.css`, `src/features/requests/list.js`, `decisions.js` |
@@ -67,7 +67,7 @@ apps/web/
     └── features/              แต่ละหน้า
         ├── schedule/          page, month-grid, day-view, month-nav, codes, days, cell, my-shift, overview
         ├── requests/          new-request, form, form-parts, submit, list, detail, decisions, permissions
-        │   └── types/         swap, change, leave, dayoff, ot, holiday (ฟอร์ม + ส่งคำขอ ของแต่ละประเภท)
+        │   └── types/         swap, leave, dayoff (วันหยุดนักขัตฤกษ์), ot (ฟอร์ม + ส่งคำขอ ของแต่ละประเภท)
         ├── manager/           people, annual, settings, refresh
         ├── notifications/     store (ใครได้รับแจ้ง อ่านแล้ว/ยังไม่อ่าน), view (หน้าแจ้งเตือน)
         ├── history/view.js    ประวัติการเปลี่ยนแปลง
@@ -95,10 +95,20 @@ apps/web/
 |---|---|
 | เข้าสู่ระบบ / ออกจากระบบ | `GET /api/me` (401 → ไปหน้าเข้าสู่ระบบของ `shift/Backend`), `POST /api/auth/logout` |
 | พนักงานและตารางกะรายเดือน | `GET /api/schedules?month=YYYY-MM` |
-| ยื่นสลับกะ (พนักงานแลกกะวันเดียวกัน กับเดือนที่มีข้อมูลจริง) | `POST /api/requests` |
 | รายการคำขอสลับกะ | `GET /api/requests` |
 | อนุมัติ / ไม่อนุมัติ / ยกเลิก | `POST /api/requests/:id/decisions`, `POST /api/requests/:id/cancel` |
 | ประวัติ | `GET /api/audit?view=personal\|activity` |
+
+## กฎจากการประชุมกับหัวหน้ากะ
+
+- ไม่มีเมนู "เปลี่ยนกะของตัวเอง" — ทุกกะต้องมีคนทำครบ จะหยุดหรือเปลี่ยนต้องมีคนมาแทน (สลับกะ / ลาโดยมีคนแทน / OT)
+- สลับกะต้องระบุวันคืนกะ และทั้ง 2 วันต้องอยู่ในเดือนเดียวกัน · หัวหน้ากะสลับได้เฉพาะกับหัวหน้ากะ
+- ขอเปลี่ยนได้ 1 ครั้งต่อคนต่อเดือน (ผู้จัดการตั้งค่าได้)
+- ใบลาอนุมัติ 2 ฝั่ง: หัวหน้ากะของผู้ลา + หัวหน้ากะของคนมาแทน (ทีมเดียวกัน → ผู้จัดการเป็นฝั่งที่ 2) · ต้องระบุคนมาแทนทุกครั้ง
+- เมนู "วันหยุดนักขัตฤกษ์" = ย้ายวันหยุด/วันหยุดนักขัตฤกษ์ไปหยุดวันทำงานอื่นภายใน 7 วัน และเลือกกะที่จะไปทำในวันหยุดเดิม
+- ขอ OT เพิ่มคนมาช่วยทำ OT วันเดียวกันได้สูงสุด 7 คน
+- ยกเลิกคำขอที่อนุมัติแล้วได้ (ผู้ยื่นหรือผู้จัดการ ก่อนเดือนนั้นถูกล็อก): ขั้นที่ 1 คืนวันลา ขั้นที่ 2 คืนกะที่เปลี่ยน (รวมของคนที่มาแทน) แจ้งทุกคนที่เกี่ยวข้อง และแจ้งฝ่ายบุคคลให้ยกเลิกวันลาในระบบใบลา
+- กดช่องกะที่ถูกเปลี่ยน จะเห็นว่าเปลี่ยนตามคำขอไหน ใครกับใคร กะเดิม → ใหม่ และใครอนุมัติ
 
 ## แจ้งเตือน
 
@@ -125,11 +135,11 @@ apps/web/
 
 | ส่วน | ไฟล์ / ฟังก์ชันที่ต้องเปลี่ยนเมื่อมี API | API ที่ต้องเพิ่มที่ระบบหลังบ้าน (ข้อเสนอ) |
 |---|---|---|
+| สลับกะพร้อมวันคืนกะ (2 วันในเดือนเดียวกัน) | `types/swap.js` → `submitColleagueSwapRequest` | `POST /api/requests` ตอนนี้รับได้วันเดียว ต้องรองรับวันคืนกะ (2 วันในคำขอเดียว) |
+| ยกเลิกคำขอที่อนุมัติแล้ว + คืนตารางเดิม | `requests/decisions.js` → `promptCancelApproved`, `confirmCancelApproved` | API ยกเลิกหลังอนุมัติ ที่คืนตาราง และส่งยกเลิกวันลาไประบบใบลา |
 | ขอลา, ลา + OT คุมกะแทน | `requests/types/leave.js` → `submitLeaveRequest`, `types/swap.js` → `submitColleagueSwapRequest` (โหมด leaveOT) | ประเภทคำขอ LEAVE / LEAVE_COVER ใน `POST /api/requests` |
-| ขอทำ OT | `types/ot.js` → `submitOTRequest`, `types/change.js` (กรณีเลือกกะ OT) | ประเภทคำขอ OT + ขั้นอนุมัติผู้จัดการ |
-| เปลี่ยนวันหยุด | `types/dayoff.js` → `submitDayOffChangeRequest` | ประเภทคำขอ DAY_OFF_CHANGE |
-| เปลี่ยนกะของตัวเอง | `types/change.js` → `submitOperatorShiftRequest` | ประเภทคำขอ SHIFT_CHANGE |
-| ใช้สิทธิ์วันหยุดนักขัตฤกษ์ | `types/holiday.js` → `submitPublicHolidayChoice` | ประเภทคำขอ HOLIDAY |
+| ขอทำ OT (+ คนมาช่วยสูงสุด 7 คน) | `types/ot.js` → `submitOTRequest` | ประเภทคำขอ OT ที่มีหลายคน |
+| วันหยุดนักขัตฤกษ์ (ย้ายวันหยุด + เลือกกะที่ไปทำ) | `types/dayoff.js` → `submitDayOffChangeRequest` | ประเภทคำขอ DAY_OFF_CHANGE |
 | หัวหน้ากะสลับกะกัน, พนักงานทีม C/D | `types/swap.js` → `submitColleagueSwapRequest` | เปิดสิทธิ์ใน `POST /api/requests` |
 | บันทึกคำขอเดโมทุกประเภท | `requests/submit.js` → `saveLocalRequest` (จุดเดียว) | — |
 | อนุมัติคำขอเดโม | `requests/decisions.js` → `approveRequest`, `confirmRejectRequest`, `withdrawRequest` | ใช้ endpoint เดิมเมื่อคำขอเหล่านี้อยู่ในฐานข้อมูล |
