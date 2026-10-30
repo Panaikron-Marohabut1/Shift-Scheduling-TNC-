@@ -19,6 +19,12 @@ export function getAuthConfig() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  // Only these email domains may sign in (email + password and Microsoft 365). "*" allows any.
+  const allowedEmailDomains = (process.env.ALLOWED_EMAIL_DOMAINS || "thainitrate.com")
+    .split(",")
+    .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
+    .filter(Boolean);
+
   return {
     supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
     supabasePublishableKey: required("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
@@ -27,6 +33,7 @@ export function getAuthConfig() {
     cookieName: process.env.AUTH_COOKIE_NAME || "sb-session",
     cookieDomain,
     shareAuthCookie,
+    allowedEmailDomains,
   };
 }
 
@@ -45,4 +52,21 @@ export function authCookieOptions() {
     secure: process.env.NODE_ENV === "production",
     httpOnly: true,
   };
+}
+
+// Attributes for writing one cookie. Leaves out `name`: Next.js lets an options `name` override the
+// cookie name, which would rename Supabase's chunk and PKCE verifier cookies to the base name.
+export function authCookieWriteOptions() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { name, ...options } = authCookieOptions();
+  return options;
+}
+
+// Exact domain match on the part after the last "@" (sub.thainitrate.com and lookalikes are rejected).
+export function isAllowedEmail(email: string | null | undefined) {
+  const domains = getAuthConfig().allowedEmailDomains;
+  if (domains.includes("*")) return true;
+  const at = (email || "").lastIndexOf("@");
+  if (at < 1) return false;
+  return domains.includes((email || "").slice(at + 1).trim().toLowerCase());
 }

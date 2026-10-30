@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isAllowedEmail } from "@/lib/auth/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type AppName = "app1" | "app2";
@@ -7,7 +8,8 @@ export type AppName = "app1" | "app2";
 export async function getAuthenticatedUser() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
-  return { supabase, user: error ? null : data.user };
+  // A session for an email outside the allowed domains is treated as signed out everywhere.
+  return { supabase, user: error || !isAllowedEmail(data.user?.email) ? null : data.user };
 }
 
 export async function getApplicationMembership(userId: string, app: AppName) {

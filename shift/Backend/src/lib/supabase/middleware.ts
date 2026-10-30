@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authCookieOptions, getAuthConfig } from "@/lib/auth/config";
+import { authCookieOptions, authCookieWriteOptions, getAuthConfig, isAllowedEmail } from "@/lib/auth/config";
 
 export async function updateSupabaseSession(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -13,7 +13,7 @@ export async function updateSupabaseSession(request: NextRequest) {
       setAll: (cookiesToSet) => {
         cookiesToSet.forEach(({ name, value, options }) => {
           request.cookies.set(name, value);
-          response.cookies.set(name, value, { ...authCookieOptions(), ...options });
+          response.cookies.set(name, value, { ...authCookieWriteOptions(), ...options });
         });
       },
     },
@@ -22,7 +22,7 @@ export async function updateSupabaseSession(request: NextRequest) {
 
   const { data } = await supabase.auth.getUser();
 
-  if (!data.user && !isPublicPath(request, config.authHost)) {
+  if ((!data.user || !isAllowedEmail(data.user.email)) && !isPublicPath(request, config.authHost)) {
     const loginUrl = new URL("/login", config.authHost);
     const redirectTo = request.nextUrl.clone();
 
