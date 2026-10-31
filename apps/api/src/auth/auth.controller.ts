@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { ActorRequest, Public } from './access.guard';
 import { AuthService } from './auth.service';
 import { integrationReadiness } from '../integrations/contracts';
-// Sign-in happens at the central login service (shift/Backend, Supabase Auth); see AuthService.
+// Sign-in happens at the central login service (apps/auth, Supabase Auth); see AuthService.
 @Controller('api')
 export class AuthController {
  constructor(@Inject(AuthService) private readonly auth:AuthService) {}

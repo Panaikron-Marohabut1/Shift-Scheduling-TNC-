@@ -11,7 +11,7 @@ let app:any,admin:Pool,serverAdmin:Pool;
 const testName=`tnc_test_${Date.now()}`;
 const port=3019,base=`http://localhost:${port}`;
 const accounts:Record<string,any>={},cookies:Record<string,string>={};
-// Stand-in for the central login service (shift/Backend): a session cookie names a Supabase user id.
+// Stand-in for the central login service (apps/auth): a session cookie names a Supabase user id.
 const authPort=3029,sessions=new Map<string,{email?:string;provider?:string}>();let authServer:Server;
 const loginUrl=()=>`http://localhost:${authPort}/login?redirect_to=${encodeURIComponent(`${base}/`)}`;
 function startAuthStub() {
@@ -103,7 +103,10 @@ test('Supabase sessions must be valid and linked to an active user',async()=>{
  // A signed-in account that is not linked can still sign out.
  signIn('stranger');assert.equal((await request('stranger','/auth/logout','POST')).status,201);
 });
-test('first Microsoft 365 sign-in links itself only to one matching, unlinked employee email',async()=>{
+test('Microsoft linking is opt-in and links only one matching, unlinked employee email',async(t)=>{
+ const previous=process.env.ENABLE_MICROSOFT_AUTO_LINK;
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_MICROSOFT_AUTO_LINK;else process.env.ENABLE_MICROSOFT_AUTO_LINK=previous;});
+ delete process.env.ENABLE_MICROSOFT_AUTO_LINK;
  const [c1,d1]=(await admin.query(`SELECT u.user_id,u.employee_id FROM users u JOIN employees e USING(employee_id) JOIN teams t USING(team_id)
   WHERE u.azure_object_id IS NULL AND u.is_active AND t.team_code IN ('C','D') ORDER BY u.user_id`)).rows;
  assert.ok(d1,'Two unlinked C/D users exist');
@@ -117,6 +120,9 @@ test('first Microsoft 365 sign-in links itself only to one matching, unlinked em
  signIn('c1password',{email:'c1@thainitrate.com',provider:'email'});
  assert.equal((await request('c1password','/me')).status,403,'Only Microsoft 365 sign-ins link automatically');
  const id=signIn('c1',{email:'C1@ThaiNitrate.com',provider:'azure'});
+ assert.equal((await request('c1','/me')).status,403,'Automatic linking is disabled by default');
+ assert.equal(await linkOf(c1),null);
+ process.env.ENABLE_MICROSOFT_AUTO_LINK='true';
  const me=await request('c1','/me');assert.equal(me.status,200,JSON.stringify(me.body));assert.equal(me.body.actor.userId,c1.user_id);
  assert.equal(await linkOf(c1),id);
  assert.equal((await admin.query("SELECT count(*)::int n FROM audit_logs WHERE action='IDENTITY_LINKED' AND user_id=$1",[c1.user_id])).rows[0].n,1);

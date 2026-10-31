@@ -9,7 +9,7 @@ const actorSelect=`SELECT u.user_id AS "userId", u.employee_id AS "employeeId", 
  t.team_name AS "teamName", t.team_code AS "teamCode", u.demo_profile AS "demoProfile", u.demo_order AS "demoOrder"
  FROM users u JOIN roles r USING(role_id) LEFT JOIN employees e USING(employee_id) LEFT JOIN teams t USING(team_id)`;
 // The Supabase user id is stored in users.azure_object_id (the column reserved for the company identity).
-// The first Microsoft 365 sign-in links itself when its email matches exactly one active, unlinked
+// When explicitly enabled, Microsoft 365 sign-in links when its email matches one active, unlinked
 // employee (employees.email); otherwise an administrator links it with `link-user`. Unlinked logins get 403.
 const linkedActor=`${actorSelect} WHERE u.azure_object_id=$1 AND u.is_active AND (e.team_id IS NULL OR t.is_active)`;
 const emailMatch=`SELECT u.user_id AS "userId", u.azure_object_id AS linked FROM users u JOIN employees e USING(employee_id)
@@ -36,7 +36,7 @@ export class AuthService {
   return (cookie??'').split(';').map(s=>s.trim()).filter(s=>s.startsWith(`${name}=`)||s.startsWith(`${name}.`)).join('; ');
  }
  private required(code:string,message:string) { return new UnauthorizedException({code,message,loginUrl:this.loginUrl()}); }
- private unavailable() { return new ServiceUnavailableException({code:'AUTH_UNAVAILABLE',message:'เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ ตรวจว่าระบบเข้าสู่ระบบ (shift/Backend) เปิดอยู่ แล้วลองอีกครั้ง'}); }
+ private unavailable() { return new ServiceUnavailableException({code:'AUTH_UNAVAILABLE',message:'เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ ตรวจว่าระบบเข้าสู่ระบบ (apps/auth) เปิดอยู่ แล้วลองอีกครั้ง'}); }
  private async callAuth(path:string,cookies:string,res:ExpressResponse|undefined,method='GET') {
   let response:Response;
   try { response=await fetch(`${settings().authUrl}${path}`,{method,headers:{Cookie:cookies,Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(5000)}); }
@@ -64,6 +64,8 @@ export class AuthService {
  // Only Microsoft 365 (company-verified) emails link automatically, and only to a single unambiguous,
  // not-yet-linked user; a user already linked to another account is never taken over.
  private async autoLink({id,email,microsoft}:Identity) {
+  // Keep existing administrator-managed identity links until automatic linking is approved.
+  if(process.env.ENABLE_MICROSOFT_AUTO_LINK!=='true') return false;
   if(!microsoft||!email) return false;
   const matches=(await this.db.query(emailMatch,[email])).rows;
   if(matches.length!==1||matches[0].linked) return false;

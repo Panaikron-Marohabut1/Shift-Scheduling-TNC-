@@ -9,7 +9,7 @@ export function settings() {
   const origin = process.env.APP_ORIGIN ?? `http://localhost:${port}`;
   const retention = Number(process.env.AUDIT_RETENTION_DAYS ?? 90);
   const hours = Number(process.env.SESSION_HOURS ?? 12);
-  // Central login service (shift/Backend, Supabase Auth). Its session cookie is host-only on
+  // Central login service (apps/auth, Supabase Auth). Its session cookie is host-only on
   // localhost, so the browser sends it to this app as well; ports do not separate cookies.
   const authUrl = (process.env.AUTH_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
   const authCookie = process.env.AUTH_COOKIE_NAME ?? 'sb-session';

@@ -4,8 +4,9 @@ Alpha Demo วันที่ 7 ตุลาคม 2026: แอปสลับ�
 
 ## โครงสร้าง Project
 
-- `apps/api/` — Backend ปัจจุบัน
-- `apps/web/` — Frontend ปัจจุบัน
+- `apps/web/` — Frontend: หน้าจอเว็บจัดกะ
+- `apps/api/` — Backend หลัก: ตรวจสิทธิ์ จัดการตารางกะ คำขอ และฐานข้อมูล
+- `apps/auth/` — Backend สำหรับเข้าสู่ระบบ: เชื่อม Supabase Auth (เดิมอยู่ `shift/Backend/`)
 - `prototypes/legacy-static/` — ต้นแบบเก่า พร้อมเอกสารออกแบบและรายงานตรวจเดิม
 - `.docs/` — Requirements, design และคู่มือพัฒนา
 - `scripts/` — เครื่องมือรันและตรวจ Project
@@ -14,7 +15,22 @@ Alpha Demo วันที่ 7 ตุลาคม 2026: แอปสลับ�
 
 ดู [คู่มือโครงสร้างและ Agent](.docs/06-development/project-structure.md) สำหรับตำแหน่งที่แก้ไฟล์ร่วมกันและเหตุผลที่คงโฟลเดอร์ของแต่ละเครื่องมือ
 
-Workflow: เลือกพนักงานเดโม → ยื่นคำขอ → หัวหน้าทีมผู้ขออนุมัติ → หัวหน้าอีกทีมอนุมัติ → กะสองคนเปลี่ยนพร้อมกัน → Refresh → ตรวจประวัติ
+ดู [ผลตรวจและข้อจำกัดก่อนส่งมอบวันที่ 1 พฤศจิกายน 2026](.docs/06-development/2026-11-01-release-check.md) สำหรับขอบเขต Login/โครงสร้าง ผลทดสอบ และปัญหา Logic เดิมที่ยังคงไว้ในรอบนี้
+
+Frontend และ API เปิดด้วยกันที่ `http://localhost:3000` ส่วน Auth เปิดแยกที่ `http://localhost:3001` การแยกโฟลเดอร์บอกหน้าที่ของโค้ด ไม่ได้หมายความว่าต้องใช้เครื่อง Server คนละเครื่อง
+
+Auth ยังมี `package-lock.json` ของตัวเองและใช้ npm แยกจาก API แต่มีคำสั่งรวมให้รันจาก root ของโปรเจคแล้ว เมื่อตั้งค่าตาม [คู่มือ Auth](apps/auth/README.md):
+
+```powershell
+pnpm deps
+pnpm dev
+```
+
+`pnpm deps` ติดตั้ง dependencies ทั้ง API และ Auth ใช้ครั้งแรกหรือหลัง Pull เมื่อ dependencies เปลี่ยน ส่วน `pnpm dev` เปิดฐานข้อมูลเดิม เว็บ/API และ Login ใน Terminal เดียว กด Ctrl+C เพื่อหยุดเว็บและ Login พร้อมฐานข้อมูลที่คำสั่งนี้เปิดให้ หากฐานข้อมูลเปิดอยู่ก่อนแล้ว จะคงไว้ตามเดิม คำสั่งนี้ไม่ migrate, seed หรือล้างข้อมูลอัตโนมัติ
+
+หากต้องการเปิดแยก ใช้ `pnpm db:start`, `pnpm dev:api` และ `pnpm dev:auth` ตามเดิม โดยเปิด API กับ Auth คนละ Terminal
+
+Workflow ที่ API รองรับ: เข้าสู่ระบบด้วยบัญชีที่ผูกกับพนักงานเดโม → ยื่นคำขอสลับวันเดียว → หัวหน้าทีมผู้ขออนุมัติ → หัวหน้าอีกทีมอนุมัติ → กะสองคนเปลี่ยนพร้อมกัน → Refresh → ตรวจประวัติ ส่วนแบบฟอร์มใหม่ที่มีวันคืนกะยังเก็บคำขอในเบราว์เซอร์ ตามข้อจำกัดในเอกสารผลตรวจข้างต้น
 
 หากส่งวันที่หรือคู่สลับผิด พนักงานผู้ยื่นกด **ยกเลิกคำขอ** ใน “คำขอของฉัน” แล้วกดยืนยันได้ก่อนหัวหน้าคนแรกบันทึกคำตัดสิน แม้หัวหน้าเปิดตรวจแล้วก็ยังยกเลิกได้ หลังอนุมัติครั้งแรกจะยกเลิกไม่ได้ คำขอแสดง “ยกเลิกแล้ว” และมีประวัติ โดยตารางกะไม่เปลี่ยน สามารถยื่นคำขอใหม่สำหรับกะเดิมได้
 
@@ -30,14 +46,14 @@ npm.cmd install --global pnpm@11.25.0
 3. เลือก **Terminal → New Terminal** ที่ root ของ Project แล้วรันทีละคำสั่ง ระบบทดสอบด้วย Node.js 24 และ pnpm 11.25.0 บน Windows ใช้ชื่อคำสั่งลงท้าย `.cmd` ได้หาก PowerShell ไม่อนุญาต script launcher:
 
 ```powershell
-pnpm install --frozen-lockfile
+pnpm deps
 pnpm setup
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
 
-รอข้อความว่าแอปพร้อมแล้ว จึงเปิด URL ด้านล่าง และเปิด Terminal ที่รันแอปค้างไว้ `setup` เตรียม PostgreSQL ให้ ไม่ต้องติดตั้งฐานข้อมูลแยกหรือคัดลอก `.env.example` ก่อน
+ก่อน `pnpm dev` ให้เตรียม `apps/auth/.env.local` ตาม [คู่มือ Auth](apps/auth/README.md) ด้วย จากนั้นรอทั้งเว็บ/API และ Login พร้อม จึงเปิด URL ด้านล่างและเปิด Terminal ค้างไว้ `setup` เตรียม PostgreSQL ให้ ไม่ต้องติดตั้งฐานข้อมูลแยกหรือคัดลอก `.env.example` ก่อน
 
 เปิด **http://localhost:3000** ใช้ URL นี้สำหรับคำสั่งเปลี่ยนข้อมูล เนื่องจากระบบตรวจ origin แบบตรงกัน Frontend และ `/api` ใช้ origin เดียวกัน
 
@@ -47,12 +63,19 @@ pnpm dev
 
 ## เปิดครั้งต่อไปและตรวจความพร้อม
 
+### Windows ปฏิเสธพอร์ตด้วย `listen EACCES`
+
+ตรวจพอร์ตที่ Windows สงวนไว้ด้วย `netsh interface ipv4 show excludedportrange protocol=tcp` หากพอร์ต 3000/3001 อยู่ในช่วงนั้น ให้ใช้พอร์ตที่ว่าง เช่น ตั้ง `PORT=4000`, `APP_ORIGIN=http://localhost:4000` และ `AUTH_URL=http://localhost:4001` ใน `.env` ที่ root พร้อมตั้ง `AUTH_HOST=http://localhost:4001` และ `TRUSTED_APP_ORIGINS=http://localhost:4000` ใน `apps/auth/.env.local` โดยคงค่า Supabase เดิมไว้
+
+เปิดทั้งหมดด้วย `pnpm dev` คำสั่งอ่านพอร์ตและ callback origin จากการตั้งค่าข้างต้น แล้วเข้า `http://localhost:4000` หากใช้ Microsoft Login ต้องมี callback origin/URL ใหม่ที่ตรงกันใน Supabase Redirect URLs ด้วย การเปลี่ยนพอร์ตในเครื่องไม่แก้การตั้งค่า Supabase บน cloud
+
+### เริ่มบริการ
+
 ```powershell
-pnpm db:start
 pnpm dev
 ```
 
-เปิดแอปซ้ำไม่ล้างข้อมูล `db:seed` ทำงานเมื่อสั่งเท่านั้น เมื่อมีข้อมูลแล้วจะเพิ่ม/อัปเดตบัญชีเดโมที่เลือกได้โดยไม่ลบตาราง คำขอ หรือประวัติ คำขอและตารางเก็บใน PostgreSQL จึงยังอยู่หลัง Refresh และ restart Backend หลังอัปเดตโค้ดที่มี migration ใหม่ให้ปิด Backend แล้วรัน `pnpm db:migrate` และ `pnpm db:seed` ก่อนเปิดอีกครั้ง
+เปิดแอปซ้ำไม่ล้างข้อมูล `db:seed` ทำงานเมื่อสั่งเท่านั้น เมื่อมีข้อมูลแล้วจะเพิ่ม/อัปเดตบัญชีเดโมโดยไม่ลบตาราง คำขอ หรือประวัติ ข้อมูลที่เชื่อม API เก็บใน PostgreSQL จึงยังอยู่หลัง Refresh และ restart Backend แต่คำขอใหม่หลายประเภทและการแก้ตารางใน Demo ยังเก็บใน localStorage และไม่แชร์ข้ามเครื่อง หลังอัปเดตโค้ดที่มี migration ใหม่ให้ปิด Backend แล้วรัน `pnpm db:migrate` และ `pnpm db:seed` ก่อนเปิดอีกครั้ง
 
 ```powershell
 pnpm check
@@ -62,7 +85,7 @@ pnpm audit:backlog
 
 `check` สร้าง Backend ตรวจ syntax JavaScript และโครงสร้าง Markdown ที่เปลี่ยน `test` ใช้ฐานข้อมูลแยกที่สร้างและลบเฉพาะของ suite ไม่ล้างเดโม ต้องเปิด PostgreSQL และมี `.env` ก่อน `audit:backlog` ตรวจ traceability ของ spec/backlog ปัจจุบันโดยไม่แก้เนื้อหา
 
-เมื่อมี Playwright และ Chromium พร้อมแล้ว ใช้ `pnpm test:browser` ตรวจ workflow และหน้าทั้ง 9 บัญชีบน desktop/mobile รวมการสลับ A → D และ B → C คำสั่งสร้างฐานทดสอบแยกและใช้พอร์ต 3021 โดยไม่เปลี่ยน `.env` หรือข้อมูลเดโม ตั้ง `PLAYWRIGHT_PACKAGE` และ `BROWSER_EXECUTABLE` หากใช้ package/browser ที่ติดตั้งไว้นอกโปรเจค รายละเอียดอยู่ใน [Alpha Demo implementation notes](.docs/02-design/prototype/alpha-demo.md)
+`pnpm test:browser` เป็นชุดทดสอบ workflow เดิมที่ใช้ Playwright และ Chromium สร้างฐานทดสอบแยกบนพอร์ต 3021 โดยไม่เปลี่ยน `.env` หรือข้อมูลเดโม ปัจจุบันยังไม่ผ่าน เพราะอ้างหน้าเลือกบัญชี Demo ที่ถูกแทนด้วย Login แล้ว ต้องปรับชุดทดสอบให้ตรงระบบปัจจุบันก่อนใช้เป็นเกณฑ์ผ่านทั้งระบบ ตั้ง `PLAYWRIGHT_PACKAGE` และ `BROWSER_EXECUTABLE` หากใช้ package/browser ที่ติดตั้งไว้นอกโปรเจค รายละเอียดเดิมอยู่ใน [Alpha Demo implementation notes](.docs/02-design/prototype/alpha-demo.md)
 
 สำหรับรันชุดที่ build แล้ว:
 
@@ -71,11 +94,11 @@ pnpm build
 pnpm start
 ```
 
-ความพร้อมฐานข้อมูล: **http://localhost:3000/api/health** ถ้าฐานข้อมูลไม่พร้อม แอปจะไม่เปลี่ยนไปใช้ข้อมูลชั่วคราว ปิดแอปด้วย Ctrl+C และหยุดฐานข้อมูลด้วย `pnpm db:stop` เมื่อเลิกใช้
+ความพร้อมฐานข้อมูล: **http://localhost:3000/api/health** ถ้าฐานข้อมูลไม่พร้อม แอปจะไม่เปลี่ยนไปใช้ข้อมูลชั่วคราว กด Ctrl+C ใน Terminal ของ `pnpm dev` เพื่อหยุดบริการที่คำสั่งเปิดให้ หากเปิดฐานข้อมูลแยกไว้ก่อน ให้หยุดด้วย `pnpm db:stop` เมื่อเลิกใช้
 
 ## ซ้อมเดโม 4 นาที
 
-เข้าสู่ระบบด้วยบัญชี Supabase ผ่านระบบกลาง `shift/Backend` (รันที่ **http://localhost:3001** ด้วย `npm run dev` ในโฟลเดอร์นั้น) เปิด http://localhost:3000 แล้วระบบจะพาไปหน้าเข้าสู่ระบบเอง บัญชี Supabase ต้องผูกกับผู้ใช้ในฐานข้อมูลก่อน:
+เปิดทุกบริการด้วย `pnpm dev` แล้วเข้า http://localhost:3000 ระบบจะพาไปหน้าเข้าสู่ระบบของ `apps/auth` ที่ **http://localhost:3001** บัญชี Supabase ต้องผูกกับผู้ใช้ในฐานข้อมูลก่อน:
 
 1. `pnpm link-user` แสดงผู้ใช้ทั้งหมด (`user_id` บทบาท ทีม และบัญชีที่ผูกแล้ว)
 2. คัดลอก UID ของบัญชีจาก Supabase Dashboard → Authentication → Users

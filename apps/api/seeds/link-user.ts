@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import '../src/config';
-// Links a Supabase Auth account (shift/Backend) to a user row, which carries the employee and role.
+// Links a Supabase Auth account (apps/auth) to a user row, which carries the employee and role.
 //   pnpm --filter @tnc/api link-user                          list users and their links
 //   pnpm --filter @tnc/api link-user <userId> <supabaseId>    link (Supabase → Authentication → Users → UID)
 //   pnpm --filter @tnc/api link-user <userId> --unlink        remove the link

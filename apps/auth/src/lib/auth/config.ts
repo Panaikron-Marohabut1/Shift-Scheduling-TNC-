@@ -19,8 +19,10 @@ export function getAuthConfig() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  // Only these email domains may sign in (email + password and Microsoft 365). "*" allows any.
-  const allowedEmailDomains = (process.env.ALLOWED_EMAIL_DOMAINS || "thainitrate.com")
+  // Exact domain allowlist for email/password and Microsoft 365; no wildcard support.
+  const allowedEmailDomains = (process.env.NODE_ENV === "development"
+    ? (process.env.DEV_ALLOWED_EMAIL_DOMAINS || "thainitrate.com")
+    : "thainitrate.com")
     .split(",")
     .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
     .filter(Boolean);
@@ -65,7 +67,6 @@ export function authCookieWriteOptions() {
 // Exact domain match on the part after the last "@" (sub.thainitrate.com and lookalikes are rejected).
 export function isAllowedEmail(email: string | null | undefined) {
   const domains = getAuthConfig().allowedEmailDomains;
-  if (domains.includes("*")) return true;
   const at = (email || "").lastIndexOf("@");
   if (at < 1) return false;
   return domains.includes((email || "").slice(at + 1).trim().toLowerCase());

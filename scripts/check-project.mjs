@@ -20,11 +20,11 @@ for(const file of documents) {
 }
 const claudeSkill=resolve(root,'.claude/skills/audit-backlog/SKILL.md');
 if(!existsSync(resolve(dirname(claudeSkill),'../../../.agents/skills/audit-backlog/SKILL.md')))throw new Error('Shared Claude audit skill reference is missing.');
-if(!readFileSync(resolve(root,'CLAUDE.md'),'utf8').includes('\n@AGENTS.md\n'))throw new Error('Shared project guidance import is missing.');
+if(!readFileSync(resolve(root,'CLAUDE.md'),'utf8').replace(/\r\n/g,'\n').includes('\n@AGENTS.md\n'))throw new Error('Shared project guidance import is missing.');
 console.log('JavaScript syntax and changed Markdown structure passed.');
 const reviewFiles=[...files(resolve(root,'apps/api/src')),...files(resolve(root,'apps/api/migrations')),...files(resolve(root,'apps/api/seeds')),...files(resolve(root,'apps/api/test')),...files(resolve(root,'apps/web/src')),...files(resolve(root,'apps/web/styles')),...files(resolve(root,'scripts')),...[...documents,'.claude/skills/audit-backlog/SKILL.md','apps/web/index.html','apps/api/package.json','apps/api/tsconfig.json','.gitignore','.env.example','package.json','pnpm-lock.yaml','pnpm-workspace.yaml'].map(p=>resolve(root,p))];
 for(const file of reviewFiles) {
- const result=spawnSync('git',['-c','core.autocrlf=false','diff','--no-index','--check','--','/dev/null',file],{cwd:root,encoding:'utf8',windowsHide:true});
+ const result=spawnSync('git',['-c','core.autocrlf=false','-c','core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol','diff','--no-index','--check','--','/dev/null',file],{cwd:root,encoding:'utf8',windowsHide:true});
  // --no-index may return 1 simply because a new file differs from /dev/null.
  if(![0,1].includes(result.status)||result.stdout.trim()||result.stderr.trim())throw new Error(`Diff whitespace check: ${result.stdout||result.stderr}`);
 }

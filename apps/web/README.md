@@ -93,7 +93,7 @@ apps/web/
 
 | ส่วน | API |
 |---|---|
-| เข้าสู่ระบบ / ออกจากระบบ | `GET /api/me` (401 → ไปหน้าเข้าสู่ระบบของ `shift/Backend`), `POST /api/auth/logout` |
+| เข้าสู่ระบบ / ออกจากระบบ | `GET /api/me` (401 → ไปหน้าเข้าสู่ระบบของ `apps/auth`), `POST /api/auth/logout` |
 | พนักงานและตารางกะรายเดือน | `GET /api/schedules?month=YYYY-MM` |
 | รายการคำขอสลับกะ | `GET /api/requests` |
 | อนุมัติ / ไม่อนุมัติ / ยกเลิก | `POST /api/requests/:id/decisions`, `POST /api/requests/:id/cancel` |

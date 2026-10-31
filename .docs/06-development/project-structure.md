@@ -4,7 +4,15 @@
 
 ## Application and prototype
 
-แก้แอปปัจจุบันที่ `apps/api/` และ `apps/web/` เครื่องมือ setup, database และ verification อยู่ `scripts/` คำสั่งทั้งหมดเริ่มจาก root ตาม `README.md`
+แก้แอปปัจจุบันตามหน้าที่:
+
+- `apps/web/` — Frontend สำหรับหน้าจอเว็บจัดกะ
+- `apps/api/` — Backend หลักสำหรับสิทธิ์ ตารางกะ คำขอ และการอ่านเขียนฐานข้อมูล
+- `apps/auth/` — Backend สำหรับเข้าสู่ระบบผ่าน Supabase Auth
+
+วันที่ 29 ตุลาคม 2026 ย้ายส่วนเข้าสู่ระบบจาก `shift/Backend/` มาเป็น `apps/auth/` เพื่อรวมแอปไว้ในกลุ่มเดียวกัน โดยคงโค้ดการเข้าสู่ระบบและพอร์ตเดิม Auth ยังใช้ npm และ lockfile ของตัวเอง ไม่ได้เพิ่มเข้า pnpm workspace ในขั้นนี้
+
+ติดตั้งแพ็กเกจทั้ง API และ Auth ด้วย `pnpm deps` แล้วเปิดฐานข้อมูล เว็บ/API ที่พอร์ต 3000 และ Auth ที่พอร์ต 3001 พร้อมกันด้วย `pnpm dev` ใน Terminal เดียว กด Ctrl+C เพื่อหยุดบริการที่คำสั่งเปิดให้ หากต้องการแยก Terminal ใช้ `pnpm dev:api` และ `pnpm dev:auth` โดยเปิดฐานข้อมูลก่อน เครื่องมือ setup, database และ verification อยู่ `scripts/` คำสั่งเริ่มจาก root ตาม `README.md`
 
 ต้นแบบเก่าอยู่ `prototypes/legacy-static/` พร้อมเอกสารใน `docs/` และรายงานใน `reviews/` ไม่ลบหรือแก้พฤติกรรมแอปเดิม ย้ายไฟล์จาก `shift/` รวม `.vscode` ไว้ครบ และคงเนื้อหาเอกสารเก่าไว้ อ้างอิง path เดิมในเอกสารเก่าได้ตามคำอธิบายใน README ของต้นแบบ
 
