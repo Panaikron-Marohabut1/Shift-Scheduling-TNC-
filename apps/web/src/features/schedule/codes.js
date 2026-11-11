@@ -5,6 +5,7 @@
 import { state } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
 import { getEmployeeFacingShiftLabel } from '../../shared/scheduling/employees.js';
+import { getShiftOverride } from '../../shared/scheduling/roster.js';
 
 /* ---------- รหัสกะ → สี ---------- */
 export function shownCode(code) { const parts = String(code).split('/'); return parts.length === 2 ? parts[0] : String(code); }
@@ -30,7 +31,6 @@ export function changeNote(emp, y, m, d, code) {
   const parts = String(code).split('/');
   if (parts.length === 2) return `เปลี่ยนจาก${getEmployeeFacingShiftLabel(parts[1])} (${parts[1]}) เป็น${getEmployeeFacingShiftLabel(parts[0])} (${parts[0]})`;
   if (parts.length > 2) return `ปรับกะหลายขั้น (${code})`;
-  const ov = state.scheduleOverrides[`${y}-${m}`];
-  if (ov && ov[emp.id] && ov[emp.id][d] !== undefined) return 'เปลี่ยนจากตารางเดิมตามคำขอที่อนุมัติแล้ว';
+  if (getShiftOverride(emp, y, m, d) !== undefined) return 'เปลี่ยนจากตารางเดิมตามคำขอที่อนุมัติแล้ว';
   return '';
 }

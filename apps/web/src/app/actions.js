@@ -17,13 +17,14 @@ import { daysIn } from '../shared/scheduling/dates.js';
 import { isMonthLocked } from '../shared/scheduling/roster.js';
 import { showToast } from '../shared/toast.js';
 import { acknowledgeDriverSchedule } from '../features/external/view.js';
+import { downloadClosedRoster, hasClosedRosterAccess, loadClosedRoster } from '../features/hr/closed-roster.js';
 import { exportLeaveRecordsCSV, exportMonthlyCSV, exportOTRecordsCSV, exportYear } from '../features/hr/view.js';
 import {
   addAnnualHoliday, holidayKey, jumpAnnualYear, jumpAnnualYearTo, pubAsk, publishYear, removeAnnualHoliday, unpubAsk, unpublishYear,
   updateAnnualTeamFamily
 } from '../features/manager/annual.js';
 import { filterEmployeeSearch, filterEmployeeTeam, openEmployeeForm, saveEmployeeProfile } from '../features/manager/people.js';
-import { updateManagerRule, updateManagerShiftTime } from '../features/manager/settings.js';
+import { loadSwapQuota, saveSwapQuota, updateManagerRule, updateManagerShiftTime, updateSwapQuotaDraft } from '../features/manager/settings.js';
 import { openNotification, readAllNotifications } from '../features/notifications/view.js';
 import {
   approveRequest, confirmCancelApproved, confirmRejectRequest, promptCancelApproved, promptRejectRequest, resetTestcases, withdrawRequest
@@ -35,12 +36,20 @@ import { submitDayOffChangeRequest } from '../features/requests/types/dayoff.js'
 import { submitLeaveRequest } from '../features/requests/types/leave.js';
 import { submitOTRequest, toggleOtHelper } from '../features/requests/types/ot.js';
 import { submitColleagueSwapRequest } from '../features/requests/types/swap.js';
+import { submitCentralSwap } from '../features/requests/types/central-swap.js';
 import { openCell } from '../features/schedule/cell.js';
 import { codesModal } from '../features/schedule/page.js';
 import { goToLogin } from '../features/session/view.js';
 
 /* ---------- เปลี่ยนหน้า เดือน และมุมมอง ---------- */
-function switchView(id) { state.activeView = id; view.moreNav = false; state.monthPickerOpen = false; renderApp(); }
+function switchView(id) {
+  state.activeView = id;
+  view.moreNav = false;
+  state.monthPickerOpen = false;
+  if (id === 'manager-settings' && state.actor?.role === 'MANAGER') void loadSwapQuota();
+  else if (id === 'hr-export' && hasClosedRosterAccess()) void loadClosedRoster(renderApp);
+  else renderApp();
+}
 function changeScheduleMonth(delta) {
   const next = new Date(state.currentYear, state.currentMonth + delta, 1);
   state.currentYear = next.getFullYear();
@@ -66,10 +75,27 @@ const SF = {
   newRequest: newRequestModal,
   form: openForm,
   cell: openCell,
-  swapWith(id, d) { openForm('swap', d); if (view.rq) { view.rq.partner = String(id); renderForm(); } },
+  swapWith(id, d) {
+    if (!openForm('swap', d, 'cell')) return;
+    view.rq.partner = String(id);
+    renderForm();
+  },
+  backRequestForm() {
+    if (!view.rq || view.rq.submitting) return;
+    const origin = view.rq.originCell;
+    view.rq = null;
+    if (!origin) { newRequestModal(); return; }
+    if (origin.y !== state.currentYear || origin.m !== state.currentMonth) jumpToScheduleMonth(origin.y, origin.m);
+    openCell(origin.empId, origin.day);
+  },
   rq(key, val) {
-    if (!view.rq) return;
+    if (!view.rq || view.rq.submitting) return;
     view.rq[key] = val;
+    if (view.rq.k === 'swap' && state.actor?.centralSwap) {
+      if (['day', 'partner', 'mode'].includes(key)) view.rq.secondDate = '';
+      if (key === 'day') view.rq.partner = '';
+      view.rq.error = '';
+    }
     // ค่าที่ขึ้นกับช่องนี้ต้องเลือกใหม่
     if (key === 'oldDay') Object.assign(view.rq, { newDay: '', workCode: '' });
     if (key === 'newDay') view.rq.workCode = '';
@@ -120,7 +146,7 @@ const SF = {
   unpub: unpublishYear,
   monthOf(y, m) { view.mode = 'month'; state.currentYear = y; state.currentMonth = m; switchView('schedule'); },
   toAnnual(y) { state.annualScheduleYear = y; switchView('annual-schedule'); },
-  exportYear(y) { exportYear(y); renderApp(); },
+  exportYear(y) { if (!hasClosedRosterAccess()) { exportYear(y); renderApp(); } },
   resetAsk() {
     openModal('ล้างข้อมูลทดลองในเครื่องนี้', '<p>คำขอ การแก้ไขตาราง และประวัติที่ทำในเครื่องนี้ (ส่วนที่ยังไม่ได้เก็บในฐานข้อมูล) จะถูกลบทั้งหมด แล้วกลับไปใช้ข้อมูลตั้งต้น เรียกคืนไม่ได้ ข้อมูลในฐานข้อมูลไม่ถูกลบ</p>',
       '<button class="btn" data-click="closeModal()">ยกเลิก</button><button class="btn danger" data-click="SF.reset()">ล้างข้อมูล</button>');
@@ -133,8 +159,17 @@ register({
   ...Object.fromEntries(Object.entries(SF).map(([k, v]) => [`SF.${k}`, v])),
   switchView, changeScheduleMonth, jumpToScheduleMonth, toggleMonthPicker, filterScheduleShiftType,
   openRequestDetails, approveRequest, promptRejectRequest, confirmRejectRequest, withdrawRequest, resetTestcases,
-  submitColleagueSwapRequest, submitLeaveRequest, submitDayOffChangeRequest, submitOTRequest, promptCancelApproved, confirmCancelApproved,
+  submitColleagueSwapRequest, submitCentralSwap: () => submitCentralSwap(renderForm),
+  submitLeaveRequest, submitDayOffChangeRequest, submitOTRequest, promptCancelApproved, confirmCancelApproved,
   filterEmployeeTeam, filterEmployeeSearch, openEmployeeForm, saveEmployeeProfile,
   jumpAnnualYear, jumpAnnualYearTo, updateAnnualTeamFamily, addAnnualHoliday, holidayKey, removeAnnualHoliday,
-  updateManagerShiftTime, updateManagerRule, exportMonthlyCSV, exportLeaveRecordsCSV, exportOTRecordsCSV, acknowledgeDriverSchedule, openNotification, readAllNotifications
+  updateManagerShiftTime, updateManagerRule, loadSwapQuota, updateSwapQuotaDraft, saveSwapQuota,
+  exportMonthlyCSV: () => { if (!hasClosedRosterAccess()) exportMonthlyCSV(); },
+  exportLeaveRecordsCSV: () => { if (!hasClosedRosterAccess()) exportLeaveRecordsCSV(); },
+  exportOTRecordsCSV: () => { if (!hasClosedRosterAccess()) exportOTRecordsCSV(); },
+  acknowledgeDriverSchedule, openNotification, readAllNotifications,
+  selectHrClosedRosterMonth: month => loadClosedRoster(renderApp, month),
+  openLatestHrClosedRoster: () => loadClosedRoster(renderApp, ''),
+  refreshHrClosedRoster: () => loadClosedRoster(renderApp),
+  exportHrClosedRoster: () => downloadClosedRoster(renderApp)
 });

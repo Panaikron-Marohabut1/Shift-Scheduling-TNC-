@@ -3,10 +3,14 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
 import { createServer, Server } from 'node:http';
 import { seed } from '../seeds/demo';
 import { start } from '../src/main';
 import { migrate } from '../src/database/migrate';
+import { projectRoot } from '../src/config';
+import * as cutoverModule from '../src/requests/swap-policy-cutover';
 let app:any,admin:Pool,serverAdmin:Pool;
 const testName=`tnc_test_${Date.now()}`;
 const port=3019,base=`http://localhost:${port}`;
@@ -57,10 +61,13 @@ before(async()=>{
  owner.pathname=`/${testName}`;process.env.DATABASE_ADMIN_URL=owner.toString();
  const runtime=new URL(process.env.DATABASE_URL!);runtime.pathname=`/${testName}`;process.env.DATABASE_URL=runtime.toString();
  process.env.PORT=String(port);process.env.APP_ORIGIN=base;process.env.AUTH_URL=`http://localhost:${authPort}`;
+ // Legacy fixtures exercise the transition as well as the current default.
+ process.env.ENABLE_LOCAL_SWAP_POLICY='false';
+ process.env.ENABLE_LOCAL_MONTH_CLOSE='false';
  authServer=await startAuthStub();
  admin=new Pool({connectionString:owner.toString()});
  await migrate();
- await seed();app=await start();
+ await seed(false);app=await start();
  const users=(await admin.query(`SELECT u.user_id,r.role_name AS role,t.team_code AS team FROM users u JOIN roles r USING(role_id)
   LEFT JOIN employees e USING(employee_id) LEFT JOIN teams t USING(team_id) WHERE u.demo_order IS NOT NULL ORDER BY u.demo_order`)).rows;
  assert.equal(users.length,9);
@@ -80,6 +87,48 @@ test('unauthenticated reads and cross-origin commands are blocked',async()=>{
  const cross=await fetch(`${base}/api/requests`,{method:'POST',headers:{Origin:'https://other.example',Cookie:cookies.worker,'Content-Type':'application/json'},body:'{}'});
  assert.equal(cross.status,403);
  const forged=await request('worker','/requests','POST',{...await swapInput('2026-10-08'),assignmentId:1},randomUUID());assert.ok([403,404].includes(forged.status));
+});
+test('only a Manager can schedule a company-wide swap quota for the next Bangkok month',async()=>{
+ const path='/settings/swap-quota';
+ assert.equal((await request(undefined,path)).status,401);
+ const original=await request('manager',path);
+ assert.equal(original.status,200);
+ const {currentMonth,nextMonth}=original.body;
+ assert.equal(original.body.currentLimit,2);
+ assert.equal(original.body.nextLimit,2);
+ const expected=(await admin.query(`
+  SELECT date_trunc('month',timezone('Asia/Bangkok',now()))::date::text AS current,
+    (date_trunc('month',timezone('Asia/Bangkok',now()))+interval '1 month')::date::text AS next
+ `)).rows[0];
+ assert.deepEqual([currentMonth,nextMonth],[expected.current,expected.next]);
+ assert.equal((await request('worker',path,'PUT',{monthlyLimit:9,expectedEffectiveMonth:nextMonth,expectedRevision:0})).status,403);
+ const schedule=(monthlyLimit:number,expectedEffectiveMonth=nextMonth,expectedRevision=0)=>request('manager',path,'PUT',{monthlyLimit,expectedEffectiveMonth,expectedRevision});
+ assert.equal((await schedule(2.5)).status,400);
+ assert.equal((await schedule(0)).status,400);
+ const stale=await schedule(3,currentMonth);
+ assert.equal(stale.status,409);
+ assert.equal(stale.body.code,'QUOTA_EFFECTIVE_MONTH_CHANGED');
+ assert.deepEqual((await request('manager',path)).body,original.body);
+ const saved=await schedule(3);
+ assert.equal(saved.status,200,JSON.stringify(saved.body));
+ assert.deepEqual(saved.body,{currentMonth,currentLimit:2,nextMonth,nextLimit:3,nextRevision:1});
+ assert.deepEqual((await request('manager',path)).body,saved.body);
+ assert.deepEqual((await schedule(3,nextMonth,1)).body,saved.body);
+ const edits=await Promise.all([4,5].map(monthlyLimit=>schedule(monthlyLimit,nextMonth,1)));
+ assert.deepEqual(edits.map(result=>result.status).sort(),[200,409]);
+ const winner=edits.find(result=>result.status===200)!;
+ const replay=await schedule(3);
+ assert.equal(replay.status,409);
+ assert.equal(replay.body.code,'QUOTA_SETTINGS_CHANGED');
+ assert.deepEqual((await request('manager',path)).body,winner.body);
+ const audit=(await admin.query(`
+  SELECT user_id,old_value,new_value FROM audit_logs WHERE action='SWAP_QUOTA_CHANGED' ORDER BY audit_id
+ `)).rows;
+ assert.equal(audit.length,2);
+ assert.deepEqual(audit[0],{user_id:accounts.manager.userId,old_value:{effectiveMonth:nextMonth,monthlyLimit:2},new_value:{effectiveMonth:nextMonth,monthlyLimit:3}});
+ assert.deepEqual(audit[1].old_value,audit[0].new_value);
+ assert.equal((await request('manager',path)).body.nextLimit,audit[1].new_value.monthlyLimit);
+ assert.equal((await request('manager',path)).body.currentLimit,2);
 });
 test('Supabase sessions must be valid and linked to an active user',async()=>{
  const stranger=signIn('stranger'),unlinked=await request('stranger','/me');
@@ -527,4 +576,573 @@ test('notification failure rolls back cancellation, audit and receipt, so the sa
   assert.equal((await admin.query('SELECT count(*)::int n FROM operation_receipts WHERE user_id=$1 AND operation_key=$2',[accounts.worker.userId,key])).rows[0].n,0);
  }finally{await admin.query('DROP TRIGGER test_cancel_failure ON notifications; DROP FUNCTION fail_test_cancel_notice()');}
  assert.equal((await cancel('worker',record,key)).body.status,'CANCELLED');
+});
+
+test('the local scheduling default enables central swap and HR month close without environment flags',async(t)=>{
+ const date='2026-11-20';
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-10T12:00:00Z')});
+ const legacy=await create(date);
+ delete process.env.ENABLE_LOCAL_SWAP_POLICY;
+ delete process.env.ENABLE_LOCAL_MONTH_CLOSE;
+ t.after(()=>{
+  process.env.ENABLE_LOCAL_SWAP_POLICY='false';
+  process.env.ENABLE_LOCAL_MONTH_CLOSE='false';
+ });
+ assert.deepEqual((await request('worker','/me')).body.capabilities,
+  {centralSwap:true,swapPolicy:true,hrClosedRoster:false,monthClose:true});
+ assert.equal((await request('hr','/me')).body.capabilities.hrClosedRoster,true);
+ assert.equal((await request('hr','/hr/closed-roster?month=2026-10')).status,200);
+ assert.match((await request('a','/requests')).body.find((row:any)=>row.request_id===legacy.requestId).approvalBlockReason,/ยื่นคำขอใหม่/);
+ assert.equal((await approve('a',legacy)).body.code,'SWAP_POLICY_RESUBMISSION_REQUIRED');
+ assert.equal((await cancel('worker',legacy)).body.status,'CANCELLED');
+ const current=await create(date);
+ const row=(await request('b','/requests')).body.find((item:any)=>item.request_id===current.requestId);
+ assert.equal(row.snapshot.approvalRoute,'TWO_SUPERVISORS');
+ assert.equal(row.quota_month,'2026-11-01');
+ assert.equal((await cancel('worker',current)).body.status,'CANCELLED');
+});
+
+test('final approval consumes one requester quota atomically and only one request can take the last slot',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2090-12-01T12:00:00Z')});
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ await admin.query(`INSERT INTO shiftflow_policy.swap_quota_limits(effective_month,monthly_limit)
+  VALUES ('2090-11-01',3),('2090-12-01',2),('2091-01-01',4)`);
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(12,2090,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ const dates=['2090-12-04','2090-12-12','2090-12-20'];
+ const extraDate='2090-12-27';
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,side.employee_id,st.shift_type_id,dates.day,'ACTIVE',$2
+  FROM unnest($3::date[]) AS dates(day)
+  CROSS JOIN (VALUES ($4::int,'M'),($5::int,'N')) AS side(employee_id,code)
+  JOIN shift_types st ON st.shift_code=side.code`,
+  [schedule.schedule_id,accounts.a.userId,[...dates,extraDate],accounts.worker.employeeId,accounts.target.employeeId]);
+ const preview=await request('worker','/swap/validate','POST',await swapInput(extraDate));
+ assert.deepEqual(preview.body.quota,{month:'2090-12-01',limit:2,used:0,remaining:2});
+ assert.ok(preview.body.checks.some((check:any)=>check.rule==='REQUEST_WINDOW'&&check.status==='PASS'&&check.label));
+ assert.ok(preview.body.checks.some((check:any)=>check.rule==='REST_AFTER_NIGHT'&&check.status==='UNCONFIRMED'));
+ assert.ok(preview.body.checks.some((check:any)=>check.rule==='ROTATION_PATTERN'&&check.status==='UNCONFIRMED'));
+ const submitted=[];
+ for(const date of dates) submitted.push(await create(date));
+ const firstSteps=[];
+ for(const item of submitted) {
+  const first=await approve('a',item);
+  assert.equal(first.status,201,JSON.stringify(first.body));
+  assert.equal(first.body.status,'PENDING');
+  firstSteps.push(first.body);
+ }
+ const finalKey=randomUUID();
+ const usage=()=>admin.query(`
+  SELECT requester_id,count(*)::int AS used FROM requests
+  WHERE status='APPROVED' AND quota_month='2090-12-01' GROUP BY requester_id`);
+ assert.deepEqual((await usage()).rows,[]);
+ const beforeFailure=await assignments('worker','2090-12');
+ await admin.query(`CREATE FUNCTION fail_test_quota_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN IF NEW.entity_type='REQUEST' AND NEW.entity_id=${submitted[0].requestId} AND NEW.action='REQUEST_APPROVED'
+   THEN RAISE EXCEPTION 'injected quota approval failure'; END IF; RETURN NEW; END $$;
+  CREATE TRIGGER test_quota_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION fail_test_quota_audit();`);
+ try {
+  assert.equal((await approve('b',firstSteps[0],finalKey)).status,500);
+  assert.deepEqual((await usage()).rows,[]);
+  assert.deepEqual(await assignments('worker','2090-12'),beforeFailure);
+ } finally {
+  await admin.query('DROP TRIGGER test_quota_failure ON audit_logs; DROP FUNCTION fail_test_quota_audit()');
+ }
+ const firstFinal=await approve('b',firstSteps[0],finalKey);
+ assert.equal(firstFinal.status,201,JSON.stringify(firstFinal.body));
+ assert.equal(firstFinal.body.status,'APPROVED');
+ assert.deepEqual((await approve('b',firstSteps[0],finalKey)).body,firstFinal.body);
+ const before=await assignments('worker','2090-12');
+ const race=await Promise.all(firstSteps.slice(1).map(item=>approve('b',item)));
+ assert.deepEqual(race.map(result=>result.status).sort(),[201,409]);
+ const loserIndex=race.findIndex(result=>result.status===409);
+ const winnerIndex=1-loserIndex;
+ assert.equal(race[loserIndex].body.code,'SWAP_QUOTA_EXHAUSTED');
+ const [loser,winner]=[submitted[loserIndex+1],submitted[winnerIndex+1]];
+ const rows=(await request('worker','/requests')).body;
+ assert.equal(rows.find((row:any)=>row.request_id===loser.requestId).status,'PENDING');
+ assert.equal(rows.find((row:any)=>row.request_id===winner.requestId).status,'APPROVED');
+ const after=await assignments('worker','2090-12');
+ const dayRows=(entries:any[],date:string)=>entries.filter(row=>row.work_date===date);
+ assert.deepEqual(dayRows(after,dates[loserIndex+1]),dayRows(before,dates[loserIndex+1]));
+ assert.deepEqual(dayRows(after,dates[winnerIndex+1]).map(row=>row.shift_code),['N','M']);
+ assert.deepEqual((await usage()).rows,[{requester_id:accounts.worker.employeeId,used:2}]);
+ const zero=await request('worker','/swap/validate','POST',await swapInput(extraDate));
+ assert.equal(zero.body.valid,true);
+ assert.deepEqual(zero.body.quota,{month:'2090-12-01',limit:2,used:2,remaining:0});
+ const partnerQuota=await request('target','/swap/validate','POST',await swapInput(extraDate,'target','worker'));
+ assert.equal(partnerQuota.body.quota.used,0);
+ assert.equal((await create(extraDate)).status,'PENDING');
+});
+
+test('local swap policy uses submission time for expiry and closes pending swaps at Bangkok month end',async(t)=>{
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ t.mock.timers.enable({apis:['Date'],now:new Date('2092-12-10T13:00:00Z')});
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(12,2092,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ const dates=['2092-12-10','2092-12-20','2092-12-31'];
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,side.employee_id,st.shift_type_id,dates.day,'ACTIVE',$2
+  FROM unnest($3::date[]) AS dates(day)
+  CROSS JOIN (VALUES ($4::int,'N'),($5::int,'M')) AS side(employee_id,code)
+  JOIN shift_types st ON st.shift_code=side.code`,
+  [schedule.schedule_id,accounts.a.userId,dates,accounts.worker.employeeId,accounts.target.employeeId]);
+ const tonight=await create(dates[0]);
+ const later=await create(dates[1]);
+ const tonightFirst=await approve('a',tonight);
+ assert.equal(tonightFirst.status,201);
+ const laterFirst=await approve('a',later);
+ assert.equal(laterFirst.status,201);
+ t.mock.timers.setTime(Date.parse('2092-12-10T17:30:00Z')); // 00:30 the next day in Bangkok
+ const late=await request('worker','/requests','POST',await swapInput(dates[0]),randomUUID());
+ assert.equal(late.status,409);
+ assert.equal(late.body.code,'SWAP_SUBMISSION_LATE');
+ const latePreview=await request('worker','/swap/validate','POST',await swapInput(dates[0]));
+ assert.equal(latePreview.body.code,'SWAP_SUBMISSION_LATE');
+ const afterMidnight=await approve('b',tonightFirst.body);
+ assert.equal(afterMidnight.status,201,JSON.stringify(afterMidnight.body));
+ assert.equal(afterMidnight.body.status,'APPROVED');
+ t.mock.timers.setTime(Date.parse('2092-12-11T13:00:00Z')); // exactly 24 hours
+ const expired=await approve('b',laterFirst.body);
+ assert.equal(expired.status,409);
+ assert.equal(expired.body.code,'REQUEST_EXPIRED');
+ const expiredRow=(await request('b','/requests')).body.find((row:any)=>row.request_id===later.requestId);
+ assert.equal(expiredRow.status,'EXPIRED');
+ assert.equal(expiredRow.canDecide,false);
+ assert.deepEqual(expiredRow.approvals.map((row:any)=>row.status),['APPROVED','PENDING']);
+ const cancellable=await create(dates[1]); // The expired record cannot block a fresh eligible submission.
+ const cancelKey=randomUUID();
+ t.mock.timers.setTime(Date.parse('2092-12-12T12:59:59Z'));
+ const blocker=await admin.connect();
+ let cancellation:ReturnType<typeof request>|undefined;
+ try {
+  await blocker.query('BEGIN');
+  await blocker.query('LOCK TABLE operation_receipts IN SHARE MODE');
+  cancellation=request('worker',`/requests/${cancellable.requestId}/cancel`,'POST',
+   {expectedVersion:cancellable.version},cancelKey);
+  let waiting=false;
+  for(let i=0;i<100&&!waiting;i++) {
+   waiting=(await admin.query(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+    WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'INSERT INTO operation_receipts%') AS waiting`)).rows[0].waiting;
+   if(!waiting) await new Promise(resolveDelay=>setTimeout(resolveDelay,25));
+  }
+  assert.equal(waiting,true,'Cancellation reached the final receipt write before expiry');
+  t.mock.timers.setTime(Date.parse('2092-12-12T13:00:00Z'));
+ } finally {
+  await blocker.query('ROLLBACK');
+  blocker.release();
+ }
+ const afterExpiry=await cancellation!;
+ assert.equal(afterExpiry.status,409);
+ assert.equal(afterExpiry.body.code,'REQUEST_EXPIRED');
+ assert.equal((await request('worker','/requests')).body.find((row:any)=>row.request_id===cancellable.requestId).status,'EXPIRED');
+ assert.equal((await admin.query('SELECT 1 FROM operation_receipts WHERE operation_key=$1',[cancelKey])).rowCount,0);
+ t.mock.timers.setTime(Date.parse('2092-12-31T13:00:00Z'));
+ const monthEnd=await create(dates[2]);
+ const beforeClose=await assignments('worker','2092-12');
+ t.mock.timers.setTime(Date.parse('2092-12-31T17:00:00Z')); // 00:00 Bangkok on January 1
+ const closed=await approve('a',monthEnd);
+ assert.equal(closed.status,409);
+ assert.equal(closed.body.code,'SWAP_MONTH_CLOSED');
+ const closedRow=(await request('worker','/requests')).body.find((row:any)=>row.request_id===monthEnd.requestId);
+ assert.equal(closedRow.status,'MONTH_CLOSED');
+ assert.equal(closedRow.canCancel,false);
+ assert.deepEqual(await assignments('worker','2092-12'),beforeClose);
+});
+
+test('Bangkok month close blocks a legacy approval and HR exports exactly the closed published roster',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2098-11-30T16:59:59Z')});
+ const previous=process.env.ENABLE_LOCAL_MONTH_CLOSE;
+ process.env.ENABLE_LOCAL_MONTH_CLOSE='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_MONTH_CLOSE;else process.env.ENABLE_LOCAL_MONTH_CLOSE=previous;});
+ const {rows:schedules}=await admin.query(`INSERT INTO schedules(month,year,status,created_by)
+  VALUES (10,2098,'DRAFT',$1),(11,2098,'PUBLISHED',$1),(12,2098,'PUBLISHED',$1) RETURNING schedule_id,month`,[accounts.a.userId]);
+ const closedDate='2098-11-28', receiptDate='2098-11-21', approvedDate='2098-11-15', openDate='2098-12-10';
+ for(const date of [closedDate,receiptDate,approvedDate,openDate]) {
+  const schedule=schedules.find(row=>row.month===Number(date.slice(5,7)));
+  await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+   SELECT $1,side.employee_id,st.shift_type_id,$2,'ACTIVE',$3
+   FROM (VALUES ($4::int,'M'),($5::int,'N'),($6::int,'O')) AS side(employee_id,code)
+   JOIN shift_types st ON st.shift_code=side.code`,
+   [schedule.schedule_id,date,accounts.a.userId,accounts.worker.employeeId,accounts.target.employeeId,accounts.c.employeeId]);
+ }
+ const approved=await create(approvedDate);
+ const firstApproved=await approve('a',approved);
+ assert.equal((await approve('b',firstApproved.body)).body.status,'APPROVED');
+ const closes=await create(closedDate);
+ const firstCloses=await approve('a',closes);
+ assert.equal(firstCloses.status,201);
+ const beforeReceipt=await create(receiptDate);
+ const firstReceipt=await approve('a',beforeReceipt);
+ assert.equal(firstReceipt.status,201);
+ const staysOpen=await create(openDate);
+ const firstStaysOpen=await approve('a',staysOpen);
+ assert.equal(firstStaysOpen.status,201);
+ const before=await assignments('worker','2098-11');
+ const path='/hr/closed-roster';
+ assert.equal((await request('hr',`${path}?month=2098-11`)).body.code,'ROSTER_MONTH_OPEN');
+ const csv=async(role:string,month:string,origin=base)=>fetch(`${base}/api${path}.csv?month=${month}`,
+  {method:'POST',headers:{Cookie:cookies[role],Origin:origin}});
+ assert.equal((await csv('hr','2098-11')).status,409);
+ const blocker=await admin.connect();
+ let approval:ReturnType<typeof approve>|undefined;
+ try {
+  await blocker.query('BEGIN');
+  await blocker.query('SELECT schedule_id FROM schedules WHERE year=2098 AND month=11 FOR UPDATE');
+  approval=approve('b',firstCloses.body);
+  let waiting=false;
+  for(let i=0;i<100&&!waiting;i++) {
+   waiting=(await admin.query(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+    WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'SELECT year,month FROM schedules%') AS waiting`)).rows[0].waiting;
+   if(!waiting) await new Promise(resolveDelay=>setTimeout(resolveDelay,25));
+  }
+  assert.equal(waiting,true,'Approval began before midnight and is waiting on the schedule');
+  t.mock.timers.setTime(Date.parse('2098-11-30T17:00:00Z'));
+ } finally {
+  await blocker.query('ROLLBACK');
+  blocker.release();
+ }
+ const locked=await approval!;
+ assert.equal(locked.status,409);
+ assert.equal(locked.body.code,'SCHEDULE_MONTH_CLOSED');
+ t.mock.timers.setTime(Date.parse('2098-11-30T16:59:59Z'));
+ const receiptBlocker=await admin.connect();
+ let receiptApproval:ReturnType<typeof approve>|undefined;
+ try {
+  await receiptBlocker.query('BEGIN');
+  await receiptBlocker.query('LOCK TABLE operation_receipts IN SHARE MODE');
+  receiptApproval=approve('b',firstReceipt.body);
+  let waiting=false;
+  for(let i=0;i<100&&!waiting;i++) {
+   waiting=(await admin.query(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+    WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'INSERT INTO operation_receipts%') AS waiting`)).rows[0].waiting;
+   if(!waiting) await new Promise(resolveDelay=>setTimeout(resolveDelay,25));
+  }
+  assert.equal(waiting,true,'The final approval is waiting to save its receipt before commit');
+  t.mock.timers.setTime(Date.parse('2098-11-30T17:00:00Z'));
+ } finally {
+  await receiptBlocker.query('ROLLBACK');
+  receiptBlocker.release();
+ }
+ const rolledBack=await receiptApproval!;
+ assert.equal(rolledBack.status,409);
+ assert.equal(rolledBack.body.code,'SCHEDULE_MONTH_CLOSED');
+ assert.deepEqual(await assignments('worker','2098-11'),before);
+ const oldQueue=(await request('b','/requests')).body.find((row:any)=>row.request_id===closes.requestId);
+ assert.equal(oldQueue.status,'MONTH_CLOSED');
+ assert.equal(oldQueue.canDecide,false);
+ const lateNew=await request('worker','/requests','POST',await swapInput(closedDate),randomUUID());
+ assert.equal(lateNew.body.code,'SCHEDULE_MONTH_CLOSED');
+ assert.equal((await approve('b',firstStaysOpen.body)).body.status,'APPROVED');
+ assert.equal((await request(undefined,path)).status,401);
+ for(const role of ['worker','manager','a','external']) {
+  assert.equal((await request(role,path)).status,403);
+  assert.equal((await csv(role,'2098-11')).status,403);
+ }
+ assert.equal((await csv('hr','2098-10')).status,404);
+ assert.equal((await csv('hr','2098-12')).status,409);
+ assert.equal((await csv('hr','2098-11','https://example.com')).status,403);
+ const view=await request('hr',path);
+ assert.equal(view.status,200,JSON.stringify(view.body));
+ assert.equal(view.body.month,'2098-11');
+ assert.equal(view.body.scheduleVersion,2);
+ assert.deepEqual([...new Set(view.body.rows.map((row:any)=>row.team))],['A','B','C']);
+ assert.ok(view.body.rows.some((row:any)=>row.employeeCode==='DEMO-A1'&&row.workDate===approvedDate&&row.shiftCode==='N'));
+ assert.ok(view.body.rows.some((row:any)=>row.team==='C'&&row.shiftCode==='O'));
+ const file=await csv('hr','2098-11');
+ assert.equal(file.status,200);
+ assert.match(file.headers.get('content-type')||'',/^text\/csv/);
+ assert.match(file.headers.get('content-disposition')||'',/2098-11\.csv/);
+ const bytes=Buffer.from(await file.arrayBuffer());
+ assert.deepEqual([...bytes.subarray(0,3)],[239,187,191]);
+ const lines=bytes.toString('utf8').slice(1).split('\r\n').filter(Boolean);
+ assert.equal(lines.shift(),'"รหัสพนักงาน","ทีม","วันที่","รหัสกะ"');
+ assert.deepEqual(lines,view.body.rows.map((row:any)=>[row.employeeCode,row.team,row.workDate,row.shiftCode].map(value=>`"${value}"`).join(',')));
+ const evidence=(await admin.query(`SELECT user_id,new_value FROM audit_logs
+  WHERE action='HR_CLOSED_ROSTER_EXPORTED' AND new_value->>'month'='2098-11'`)).rows;
+ assert.deepEqual(evidence,[{user_id:accounts.hr.userId,new_value:{month:'2098-11',scheduleVersion:2}}]);
+ if(process.env.HR_CLOSED_ROSTER_BROWSER_CHECK==='true') {
+  const script=resolve(projectRoot,'scripts/hr-closed-roster-browser-check.mjs');
+  await new Promise<void>((done,reject)=>{
+   const child=spawn(process.execPath,[script],{cwd:projectRoot,windowsHide:true,stdio:'inherit',
+    env:{...process.env,APP_TEST_ORIGIN:base,TNC_HR_BROWSER_SESSION:cookies.hr}});
+   child.once('error',reject);
+   child.once('exit',code=>code===0?done():reject(new Error(`HR closed roster browser check exited with ${code}`)));
+  });
+ }
+});
+
+test('first-of-month cutover preserves approved swaps, closes old pending requests, and allows resubmission',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2094-11-30T16:59:59Z')});
+ const options={month:'2094-12',operatorId:accounts.manager.userId};
+ const connection=process.env.DATABASE_ADMIN_URL!;
+ const sharedDatabase=new URL(connection);
+ sharedDatabase.pathname='/shiftflow_demo';
+ await assert.rejects(cutoverModule.runLocalSwapCutover(sharedDatabase.toString(),options),/disposable local/);
+ const urlOverride=new URL(connection);
+ urlOverride.searchParams.set('host','example.com');
+ await assert.rejects(cutoverModule.runLocalSwapCutover(urlOverride.toString(),options),/disposable local/);
+ const approvedDate='2094-11-12', closingDate='2094-11-25', newDate='2094-12-05';
+ await admin.query(`INSERT INTO schedules(month,year,status,created_by)
+  VALUES (11,2094,'PUBLISHED',$1),(12,2094,'PUBLISHED',$1)`,[accounts.a.userId]);
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT s.schedule_id,side.employee_id,st.shift_type_id,dates.day,'ACTIVE',$1
+  FROM unnest($2::date[]) AS dates(day)
+  JOIN schedules s ON s.year=extract(year from dates.day) AND s.month=extract(month from dates.day)
+  CROSS JOIN (VALUES ($3::int,'M'),($4::int,'N')) AS side(employee_id,code)
+  JOIN shift_types st ON st.shift_code=side.code`,
+  [accounts.a.userId,[approvedDate,closingDate,newDate],accounts.worker.employeeId,accounts.target.employeeId]);
+ const approved=await create(approvedDate);
+ const first=await approve('a',approved);
+ assert.equal((await approve('b',first.body)).body.status,'APPROVED');
+ const closing=await create(closingDate);
+ const partial=await approve('a',closing);
+ assert.equal(partial.status,201);
+ const resubmit=await create(newDate);
+ const before=await assignments('worker','2094-11');
+
+ const preview=await cutoverModule.runLocalSwapCutover(connection,options);
+ assert.deepEqual(preview.candidates.filter(item=>item.requestId>=approved.requestId).map(item=>[item.requestId,item.status]),[
+  [closing.requestId,'MONTH_CLOSED'],[resubmit.requestId,'POLICY_REPLACED']
+ ]);
+ await assert.rejects(cutoverModule.runLocalSwapCutover(connection,{...options,apply:true}),/not reached/);
+ assert.equal((await request('worker','/requests')).body.find((row:any)=>row.request_id===closing.requestId).status,'PENDING');
+ t.mock.timers.setTime(Date.parse('2094-11-30T17:00:00Z'));
+ await admin.query(`CREATE FUNCTION fail_test_cutover_notice() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN IF NEW.request_id=${resubmit.requestId} THEN RAISE EXCEPTION 'injected cutover notice failure'; END IF;
+   RETURN NEW; END $$;
+  CREATE TRIGGER test_cutover_failure BEFORE INSERT ON notifications FOR EACH ROW EXECUTE FUNCTION fail_test_cutover_notice();`);
+ try {
+  await assert.rejects(cutoverModule.runLocalSwapCutover(connection,{...options,apply:true}),/injected cutover notice failure/);
+  assert.deepEqual(await cutoverModule.runLocalSwapCutover(connection,options),preview);
+ } finally {
+  await admin.query('DROP TRIGGER test_cutover_failure ON notifications; DROP FUNCTION fail_test_cutover_notice()');
+ }
+ assert.deepEqual(await cutoverModule.runLocalSwapCutover(connection,{...options,apply:true}),{...preview,applied:true});
+ assert.deepEqual((await cutoverModule.runLocalSwapCutover(connection,{...options,apply:true})).candidates,[]);
+ await assert.rejects(admin.query("INSERT INTO requests(requester_id,request_type,status) VALUES ($1,'SWAP','PENDING')",
+  [accounts.worker.employeeId]),/Legacy swap requests cannot be created after cutover/);
+ const legacyRetry=await request('worker','/requests','POST',await swapInput(newDate),randomUUID());
+ assert.equal(legacyRetry.status,500,'The regular backend database role also cannot insert a legacy request');
+ const rows=(await request('worker','/requests')).body;
+ const rowFor=(record:any)=>rows.find((row:any)=>row.request_id===record.requestId);
+ assert.equal(rowFor(approved).status,'APPROVED');
+ assert.equal(rowFor(approved).version,3);
+ assert.equal(rowFor(closing).status,'MONTH_CLOSED');
+ assert.deepEqual(rowFor(closing).approvals.map((row:any)=>row.status),['APPROVED','PENDING']);
+ assert.equal(rowFor(resubmit).status,'POLICY_REPLACED');
+ assert.equal(rowFor(resubmit).canCancel,false);
+ assert.equal((await approve('b',partial.body)).status,409);
+ assert.equal((await approve('a',resubmit)).status,409);
+ assert.deepEqual(await assignments('worker','2094-11'),before);
+ assert.equal((await admin.query(`SELECT count(*)::int AS n FROM audit_logs WHERE action='SWAP_CUTOVER_CLOSED'
+  AND user_id=$1 AND entity_id=ANY($2::int[])`,[accounts.manager.userId,[closing.requestId,resubmit.requestId]])).rows[0].n,2);
+ const activity=(await request('manager','/audit?view=activity')).body;
+ assert.ok(activity.some((row:any)=>row.entity_id===resubmit.requestId&&row.action==='SWAP_CUTOVER_CLOSED'));
+ assert.equal((await admin.query(`SELECT count(*)::int AS n FROM notifications WHERE request_id=$1 AND user_id=$2
+  AND title='เริ่มใช้กฎสลับกะใหม่'`,[resubmit.requestId,accounts.worker.userId])).rows[0].n,1);
+ assert.equal((await admin.query(`SELECT count(*)::int AS n FROM requests WHERE request_id=ANY($1::int[])
+  AND quota_month IS NOT NULL`,[[approved.requestId,closing.requestId,resubmit.requestId]])).rows[0].n,0);
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ const fresh=await create(newDate);
+ assert.notEqual(fresh.requestId,resubmit.requestId);
+ assert.equal((await admin.query('SELECT quota_month FROM requests WHERE request_id=$1',[fresh.requestId])).rows[0].quota_month,'2094-12-01');
+});
+
+test('a supervisor swap goes directly to one assigned Manager and charges only the requester',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2096-06-01T12:00:00Z')});
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(6,2096,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ const date='2096-06-10';
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,side.employee_id,st.shift_type_id,$2,'ACTIVE',$3
+  FROM (VALUES ($4::int,'M'),($5::int,'N'),($6::int,'N')) AS side(employee_id,code)
+  JOIN shift_types st ON st.shift_code=side.code`,
+  [schedule.schedule_id,date,accounts.a.userId,accounts.a.employeeId,accounts.b.employeeId,accounts.target.employeeId]);
+ const input=await swapInput(date,'a','b');
+ const available=await request('a',`/swap/candidates?assignmentId=${input.assignmentId}`);
+ assert.equal(available.status,200);
+ assert.deepEqual(available.body.candidates.map((item:any)=>item.employee_id),[accounts.b.employeeId]);
+ const forged=await request('a','/requests','POST',await swapInput(date,'a','target'),randomUUID());
+ assert.equal(forged.status,400);
+ await admin.query('UPDATE users SET is_active=false WHERE user_id=$1',[accounts.manager.userId]);
+ try {
+  const unassigned=await request('a','/requests','POST',input,randomUUID());
+  assert.equal(unassigned.status,409);
+  assert.equal(unassigned.body.code,'APPROVER_UNRESOLVED');
+ } finally {
+  await admin.query('UPDATE users SET is_active=true WHERE user_id=$1',[accounts.manager.userId]);
+ }
+ const created=await request('a','/requests','POST',input,randomUUID());
+ assert.equal(created.status,201,JSON.stringify(created.body));
+ const getRow=async(role:string)=>(await request(role,'/requests')).body.find((row:any)=>row.request_id===created.body.requestId);
+ const review=await getRow('manager');
+ assert.equal(review.canDecide,true,JSON.stringify({route:review.snapshot.approvalRoute,approvals:review.approvals,expectedManager:accounts.manager.userId,
+  status:review.status,routeConfirmed:review.approvalRouteConfirmed,demoSupported:review.demoSupported,hasConflict:review.hasConflict}));
+ assert.deepEqual(review.approvals.map((step:any)=>step.approver_id),[accounts.manager.userId]);
+ assert.equal((await getRow('a')).canDecide,false);
+ assert.equal((await approve('a',created.body)).status,403);
+ assert.equal((await approve('b',created.body)).status,403);
+ const approved=await approve('manager',created.body);
+ assert.equal(approved.status,201,JSON.stringify(approved.body));
+ assert.equal(approved.body.status,'APPROVED');
+ const result=(await assignments('a','2096-06')).find((row:any)=>row.employee_id===accounts.a.employeeId);
+ assert.equal(result.shift_code,'N');
+ assert.equal(result.swap.partner.employeeId,accounts.b.employeeId);
+ const usage=await admin.query("SELECT requester_id FROM requests WHERE quota_month='2096-06-01' AND status='APPROVED'");
+ assert.deepEqual(usage.rows,[{requester_id:accounts.a.employeeId}]);
+});
+
+test('both teams can decide an employee swap in either order, including concurrent approvals',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2096-07-01T12:00:00Z')});
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(7,2096,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ const dates=['2096-07-06','2096-07-15'];
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,side.employee_id,st.shift_type_id,dates.day,'ACTIVE',$2
+  FROM unnest($3::date[]) AS dates(day)
+  CROSS JOIN (VALUES ($4::int,'M'),($5::int,'N')) AS side(employee_id,code)
+  JOIN shift_types st ON st.shift_code=side.code`,
+  [schedule.schedule_id,accounts.a.userId,dates,accounts.worker.employeeId,accounts.target.employeeId]);
+ const record=await create(dates[0]);
+ const before=await assignments('worker','2096-07');
+ for(const role of ['a','b']) {
+  const row=(await request(role,'/requests')).body.find((r:any)=>r.request_id===record.requestId);
+  assert.equal(row.canDecide,true);
+  const notices=(await request(role,'/notifications')).body;
+  assert.ok(notices.some((notice:any)=>notice.request_id===record.requestId));
+ }
+ const fromB=await approve('b',record);
+ assert.equal(fromB.status,201);
+ assert.equal(fromB.body.status,'PENDING');
+ assert.deepEqual(await assignments('worker','2096-07'),before);
+ assert.equal((await approve('a',record)).body.status,'APPROVED');
+ const parallel=await create(dates[1]);
+ const results=await Promise.all([approve('a',parallel),approve('b',parallel)]);
+ assert.deepEqual(results.map(item=>item.status),[201,201]);
+ assert.deepEqual(results.map(item=>item.body.status).sort(),['APPROVED','PENDING']);
+ const evidence=await admin.query(`SELECT count(*)::int AS n FROM audit_logs
+  WHERE entity_type='REQUEST' AND entity_id=$1 AND action='SCHEDULE_SWAP_APPLIED'`,[parallel.requestId]);
+ assert.equal(evidence.rows[0].n,1);
+ const reviewed=await admin.query(`SELECT request_version FROM approvals WHERE request_id=$1 ORDER BY approver_level`,[parallel.requestId]);
+ assert.deepEqual(reviewed.rows.map(row=>row.request_version),[1,1]);
+});
+
+test('a two-date swap validates the combined roster and applies four cells as one approved request',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2096-08-01T12:00:00Z')});
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(8,2096,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ const fixture=[
+  ...[1,2,3,4,5].map(day=>[day,'M','O']),
+  [6,'N','O'],[7,'O','M'],[12,'M','N'],[17,'M','O'],[19,'M','O'],
+  [20,'M','N'],[25,'O','N'],[29,'O','N'],
+ ];
+ for(const [day,source,target] of fixture) {
+  await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+   SELECT $1,side.employee_id,st.shift_type_id,make_date(2096,8,$2),'ACTIVE',$3
+   FROM (VALUES ($4::int,$5::text),($6::int,$7::text)) AS side(employee_id,code)
+   JOIN shift_types st ON st.shift_code=side.code`,
+   [schedule.schedule_id,day,accounts.a.userId,accounts.worker.employeeId,source,accounts.target.employeeId,target]);
+ }
+ const wrongFirst=await swapInput('2096-08-12'),wrongSecond=await swapInput('2096-08-20');
+ const wrongInput={...wrongFirst,secondSwap:wrongSecond};
+ const wrongPreview=await request('worker','/swap/validate','POST',wrongInput);
+ assert.equal(wrongPreview.body.valid,false,'Two days with both employees already working are not a cross-date swap');
+ assert.ok(wrongPreview.body.checks.some((check:any)=>check.rule==='CROSS_DATE_FIRST_COVER'&&check.status==='FAIL'));
+ assert.ok(wrongPreview.body.checks.some((check:any)=>check.rule==='CROSS_DATE_SECOND_COVER'&&check.status==='FAIL'));
+ assert.equal((await request('worker','/requests','POST',wrongInput,randomUUID())).status,400);
+ assert.equal((await request('worker','/swap/validate','POST',wrongFirst)).body.valid,true,'The same date is eligible for a same-day swap');
+ const legacyRoster=await assignments('worker','2096-08');
+ const legacySlots=new Map(legacyRoster.map((row:any)=>[row.assignment_id,row]));
+ const {rows:[legacy]}=await admin.query(`INSERT INTO requests(requester_id,request_type,status,quota_month,submitted_at)
+  VALUES($1,'SWAP','PENDING','2096-08-01',$2) RETURNING request_id,version`,[accounts.worker.employeeId,new Date()]);
+ const legacySnapshot={source:legacySlots.get(wrongFirst.assignmentId),target:legacySlots.get(wrongFirst.targetAssignmentId),
+  secondSwap:{source:legacySlots.get(wrongSecond.assignmentId),target:legacySlots.get(wrongSecond.targetAssignmentId)},
+  approvalRoute:'TWO_SUPERVISORS',requestVersion:1};
+ await admin.query(`INSERT INTO change_requests(request_id,assignment_id,target_employee_id,target_assignment_id,snapshot)
+  VALUES($1,$2,$3,$4,$5)`,[legacy.request_id,wrongFirst.assignmentId,accounts.target.employeeId,wrongFirst.targetAssignmentId,JSON.stringify(legacySnapshot)]);
+ await admin.query(`INSERT INTO approvals(request_id,approver_id,approver_level,status)
+  VALUES($1,$2,1,'PENDING'),($1,$3,2,'PENDING')`,[legacy.request_id,accounts.a.userId,accounts.b.userId]);
+ const legacyRow=(await request('worker','/requests')).body.find((row:any)=>row.request_id===legacy.request_id);
+ assert.match(legacyRow.approvalBlockReason,/เลือกวันที่/);
+ assert.equal((await approve('b',{requestId:legacy.request_id,version:legacy.version})).body.code,'CROSS_DATE_RESUBMISSION_REQUIRED');
+ const rejection=await request('b',`/requests/${legacy.request_id}/decisions`,'POST',
+  {decision:'REJECT',expectedVersion:legacy.version,reason:'ต้องเลือกวันที่คนมาทำแทนหยุดอยู่'},randomUUID());
+ assert.equal(rejection.body.status,'REJECTED');
+ assert.deepEqual(await assignments('worker','2096-08'),legacyRoster);
+
+ const early=await swapInput('2096-08-06'),next=await swapInput('2096-08-07');
+ const isolatedSecond=await request('worker','/swap/validate','POST',next);
+ assert.equal(isolatedSecond.body.valid,false);
+ assert.ok(isolatedSecond.body.checks.some((check:any)=>check.rule.startsWith('MAX_SIX_DAYS')&&check.status==='FAIL'));
+ const joint=await request('worker','/swap/validate','POST',{...early,secondSwap:next});
+ assert.equal(joint.status,201,JSON.stringify(joint.body));
+ assert.equal(joint.body.valid,true,'Giving away the night shift makes the next-day shift possible in the same request');
+ const reversed=await request('worker','/swap/validate','POST',{...next,secondSwap:early});
+ assert.equal(reversed.body.valid,false,'The first selection must be the requester’s working shift');
+
+ const first=await swapInput('2096-08-17'),second=await swapInput('2096-08-25');
+ const submitted=await request('worker','/requests','POST',{...first,secondSwap:second},randomUUID());
+ assert.equal(submitted.status,201,JSON.stringify(submitted.body));
+ const duplicate=await request('worker','/requests','POST',second,randomUUID());
+ assert.equal(duplicate.body.code,'PENDING_REQUEST');
+ await admin.query('UPDATE shift_assignments SET version=version+1 WHERE assignment_id=$1',[second.targetAssignmentId]);
+ const before=await assignments('worker','2096-08');
+ const conflict=await approve('b',submitted.body);
+ assert.equal(conflict.body.code,'SCHEDULE_CHANGED');
+ assert.deepEqual(await assignments('worker','2096-08'),before);
+ const refreshed=await swapInput('2096-08-25');
+ const fresh=await request('worker','/requests','POST',{...first,secondSwap:refreshed},randomUUID());
+ assert.equal(fresh.status,201,JSON.stringify(fresh.body));
+ const beforeFinal=await approve('b',fresh.body);
+ assert.equal(beforeFinal.body.status,'PENDING');
+ assert.deepEqual(await assignments('worker','2096-08'),before);
+ await admin.query('UPDATE employees SET team_id=$2 WHERE employee_id=$1',[accounts.target.employeeId,accounts.c.teamId]);
+ try {
+  const changedTeam=await approve('a',fresh.body);
+  assert.equal(changedTeam.status,409);
+  assert.equal(changedTeam.body.code,'SWAP_PARTICIPANTS_CHANGED');
+ } finally {
+  await admin.query('UPDATE employees SET team_id=$2 WHERE employee_id=$1',[accounts.target.employeeId,accounts.b.teamId]);
+ }
+ assert.deepEqual(await assignments('worker','2096-08'),before);
+ assert.equal((await approve('a',fresh.body)).body.status,'APPROVED');
+ const affected=(await assignments('worker','2096-08')).filter((row:any)=>['2096-08-17','2096-08-25'].includes(row.work_date));
+ assert.equal(affected.length,4);
+ assert.deepEqual(affected.map((row:any)=>[row.employee_code,row.work_date,row.shift_code]),[
+  ['DEMO-A1','2096-08-17','O'],['DEMO-A1','2096-08-25','N'],
+  ['DEMO-B1','2096-08-17','M'],['DEMO-B1','2096-08-25','O'],
+ ]);
+ assert.ok(affected.every((row:any)=>row.swap?.requestId===fresh.body.requestId));
+ assert.equal((await admin.query(`SELECT count(*)::int AS n FROM requests
+  WHERE quota_month='2096-08-01' AND requester_id=$1 AND status='APPROVED'`,[accounts.worker.employeeId])).rows[0].n,1);
+ if(process.env.CENTRAL_SWAP_BROWSER_CHECK==='true') {
+  await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+   SELECT $1,side.employee_id,st.shift_type_id,'2096-08-26','ACTIVE',$2
+   FROM (VALUES ($3::int,'M'),($4::int,'N')) AS side(employee_id,code)
+   JOIN shift_types st ON st.shift_code=side.code`,
+   [schedule.schedule_id,accounts.a.userId,accounts.a.employeeId,accounts.b.employeeId]);
+  const script=resolve(projectRoot,'scripts/central-swap-browser-check.mjs');
+  await new Promise<void>((done,reject)=>{
+   const child=spawn(process.execPath,[script],{cwd:projectRoot,windowsHide:true,stdio:'inherit',
+    env:{...process.env,APP_TEST_ORIGIN:base,TNC_SWAP_BROWSER_SESSIONS:JSON.stringify({worker:cookies.worker,a:cookies.a,b:cookies.b,manager:cookies.manager})}});
+   child.once('error',reject);
+   child.once('exit',code=>code===0?done():reject(new Error(`Central swap browser check exited with ${code}`)));
+  });
+ }
 });

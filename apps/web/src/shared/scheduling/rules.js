@@ -109,7 +109,7 @@ export function validateOTRequest(empId, day, otShiftCode) {
 export function countMonthlySwapRequests(employeeId) {
   if (!employeeId) return 0;
   return state.requests.filter(r => r.type && (r.type.includes('สลับกะ') || r.type.includes('เปลี่ยนกะ')) && r.requesterId === employeeId
-    && r.status !== 'ไม่อนุมัติ' && r.status !== 'ยกเลิกแล้ว'
+    && !['ไม่อนุมัติ', 'ยกเลิกแล้ว', 'หมดอายุ', 'ตารางเดือนปิดแล้ว', 'ปิดเพราะเปลี่ยนกฎ กรุณายื่นใหม่'].includes(r.status)
     && (r.y == null || (r.y === state.currentYear && r.m === state.currentMonth))).length;
 }
 // หัวหน้ากะสลับได้เฉพาะกับหัวหน้ากะทีมอื่น / พนักงานสลับได้เฉพาะกับพนักงานทีมอื่น

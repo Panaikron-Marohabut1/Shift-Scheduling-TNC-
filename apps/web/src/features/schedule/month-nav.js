@@ -8,7 +8,8 @@ import { icon } from '../../shared/icons.js';
 import { isYearPublished } from '../../shared/scheduling/annual.js';
 import { daysIn, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { currentEmp, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
-import { dataMonth, hasScheduleDataForMonth, isMonthLocked } from '../../shared/scheduling/roster.js';
+import { dataMonth, hasScheduleDataForMonth, isMonthLocked, isSchedulePublished } from '../../shared/scheduling/roster.js';
+import { hasClosedRosterAccess } from '../hr/closed-roster.js';
 import { holidaysOf } from './days.js';
 
 export function monthNav(withPicker) {
@@ -39,12 +40,12 @@ export function scheduleState() {
   const y = state.currentYear, m = state.currentMonth;
   const monthLocked = isMonthLocked(y, m);
   const readOnly = state.activeRole === 'HR';
-  const published = isYearPublished(y);
+  const published = isSchedulePublished(y, m);
   return {
     y, m, n: daysIn(y, m), monthLocked, readOnly, published,
     hasData: hasScheduleDataForMonth(y, m),
-    canPublish: state.activeRole === 'Manager' && !published,
-    canExport: state.activeRole === 'Manager' || state.activeRole === 'HR',
+    canPublish: state.activeRole === 'Manager' && !isYearPublished(y),
+    canExport: state.activeRole === 'Manager' || (readOnly && !hasClosedRosterAccess()),
     canInteract: !monthLocked && !readOnly && published,
     viewer: (isSupervisorRoleName(state.activeRole) || state.activeRole === 'Shift Employee') ? currentEmp() : null,
     hol: holidaysOf(y)
@@ -53,7 +54,7 @@ export function scheduleState() {
 // สถานะของเดือน (ใช้ร่วมกันระหว่างตารางกะและกะของฉัน)
 export function statusChips(S) {
   const status = [];
-  status.push(S.published ? `<span class="st ok">ประกาศใช้แล้ว ปี ${S.y + 543}</span>` : `<span class="st warn">ฉบับร่าง ปี ${S.y + 543} ยังไม่ประกาศใช้</span>`);
+  status.push(S.published ? '<span class="st ok">ประกาศใช้แล้ว</span>' : '<span class="st warn">ฉบับร่าง ยังไม่ประกาศใช้</span>');
   if (!S.hasData) status.push('<span class="st warn">ตารางคาดการณ์ ยังไม่มีข้อมูลจริง</span>');
   if (S.readOnly) status.push('<span class="st">ดูข้อมูลอย่างเดียว</span>');
   else if (S.monthLocked) status.push('<span class="st">ข้อมูลถูกล็อก</span>');

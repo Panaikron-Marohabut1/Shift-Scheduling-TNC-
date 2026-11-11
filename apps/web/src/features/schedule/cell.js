@@ -10,13 +10,12 @@
 import { state, view } from '../../app/state.js';
 import { $, esc, js } from '../../shared/dom.js';
 import { openModal } from '../../shared/modal.js';
-import { isYearPublished } from '../../shared/scheduling/annual.js';
-import { shortDate } from '../../shared/scheduling/dates.js';
+import { isoOf, shortDate } from '../../shared/scheduling/dates.js';
 import { currentEmp, findEmployeeById, getEmployeeFacingShiftLabel, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
-import { getShiftCodeForDate, hasScheduleDataForMonth, isMonthLocked } from '../../shared/scheduling/roster.js';
+import { getShiftCodeForDate, hasScheduleDataForMonth, isMonthLocked, isPastScheduleDate, isSchedulePublished } from '../../shared/scheduling/roster.js';
 import { getEligibleSwapColleagues, validateSwapBothSides } from '../../shared/scheduling/rules.js';
 import { telOf } from '../../shared/ui.js';
-import { kindButtons, kindsAllowed } from '../requests/new-request.js';
+import { kindsAllowed, requestOptions } from '../requests/new-request.js';
 import { getVisibleRequests } from '../requests/permissions.js';
 import { changeInfoRows, changeSource } from './change-info.js';
 import { changeNote, famOf } from './codes.js';
@@ -35,11 +34,16 @@ export function renderCell() {
   const hol = holidaysOf(y)[`${m}-${d}`];
   const chg = changeNote(emp, y, m, d, code);
   const source = chg ? changeSource(emp, y, m, d) : null; // คำขอที่ทำให้ช่องนี้เปลี่ยน
-  const locked = isMonthLocked(y, m) || !isYearPublished(y);
+  const published = isSchedulePublished(y, m);
+  const locked = isMonthLocked(y, m) || !published;
   const role = state.activeRole;
   const me = currentEmp();
   const isMine = me && me.id === emp.id;
-  const canRequest = (role === 'Shift Employee' || isSupervisorRoleName(role)) && !locked && me;
+  const requestRole = role === 'Shift Employee' || isSupervisorRoleName(role);
+  const past = isPastScheduleDate(y, m, d);
+  const canRequest = requestRole && !locked && !past && me;
+  const unavailable = !published ? (state.actor?.swapPolicy || state.actor?.monthClose ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(y))
+    : locked ? 'เดือนนี้ถูกล็อกข้อมูลแล้ว ดูได้อย่างเดียว' : '';
   const dateText = new Date(y, m, d).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   let body = `
     <div class="cellinfo ${famOf(code)} ${chg ? 'chg' : ''}">
@@ -55,9 +59,11 @@ export function renderCell() {
       ${hol ? `<div><dt>วันหยุด</dt><dd>${esc(hol)}</dd></div>` : ''}
       ${!hasScheduleDataForMonth(y, m) ? '<div><dt>ที่มา</dt><dd>คาดการณ์ตามรอบกะปกติ</dd></div>' : ''}
     </dl>`;
-  if (!isYearPublished(y)) body += `<p class="note">${draftNote(y)}</p>`;
-  else if (locked) body += '<p class="note">เดือนนี้ถูกล็อกข้อมูลแล้ว ดูได้อย่างเดียว</p>';
-  else if (role === 'HR') body += '<p class="note">ฝ่ายบุคคลดูข้อมูลได้อย่างเดียว</p>';
+  if (!past || !requestRole) {
+    if (isMine && requestRole && unavailable) body += requestOptions([], d, { emptyMessage: unavailable });
+    else if (unavailable) body += `<p class="note">${esc(unavailable)}</p>`;
+    else if (role === 'HR') body += '<p class="note">ฝ่ายบุคคลดูข้อมูลได้อย่างเดียว</p>';
+  }
 
   if (canRequest) {
     if (isMine) {
@@ -66,19 +72,20 @@ export function renderCell() {
       if (code === 'H' || def.family === 'O' || hol) kinds = ['dayoff', 'ot'];
       else if (def.leave) kinds = [];
       else kinds = ['swap', 'leave', 'ot'];
+      if (state.actor?.centralSwap && state.apiAssign[emp.id]?.[isoOf(y, m, d)]?.status === 'ACTIVE') kinds.push('swap');
       const list = kindsAllowed().filter(x => kinds.includes(x.k));
-      if (list.length) body += `<h3>ยื่นคำขอของฉันในวันนี้</h3>${kindButtons(list, d)}`;
+      body += requestOptions(list, d, { fromCell: true, emptyMessage: def.leave ? 'ตารางระบุว่าเป็นวันลาแล้ว' : undefined });
     } else if (getEligibleSwapColleagues(me).some(e => e.id === emp.id)) {
       const myCode = getShiftCodeForDate(me, y, m, d);
-      const sw = validateSwapBothSides(me.id, emp.id, d);
+      const legacyBlocked = !state.actor?.centralSwap && !validateSwapBothSides(me.id, emp.id, d).valid;
       body += `
         <h3>ยื่นคำขอ</h3>
         <ul class="kinds"><li><button data-click="SF.swapWith(${js(emp.id)}, ${d})">
-          <b>สลับกะกับ ${esc(emp.name)}</b>
-          <span>คุณ ${esc(getEmployeeFacingShiftLabel(myCode))} ↔ ${esc(emp.name.split(' ')[0])} ${esc(getEmployeeFacingShiftLabel(code))}${myCode === code ? ' · วันนี้อยู่กะเดียวกัน' : sw.valid ? '' : ' · ติดกฎ เปิดดูเหตุผลในแบบฟอร์ม'}</span>
+          <b>ขอสลับกะกับ ${esc(emp.name)}</b>
+          <span>คุณ ${esc(getEmployeeFacingShiftLabel(myCode))} ↔ ${esc(emp.name.split(' ')[0])} ${esc(getEmployeeFacingShiftLabel(code))}${myCode === code ? ' · วันนี้อยู่กะเดียวกัน' : legacyBlocked ? ' · ติดกฎ เปิดดูเหตุผลในแบบฟอร์ม' : ''}</span>
         </button></li></ul>`;
     } else {
-      body += `<p class="note">${me.roleCategory === 'Shift Supervisor' ? 'หัวหน้ากะสลับกะได้เฉพาะกับหัวหน้ากะทีมอื่น' : 'สลับกะได้เฉพาะกับพนักงานกะทีมอื่น'} · การเปลี่ยนกะของคนอื่นต้องให้เจ้าของกะยื่นคำขอ</p>`;
+      body += `<p class="note">${me.roleCategory === 'Shift Supervisor' ? 'สลับกะได้กับหัวหน้ากะต่างทีม' : 'สลับกะได้กับพนักงานกะต่างทีม'} ผู้ขอต้องเป็นเจ้าของกะ</p>`;
     }
   }
 

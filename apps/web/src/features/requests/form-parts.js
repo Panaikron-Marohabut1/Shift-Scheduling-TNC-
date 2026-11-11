@@ -15,8 +15,11 @@ const codeLabel = c => `${swatch(c)}<span>${esc(getEmployeeFacingShiftLabel(c))}
 export const opt = (v, text, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(text)}</option>`;
 export function checksList(title, results) {
   if (!results || !results.length) return '';
-  const mark = { pass: '✓', warn: '!', fail: '✕' };
-  return `<div class="checks">${title ? `<p class="checks-t">${esc(title)}</p>` : ''}<ul>${results.map(c => `<li class="${c.status}"><i class="mk">${mark[c.status] || '•'}</i><span><b>${esc(c.rule)}</b> ${esc(c.msg)}</span></li>`).join('')}</ul></div>`;
+  const mark = { pass: '✓', warn: '!', fail: '✕', pending: '…' };
+  return `<div class="checks">${title ? `<p class="checks-t">${esc(title)}</p>` : ''}<ul>${results.map(c => `
+    <li class="${esc(c.status)}"><i class="mk"${c.statusText ? ' aria-hidden="true"' : ''}>${mark[c.status] || '•'}</i>
+      <span>${c.statusText ? `<small class="check-status">${esc(c.statusText)}</small>` : ''}${c.rule ? `<b>${esc(c.rule)}</b>` : ''} ${esc(c.msg)}</span>
+    </li>`).join('')}</ul></div>`;
 }
 export function changesTable(rows) {
   if (!rows.length) return '';
@@ -27,7 +30,7 @@ export function changesTable(rows) {
       <tbody>${rows.map(r => `<tr><td>${esc(r.e.name)}</td><td class="nowrap">${esc(r.date)}</td><td>${codeLabel(r.from)}</td><td>${codeLabel(r.to)}</td></tr>`).join('')}</tbody>
     </table>`;
 }
-export const approversList = roles => `<h3>ลำดับผู้อนุมัติ</h3><ol class="steps">${roles.map(r => `<li><b>${esc(r)}</b></li>`).join('')}</ol>`;
+export const approversList = (roles, heading = 'ลำดับผู้อนุมัติ') => `<h3>${esc(heading)}</h3><ol class="steps">${roles.map(r => `<li><b>${esc(r)}</b></li>`).join('')}</ol>`;
 export function dateField(labelText, idHidden) {
   const f = view.rq, y = state.currentYear, m = state.currentMonth;
   const c = getShiftCodeForDate(currentEmp(), y, m, f.day);

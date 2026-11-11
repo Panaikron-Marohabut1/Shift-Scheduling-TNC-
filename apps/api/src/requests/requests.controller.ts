@@ -2,7 +2,10 @@ import { Body, Controller, Get, Post, Query, Req, Param, Headers, BadRequestExce
 import { ActorRequest } from '../auth/access.guard';
 import { RequestsService, SwapInput } from './requests.service';
 import { id, pathId, text } from '../shared/input';
-const swap=(body:Record<string,unknown>):SwapInput=>({assignmentId:id(body?.assignmentId),targetAssignmentId:id(body?.targetAssignmentId),assignmentVersion:id(body?.assignmentVersion),targetVersion:id(body?.targetVersion)});
+const pair=(body:Record<string,unknown>)=>({assignmentId:id(body?.assignmentId),targetAssignmentId:id(body?.targetAssignmentId),assignmentVersion:id(body?.assignmentVersion),targetVersion:id(body?.targetVersion)});
+const swap=(body:Record<string,unknown>):SwapInput=>({
+ ...pair(body),...(body?.secondSwap===undefined?{}:{secondSwap:pair(body.secondSwap as Record<string,unknown>)}),
+});
 @Controller('api')
 export class RequestsController {
  constructor(@Inject(RequestsService) private readonly service:RequestsService) {}

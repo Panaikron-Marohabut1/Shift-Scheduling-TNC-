@@ -1,5 +1,7 @@
 import { Pool, PoolClient } from 'pg';
-import '../src/config';
+import { isLocalSchedulingDatabase } from '../src/config';
+import { bangkokWorkDate } from '../src/requests/swap-request-time';
+import { PILOT_ROSTER_START, pilotShiftCode, SHIFT_ROTATION } from './pilot-rotation';
 // ชื่อพนักงานเดโม (ชื่อสมมติชุดเดียวกับต้นแบบ ShiftFlow) — ใช้ทั้งตอนสร้างข้อมูลใหม่และตอนรัน seed ซ้ำ
 const DEMO_NAMES:Record<string,[string,string]>={
  'DEMO-A0':['อดิศร','ดีเลิศ'],'DEMO-A1':['ยุทธนา','ศรีสวัสดิ์'],'DEMO-A2':['ทวีศักดิ์','ชัยมงคล'],
@@ -22,8 +24,11 @@ async function profiles(c:PoolClient) {
  for(const [code,[first,last]] of Object.entries(DEMO_NAMES))
   await c.query("UPDATE employees SET first_name=$2,last_name=$3,updated_at=now() WHERE employee_code=$1 AND department='DEMO'",[code,first,last]);
 }
-export async function seed() {
+export async function seed(centralRoster=Boolean(process.env.DATABASE_ADMIN_URL&&isLocalSchedulingDatabase(new URL(process.env.DATABASE_ADMIN_URL)))) {
  if(process.env.APP_MODE!=='DEMO') throw new Error('Seeding is available only in DEMO mode.');
+ if(centralRoster&&(!process.env.DATABASE_ADMIN_URL||!isLocalSchedulingDatabase(new URL(process.env.DATABASE_ADMIN_URL)))) {
+  throw new Error('Current-month fixtures require a local demo database.');
+ }
  const pool=new Pool({connectionString:process.env.DATABASE_ADMIN_URL});
  const c=await pool.connect();
  try {
@@ -53,21 +58,25 @@ export async function seed() {
   const codes:Record<string,number>={};
   for(const [code,name,start,end,working] of [['M','กะเช้า','07:30','19:30',true],['N','กะกลางคืน','19:30','07:30',true],['O','วันหยุด',null,null,false]] as const)
    codes[code]=(await c.query('INSERT INTO shift_types(shift_code,shift_name,start_time,end_time,is_working) VALUES($1,$2,$3,$4,$5) RETURNING shift_type_id',[code,name,start,end,working])).rows[0].shift_type_id;
-  const schedules:Record<number,number>={};
-  for(const month of [9,10,11]) schedules[month]=(await c.query("INSERT INTO schedules(month,year,status,created_by) VALUES($1,2026,'PUBLISHED',$2) RETURNING schedule_id",[month,supervisorIds[0]])).rows[0].schedule_id;
-  const rotation=['M','M','O','O','N','N','O','O'];
-  const start=Date.parse('2026-09-01T00:00:00Z'),end=Date.parse('2026-11-30T00:00:00Z');
+  const [year,month]=centralRoster?bangkokWorkDate(new Date()).split('-').map(Number):[2026,11];
+  const start=centralRoster?Math.min(Date.parse(PILOT_ROSTER_START),Date.UTC(year,month-1,1)):Date.UTC(year,month-3,1);
+  const end=Date.UTC(year,month,1);
+  const schedules:Record<string,number>={};
+  for(const date=new Date(start);date.getTime()<end;date.setUTCMonth(date.getUTCMonth()+1)) {
+   schedules[date.toISOString().slice(0,7)]=(await c.query("INSERT INTO schedules(month,year,status,created_by) VALUES($1,$2,'PUBLISHED',$3) RETURNING schedule_id",
+    [date.getUTCMonth()+1,date.getUTCFullYear(),supervisorIds[0]])).rows[0].schedule_id;
+  }
   for(const employee of employees) {
-   for(let current=start;current<=end;current+=86400000) {
-    const date=new Date(current).toISOString().slice(0,10),month=Number(date.slice(5,7));
+   const offset=employee.team%2===0?0:4;
+   for(let current=start;current<end;current+=86400000) {
+    const date=new Date(current).toISOString().slice(0,10);
     const index=Math.floor((current-start)/86400000);
-    const offset=employee.team%2===0?0:4;
-    const code=rotation[(index+offset)%8];
-    await c.query("INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by) VALUES($1,$2,$3,$4,'ACTIVE',$5)",[schedules[month],employee.id,codes[code],date,supervisorIds[employee.team]]);
+    const code=centralRoster?pilotShiftCode('ABCD'[employee.team],date):SHIFT_ROTATION[(index+offset)%SHIFT_ROTATION.length];
+    await c.query("INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by) VALUES($1,$2,$3,$4,'ACTIVE',$5)",[schedules[date.slice(0,7)],employee.id,codes[code],date,supervisorIds[employee.team]]);
    }
   }
   await profiles(c);await c.query('COMMIT');
-  console.log('Synthetic demo ready: nine accounts, A–D schedules and cross-team swaps, Sep–Nov 2026.');
+  console.log(`Synthetic demo ready: nine accounts and A–D schedules for ${Object.keys(schedules).join(', ')}.`);
  } catch(e) { await c.query('ROLLBACK'); throw e; }
  finally {c.release();await pool.end();}
 }

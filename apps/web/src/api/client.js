@@ -1,8 +1,13 @@
 export class ApiError extends Error { constructor(message,status,code,details) { super(message);this.status=status;this.code=code;this.details=details; } }
-export async function api(path,{method='GET',body,key}={}) {
+export async function api(path,{method='GET',body,key,format='json'}={}) {
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
   try {
     const response=await fetch(`/api${path}`,{method,credentials:'same-origin',signal:controller.signal,headers:{...(body?{'Content-Type':'application/json'}:{}),...(key?{'Idempotency-Key':key}:{})},...(body?{body:JSON.stringify(body)}:{})});
+    if(response.ok && format==='csv') {
+      if(response.headers.get('content-type')?.split(';',1)[0].trim().toLowerCase()!=='text/csv')
+        throw new ApiError('เซิร์ฟเวอร์ไม่ได้ส่งไฟล์ CSV',response.status,'CSV_INVALID');
+      return await response.blob();
+    }
     const payload=await response.json();
     if(!response.ok) { if(response.status===401) window.dispatchEvent(new CustomEvent('session-expired',{detail:payload})); throw new ApiError(payload.message??'ไม่สามารถดำเนินการได้',response.status,payload.code,payload); }
     return payload;

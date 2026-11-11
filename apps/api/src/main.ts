@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { projectRoot, settings } from './config';
+import { isLocalSchedulingDatabase, projectRoot, settings } from './config';
 import { resolve } from 'node:path';
 import express from 'express';
 import { Database } from './database/database.service';
@@ -20,6 +20,10 @@ export async function start() {
  try {
   const schema=await db.query("SELECT name FROM schema_migrations WHERE name='004_request_cancellation.sql'");
   if(!schema.rowCount)throw new Error('Run db:migrate first.');
+  if (isLocalSchedulingDatabase(new URL(process.env.DATABASE_URL!))) {
+    const latest=await db.query("SELECT name FROM schema_migrations WHERE name='007_swap_policy_cutover.sql'");
+    if(!latest.rowCount)throw new Error('Run pnpm db:migrate before starting the local scheduling app.');
+  }
   await app.listen(config.port,config.host);
  } catch(error) {await app.close();throw error;}
  console.log(`Shift schedule TNC: ${config.origin} (synthetic data only)`);

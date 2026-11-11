@@ -5,7 +5,7 @@
      GET  /api/me, POST /api/auth/logout                  ผู้ใช้ที่เข้าสู่ระบบ (Supabase ผ่าน apps/auth) / ออกจากระบบ
      GET  /api/schedules?month=YYYY-MM                     ตารางกะรายเดือน → state.shiftsData, apiCodes
      GET  /api/requests                                     คำขอสลับกะ → state.apiRequests
-     POST /api/requests                                     ยื่นสลับกะ (พนักงานทีม A/B สลับกันวันเดียวกัน)
+     POST /api/requests                                     ยื่นสลับกะจากตารางส่วนกลาง
      POST /api/requests/:id/decisions | /cancel             อนุมัติ / ไม่อนุมัติ / ยกเลิก
      GET  /api/audit?view=personal|activity                 ประวัติ → state.apiLogs
    ยังเป็นเดโมในเบราว์เซอร์ (ดู "LOCAL" ในไฟล์นี้และ state.js) จนกว่าระบบหลังบ้านจะมี API
@@ -17,7 +17,7 @@ import { monthKey, pad2, thaiMonthName } from '../shared/scheduling/dates.js';
 import { findEmployeeById, getAllEmployees, TEAM_KEYS } from '../shared/scheduling/employees.js';
 import { clearPatternCache } from '../shared/scheduling/roster.js';
 
-const fmtTime = iso => (iso ? new Date(iso).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'เมื่อสักครู่');
+const fmtTime = iso => (iso ? new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'เมื่อสักครู่');
 export const nowText = () => fmtTime(new Date().toISOString());
 
 /* ---------- ตารางกะ ---------- */
@@ -75,26 +75,35 @@ export function rebuildSchedule() {
 function teamOfApproval(s) { return String(s.team_name || '').replace('ทีม ', '').trim(); }
 function mapRequest(r) {
   const a = r.snapshot.source, b = r.snapshot.target;
+  const second = r.snapshot.secondSwap;
+  const managerApproval = r.snapshot.approvalRoute === 'MANAGER';
   const y = Number(a.work_date.slice(0, 4)), m = Number(a.work_date.slice(5, 7)) - 1, d = Number(a.work_date.slice(8, 10));
   const approvals = [...(r.approvals || [])].sort((p, q) => p.approver_level - q.approver_level);
   const approvers = approvals.map(s => ({
-    role: `Shift Supervisor ${teamOfApproval(s)} (${String(s.name || '').split(' ')[0]})`,
+    role: managerApproval ? 'ผู้จัดการ' : `Shift Supervisor ${teamOfApproval(s)} (${String(s.name || '').split(' ')[0]})`,
     status: s.status === 'APPROVED' ? 'approved' : s.status === 'REJECTED' ? 'rejected' : 'pending',
-    at: s.approved_at ? new Date(s.approved_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : ''
+    at: s.approved_at ? new Date(s.approved_at).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }) : '',
+    decidedAt: s.approved_at ? fmtTime(s.approved_at) : ''
   }));
   const next = approvers.find(s => s.status !== 'approved');
   const status = r.status === 'APPROVED' ? 'อนุมัติแล้ว' : r.status === 'REJECTED' ? 'ไม่อนุมัติ' : r.status === 'CANCELLED' ? 'ยกเลิกแล้ว'
+    : r.status === 'EXPIRED' ? 'หมดอายุ' : r.status === 'MONTH_CLOSED' ? 'ตารางเดือนปิดแล้ว'
+    : r.status === 'POLICY_REPLACED' ? 'ปิดเพราะเปลี่ยนกฎ กรุณายื่นใหม่'
+    : managerApproval ? 'รอผู้จัดการอนุมัติ'
     : approvers.some(s => s.status === 'approved') && next ? `รออนุมัติครบ 2 ฝ่าย (${next.role})` : 'รออนุมัติครบ 2 ฝ่าย';
   const rejected = approvals.find(s => s.status === 'REJECTED');
   const requester = getAllEmployees().find(e => e.eid === a.employee_id);
   const target = getAllEmployees().find(e => e.eid === b.employee_id);
   return {
     id: r.request_id, api: true, ts: Date.parse(r.submitted_at) || 0, version: r.version, canDecide: !!r.canDecide, canCancel: !!r.canCancel, hasConflict: !!r.hasConflict,
+    approvalBlockReason: r.approvalBlockReason,
     type: 'สลับกะข้ามทีม', person: a.name, requesterId: requester ? requester.id : a.employee_code, targetPerson: b.name, targetId: target ? target.id : b.employee_code,
     day: d, y, m, aNewCode: b.shift_code, bNewCode: a.shift_code, initials: a.name.slice(0, 2),
     roleCategory: requester ? requester.roleCategory : 'Shift Employee', targetRole: target ? target.roleCategory : 'Shift Employee',
-    date: `${d} ${thaiMonthName(m, 'long')} ${y + 543}`, currentShift: a.shift_code, targetShift: b.shift_code,
-    reason: `สลับกะกับ ${b.name} (${a.shift_code} ↔ ${b.shift_code})`, isCrossShift: true, approvers, status,
+    date: `${second ? `${d} และ ${Number(second.source.work_date.slice(-2))}` : d} ${thaiMonthName(m, 'long')} ${y + 543}`,
+    currentShift: second ? '-' : a.shift_code, targetShift: second ? '-' : b.shift_code,
+    reason: `สลับกะกับ ${b.name} (${a.shift_code} ↔ ${b.shift_code})${second ? ` · วันที่ ${Number(second.source.work_date.slice(-2))} (${second.source.shift_code} ↔ ${second.target.shift_code})` : ''}`,
+    isCrossShift: true, approvers, status, parallelApproval: r.snapshot.approvalRoute === 'TWO_SUPERVISORS',
     submittedAt: fmtTime(r.submitted_at), quotaUsed: '-', rejectReason: rejected ? rejected.comment || '' : ''
   };
 }
@@ -106,7 +115,7 @@ export async function loadRequests() {
 /* ---------- ประวัติ ---------- */
 const ACTION_LABEL = {
   REQUEST_SUBMITTED: 'ยื่นคำขอสลับกะ', REQUEST_APPROVED: 'อนุมัติคำขอสลับกะ', REQUEST_REJECTED: 'ไม่อนุมัติคำขอสลับกะ',
-  REQUEST_CANCELLED: 'ยกเลิกคำขอสลับกะ', SCHEDULE_SWAP_APPLIED: 'บันทึกการสลับกะลงตาราง', SCHEDULE_VIEWED: 'เปิดดูตารางกะ'
+  REQUEST_CANCELLED: 'ยกเลิกคำขอสลับกะ', SWAP_CUTOVER_CLOSED: 'ปิดคำขอสลับกะเมื่อเปลี่ยนกฎ', SCHEDULE_SWAP_APPLIED: 'บันทึกการสลับกะลงตาราง', SCHEDULE_VIEWED: 'เปิดดูตารางกะ'
 };
 function mapLog(l) {
   const v = l.new_value || {};
@@ -124,7 +133,8 @@ export async function loadLogs() {
 
 // รวมข้อมูลจาก API กับเดโมในเครื่อง ให้หน้าจออ่านจาก state.requests / state.auditLogs ที่เดียว
 export function merge() {
-  state.requests = [...state.localRequests, ...state.apiRequests].sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
+  const local = state.actor?.swapPolicy ? state.localRequests.filter(request => request.kind !== 'swap') : state.localRequests;
+  state.requests = [...local, ...state.apiRequests].sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
   state.auditLogs = [...state.localLogs, ...state.apiLogs].sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
 /* ---------- แจ้งเตือน ---------- */

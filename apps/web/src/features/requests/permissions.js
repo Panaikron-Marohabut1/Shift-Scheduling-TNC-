@@ -28,7 +28,8 @@ export function canUserReviewRequestForRole(req, roleName) {
 export const canUserReviewRequest = req => canUserReviewRequestForRole(req, state.activeRole);
 // ขั้นที่ผู้จัดการต้องพิจารณา: ขั้น "ผู้จัดการ..." หรือขั้นหัวหน้ากะของคำขอที่หัวหน้ากะยื่นเอง
 export function managerCanAct(req) {
-  if (req.api || !req.status || !req.status.includes('รอ')) return false;
+  if (req.api) return state.activeRole === 'Manager' && req.canDecide;
+  if (!req.status || !req.status.includes('รอ')) return false;
   const next = (req.approvers || []).find(s => s.status !== 'approved');
   if (!next) return false;
   if ((next.role || '').includes('ผู้จัดการ')) return true;

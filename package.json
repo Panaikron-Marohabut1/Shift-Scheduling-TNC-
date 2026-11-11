@@ -13,6 +13,7 @@
     "link-user": "pnpm --filter @tnc/api link-user",
     "deps": "pnpm install --frozen-lockfile && npm --prefix apps/auth ci",
     "dev": "node scripts/dev.mjs",
+    "dev:supabase": "node scripts/dev-supabase.mjs",
     "dev:api": "pnpm --filter @tnc/api dev",
     "dev:auth": "node scripts/dev-auth.mjs",
     "build": "node scripts/copy-fonts.mjs && pnpm --filter @tnc/api build",

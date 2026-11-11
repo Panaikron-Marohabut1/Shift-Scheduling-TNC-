@@ -61,8 +61,6 @@ async function boot() {
   watchTranslate();
   const app = $('#app');
   if (app) app.innerHTML = '<p class="boot">กำลังโหลดข้อมูล…</p>';
-  loadLocal();
-  seedYearData();
   markReady();
   let me;
   try { me = await api('/me'); }
@@ -73,6 +71,10 @@ async function boot() {
     renderApp();
     return;
   }
-  await enter(me.actor);
+  loadLocal(me.capabilities?.swapPolicy === true || me.capabilities?.monthClose === true);
+  seedYearData();
+  await enter({ ...me.actor, centralSwap: me.capabilities?.centralSwap === true,
+    swapPolicy: me.capabilities?.swapPolicy === true,
+    hrClosedRoster: me.capabilities?.hrClosedRoster === true, monthClose: me.capabilities?.monthClose === true });
 }
 void boot();

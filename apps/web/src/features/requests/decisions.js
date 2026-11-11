@@ -11,7 +11,7 @@ import { $, esc, js } from '../../shared/dom.js';
 import { closeModal, openModal } from '../../shared/modal.js';
 import { monthKey, parseThaiDate, shortDate } from '../../shared/scheduling/dates.js';
 import { findEmployeeById } from '../../shared/scheduling/employees.js';
-import { clearPatternCache, getShiftCodeForDate, setShiftOverride } from '../../shared/scheduling/roster.js';
+import { clearPatternCache, getShiftCodeForDate, isMonthLocked, setShiftOverride } from '../../shared/scheduling/roster.js';
 import { showToast } from '../../shared/toast.js';
 import { notify, partiesOf, stepKey } from '../notifications/store.js';
 import { findReq } from './detail.js';
@@ -98,16 +98,26 @@ function notifyApproved(req) {
 const roleNow = () => state.roles[state.activeRole] || { name: state.activeRole, initials: '--' };
 const timeNow = () => new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 async function viaApi(work, message, kind) {
-  try { await work(); closeModal(); showToast(message, kind); await afterChange(true); }
+  try { const result = await work(); closeModal(); showToast(typeof message === 'function' ? message(result) : message, kind); await afterChange(true); }
   catch (error) { showToast(error.message || 'ดำเนินการไม่สำเร็จ', 'alert'); await afterChange(true); }
 }
 export async function approveRequest(reqId) {
   const req = findReq(reqId);
   if (!req) return;
   if (req.api) {
-    const last = req.approvers.filter(a => a.status !== 'approved').length <= 1;
-    await viaApi(() => decideApi(req, 'APPROVE'), last ? `อนุมัติคำขอของ ${req.person} ครบ 2 หัวหน้ากะเรียบร้อยแล้ว ✓` : `กดยืนยันแล้ว — รอ ${(req.approvers.filter(a => a.status !== 'approved')[1] || {}).role || 'หัวหน้ากะอีกฝ่าย'}`);
+    await viaApi(() => decideApi(req, 'APPROVE'), result => result.status === 'APPROVED'
+      ? `อนุมัติคำขอของ ${req.person} เรียบร้อยแล้ว`
+      : 'บันทึกการอนุมัติแล้ว รอหัวหน้ากะอีกทีม');
     return;
+  }
+  if (state.actor?.monthClose) {
+    const parsed = parseThaiDate(req.date);
+    const periods = req.changes?.length ? req.changes
+      : [{ y: req.y ?? parsed?.y ?? state.currentYear, m: req.m ?? parsed?.m ?? state.currentMonth }];
+    if (periods.some(({ y, m }) => isMonthLocked(y, m))) {
+      showToast('ตารางเดือนนี้ปิดแล้ว แก้ไขไม่ได้', 'alert');
+      return;
+    }
   }
   const me = roleNow();
   if (req.approvers && req.approvers.length > 1) {

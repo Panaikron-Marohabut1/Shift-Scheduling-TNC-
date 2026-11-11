@@ -5,6 +5,8 @@
 - **Status:** Discover-phase draft for stakeholder and legal review
 - **Source pain notes:** `proposal.md`, sections 2.1-2.5
 
+**Dated SWAP supplement, 2026-11-04:** [Master rules and Manager checklist](01-spec/2026-11-04-01-business-rules-master.md) records later decisions on FR-004/FR-006/FR-007/FR-008: both exchange forms, requester-only approved quota of 2 for Employees and Supervisors, same-category/different-team pairing, one Manager for Supervisor requests, and all-day same-date submission/approval. The older generic wording below is the September baseline; use the dated supplement and linked backlog notes for these SWAP changes. Manager review and the supplement's explicit policy questions remain pending. Leave/OT are outside this update; `rule.md` remains the compliance baseline. No existing requirement ID is replaced or renumbered.
+
 ## 1. Problem Statement and Evidence
 
 The Production Department maintains monthly shifts in Excel. A change requires repeated manual editing, review, and redistribution. This creates duplicated or outdated versions, makes change history difficult to establish, and forces schedule changes and confirmations through phone calls or other manual communication. Contractors and van drivers cannot access the internal Excel file directly, while HR has no structured schedule, leave, or overtime export that is agreed for its process.

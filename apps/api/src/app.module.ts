@@ -5,10 +5,12 @@ import { AccessGuard, Public } from './auth/access.guard';
 import { AuthService } from './auth/auth.service';
 import { AuthController } from './auth/auth.controller';
 import { SchedulesService } from './schedules/schedules.service';
-import { SchedulesController } from './schedules/schedules.controller';
+import { ClosedRosterController, SchedulesController } from './schedules/schedules.controller';
 import { ValidationService } from './validation/validation.service';
 import { RequestsService } from './requests/requests.service';
 import { RequestsController } from './requests/requests.controller';
+import { SwapQuotaController } from './requests/swap-quota.controller';
+import { SwapQuotaService } from './requests/swap-quota.service';
 import { AuditController } from './audit/audit.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { EmployeesController } from './employees/employees.controller';
@@ -25,7 +27,7 @@ class HealthController {
  }
 }
 @Module({
- controllers:[HealthController,AuthController,SchedulesController,RequestsController,AuditController,NotificationsController,EmployeesController],
- providers:[Database,AuthService,SchedulesService,RequestsService,ValidationService,{provide:APP_GUARD,useClass:AccessGuard},{provide:APP_FILTER,useClass:ErrorsFilter}]
+ controllers:[HealthController,AuthController,SchedulesController,ClosedRosterController,RequestsController,SwapQuotaController,AuditController,NotificationsController,EmployeesController],
+ providers:[Database,AuthService,SchedulesService,RequestsService,SwapQuotaService,ValidationService,{provide:APP_GUARD,useClass:AccessGuard},{provide:APP_FILTER,useClass:ErrorsFilter}]
 })
 export class AppModule {}

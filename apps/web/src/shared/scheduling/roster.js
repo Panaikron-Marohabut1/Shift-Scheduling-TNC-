@@ -6,7 +6,7 @@
    ========================================================================== */
 
 import { DEMO_TODAY, state } from '../../app/state.js';
-import { getTeamFamilyForYear } from './annual.js';
+import { getTeamFamilyForYear, isYearPublished } from './annual.js';
 import { isoOf, monthKey } from './dates.js';
 import { getTeamKeyByLabel } from './employees.js';
 
@@ -14,6 +14,11 @@ import { getTeamKeyByLabel } from './employees.js';
 export function hasScheduleDataForMonth(year, month) {
   const r = state.apiMonths[monthKey(year, month)];
   return !!(r && r.assignments && r.assignments.length);
+}
+export function isSchedulePublished(year, month) {
+  const schedule = state.apiMonths[monthKey(year, month)]?.schedule;
+  return (state.actor?.swapPolicy || state.actor?.monthClose) && schedule
+    ? schedule.status === 'PUBLISHED' : isYearPublished(year);
 }
 // เดือนแรกที่มีข้อมูลจริง ใช้เป็นฐานคาดการณ์รอบกะของเดือนอื่น
 export function dataMonth() {
@@ -72,10 +77,16 @@ export function naturalFamily(team) {
 }
 export const NATURAL_TEAM_FAMILY = new Proxy({}, { get: (_, team) => naturalFamily(String(team)) });
 
+export function getShiftOverride(emp, year, month, day) {
+  if (state.actor?.monthClose && isMonthLocked(year, month)) return undefined;
+  if (state.actor?.swapPolicy && state.apiAssign[emp.id]?.[isoOf(year, month, day)]) return undefined;
+  return state.scheduleOverrides[monthKey(year, month)]?.[emp.id]?.[day];
+}
+
 export function getShiftCodeForDate(emp, year, month, day) {
   if (!emp) return 'O';
-  const ov = state.scheduleOverrides[monthKey(year, month)];
-  if (ov && ov[emp.id] && ov[emp.id][day]) return ov[emp.id][day];
+  const override = getShiftOverride(emp, year, month, day);
+  if (override) return override;
   const real = state.apiCodes[emp.id] && state.apiCodes[emp.id][isoOf(year, month, day)];
   if (real) return real;
   if (hasScheduleDataForMonth(year, month)) return 'O';
@@ -93,7 +104,19 @@ export function setShiftOverride(empId, year, month, day, code) {
   if (!state.scheduleOverrides[key][empId]) state.scheduleOverrides[key][empId] = {};
   state.scheduleOverrides[key][empId][day] = code;
 }
+const bangkokDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', dateStyle: 'short' });
+
+export function isPastScheduleDate(year, month, day) {
+  const today = state.actor?.swapPolicy || state.actor?.monthClose
+    ? bangkokDate.format(new Date())
+    : isoOf(DEMO_TODAY.getFullYear(), DEMO_TODAY.getMonth(), DEMO_TODAY.getDate());
+  return isoOf(year, month, day) < today;
+}
+
 export function isMonthLocked(year, month) {
+  if (state.actor?.monthClose) {
+    return isoOf(year, month, 1).slice(0, 7) < bangkokDate.format(new Date()).slice(0, 7);
+  }
   if (year < DEMO_TODAY.getFullYear()) return true;
   return year === DEMO_TODAY.getFullYear() && month < DEMO_TODAY.getMonth();
 }

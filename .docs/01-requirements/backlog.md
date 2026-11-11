@@ -9,7 +9,9 @@ Replace the current Microsoft Excel-based shift scheduling process and phone-bas
 
 This system must support continuous 24-hour / 7-day operations and reduce scheduling errors, administrative effort, and supervisor coordination overhead.
 
-**Current requirements specification:** [2026-09-02-01-requrement-spec.md] The specification links the current MVP and compliance stories to functional, non-functional, and legal requirements; deferred Phase 1/2 stories are explicitly identified for later specification work. No backlog story IDs or priorities are changed by that document.
+**Current requirements specification:** [2026-09-02-01-requirement-spec.md](2026-09-02-01-requirement-spec.md). The specification links the current MVP and compliance stories to functional, non-functional, and legal requirements; deferred Phase 1/2 stories are explicitly identified for later specification work. No backlog story IDs or priorities are changed by that document.
+
+**Swap decisions, 2026-11-04:** [Master rules and Manager checklist](01-spec/2026-11-04-01-business-rules-master.md). The dated review supplements FR-004/FR-006/FR-007/FR-008 and the existing stories below. The owner has confirmed the listed changes; Manager review and the explicitly listed open policies remain pending. This is not confirmation that the application implements them. Leave/OT and Power Apps are separate work. Existing IDs, priorities and releases are preserved.
 
 ---
 
@@ -456,12 +458,12 @@ As an Operator, I want to request a shift swap with another employee so that we 
 **Release:** MVP
 
 **Acceptance Criteria**
-- Employee can select their own shift.
-- Employee can select another eligible employee.
-- Employee can select the shift/date to swap.
+- An Employee or Supervisor can select their own shift and an eligible person of the same category from another team: Employee with Employee, Supervisor with Supervisor.
+- The request supports same-day exchange and a two-date exchange/return in the same month and year; exact two-date affected-slot mapping remains conditional on the dated review.
+- Submission is allowed in advance without a fixed day limit and throughout the swap date, including after shift start; past-date submission is blocked. The reference cutoff for two-date requests remains conditional.
 - System validates both employees.
 - Request is created as Pending.
-- Relevant Supervisor(s) receive the request.
+- The assigned approver(s) receive the request under US-024. See the [2026-11-04 decisions and open questions](01-spec/2026-11-04-01-business-rules-master.md).
 
 ---
 
@@ -475,28 +477,30 @@ As a system owner, I want to limit shift swaps so that frequent schedule changes
 **Release:** MVP
 
 **Acceptance Criteria**
-- Employee can request no more than 2 shift swaps per month.
-- System counts applicable swap requests according to the configured business rule.
-- Requests exceeding the monthly limit are blocked.
-- User receives a clear validation message.
+- Employee and Supervisor requesters each have an equal limit of 2 approved swaps per month. Only the requester is charged; the counterpart is not charged for this request.
+- Only fully approved requests consume quota; pending requests neither consume nor reserve it, and additional requests may be submitted while others are pending.
+- At final approval the server checks current usage and records quota use, approvals and all assignment changes atomically, so concurrent final approvals cannot exceed 2.
+- An approval command exceeding quota is blocked without changing the schedule; the user receives a clear reason. Pending-request closure behavior remains conditional.
+- The cost of a two-date request, quota month basis and quota restoration after an approved cancellation remain unresolved in the [dated review](01-spec/2026-11-04-01-business-rules-master.md). No counting basis is silently selected.
 
 ---
 
 #### US-024 — Cross-Team / Cross-Shift Approval
 
 **User Story**
-As a Supervisor, I want cross-shift or cross-team swaps to require approval from both responsible Supervisors so that both teams agree to the change.
+As an assigned approver, I want the approval route to reflect the requester's role so that cross-team schedule changes are decided by the responsible authority.
 
 **Priority:** P0  
 **Story Points:** 8  
 **Release:** MVP
 
 **Acceptance Criteria**
-- System identifies the Supervisor responsible for each employee/team.
-- Both Supervisors must approve when required.
+- For an Employee request, the existing two-responsible-Supervisor baseline is retained for review; the old Proposal also contains an additional Manager step, so the definitive route and order remain conditional on Manager confirmation.
+- For a Supervisor request, one assigned Manager approves for both parties, as confirmed by the owner on 2026-11-04. Selecting the responsible Manager when several exist remains conditional.
 - Swap is not finalized until all required approvals are completed.
-- Rejection by any required Supervisor rejects the request.
+- Rejection by any assigned required approver rejects the request under the route confirmed for that request type.
 - Final schedule is updated only after all required approvals.
+- Submission and final approval may occur throughout the swap date, even after shift start, but approval cannot finish on the following day. The two-date cutoff and end-of-day reference remain explicit open questions in the [dated review](01-spec/2026-11-04-01-business-rules-master.md).
 
 ---
 
@@ -1043,11 +1047,11 @@ As a Supervisor, I want to see schedule changes and requests by period so that I
 | BR-004 | An employee must not work more than 6 consecutive days under the current company rule. |
 | BR-005 | An employee must have at least 1 rest day before returning to work after 6 consecutive working days. |
 | BR-006 | Shift assignment must consider employee position and required skills. |
-| BR-007 | Planned schedule/leave changes should be completed at least 1 day in advance. |
+| BR-007 | Planned schedule/leave changes retain the existing advance rule outside SWAP. For SWAP, the owner-confirmed 2026-11-04 exception permits advance submission without a fixed-day limit and submission/approval throughout the swap date; no past-date actions. Two-date cutoff remains conditional. |
 | BR-008 | Emergency sick leave may require a retrospective schedule update to reflect actual work. |
 | BR-009 | Replacement/OT employees must be eligible for the target shift and must not exceed the consecutive-working-day limit. |
-| BR-010 | An employee may request a shift swap no more than 2 times per month according to the current documented rule. |
-| BR-011 | Cross-team/cross-shift swaps require approval from both responsible Supervisors. |
+| BR-010 | Employee and Supervisor requesters each have 2 approved swaps per month; count only the requester at final approval, not pending requests. Two-date unit, month basis and approved-cancellation treatment remain conditional in the 2026-11-04 review. |
+| BR-011 | Supervisor-requested swaps require one Manager. Employee-requested cross-team swaps retain the two-Supervisor baseline for review; the conflicting extra Manager step and approval order await confirmation. |
 | BR-012 | A schedule change becomes effective only after all required approvals are completed. |
 | BR-013 | Approved schedule changes must update the central schedule. |
 | BR-014 | Authorized users must access the same current schedule as the single source of truth. |

@@ -35,7 +35,7 @@ export function buildRole(roleKey, actor) {
       { id: 'my-history', label: 'ประวัติของฉัน' }] },
     HR: { title: 'เจ้าหน้าที่ฝ่ายบุคคล', short: 'ฝ่ายบุคคล', nav: [
       { id: 'schedule', label: 'ตารางกะรวม (Schedule)' },
-      { id: 'hr-export', label: 'ข้อมูลและส่งออก CSV' },
+      { id: 'hr-export', label: actor.hrClosedRoster ? 'ตารางกะปิดเดือนและ CSV' : 'ข้อมูลและส่งออก CSV' },
       { id: 'hr-audit', label: 'ตรวจสอบ OT และประวัติ' }] },
     'Contractor / Van Driver': { title: 'พนักงานขับรถตู้รับส่ง (สายหลัก) — External User', short: 'ผู้ใช้ภายนอก (External User)', nav: [] }
   }[roleKey] || { title: `Shift Supervisor (Shift ${team})`, short: `หัวหน้ากะ ${team}`, team: `shift${team}`, nav: SUP_NAV.map(n => ({ ...n })) };

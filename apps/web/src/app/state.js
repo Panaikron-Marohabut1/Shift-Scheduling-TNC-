@@ -117,9 +117,11 @@ export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false,
 
 /* ---------- เก็บข้อมูลเดโมในเบราว์เซอร์ ---------- */
 let lastSaved = '';
-export function loadLocal() {
+let localKey = LOCAL_KEY;
+export function loadLocal(pilot = false) {
+  localKey = pilot ? `${LOCAL_KEY}.swap-pilot` : LOCAL_KEY;
   let data = null;
-  try { const raw = localStorage.getItem(LOCAL_KEY); data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+  try { const raw = localStorage.getItem(localKey); data = raw ? JSON.parse(raw) : null; } catch { data = null; }
   // รับเฉพาะค่าที่ชนิดตรงกับค่าตั้งต้น (กันข้อมูลในเครื่องเสียหรือถูกแก้ แล้วทำให้หน้าเว็บพัง)
   const kind = v => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v);
   if (data && kind(data) === 'object') SAVED_FIELDS.forEach(k => { if (data[k] !== undefined && (kind(data[k]) === kind(state[k]) || state[k] === null)) state[k] = data[k]; });
@@ -132,6 +134,6 @@ function snapshot() { const out = {}; SAVED_FIELDS.forEach(k => { out[k] = state
 export function saveLocal() {
   const text = JSON.stringify(snapshot());
   if (text === lastSaved) return;
-  try { localStorage.setItem(LOCAL_KEY, text); lastSaved = text; } catch { /* เบราว์เซอร์ไม่ให้เก็บ */ }
+  try { localStorage.setItem(localKey, text); lastSaved = text; } catch { /* เบราว์เซอร์ไม่ให้เก็บ */ }
 }
-export function clearLocal() { try { localStorage.removeItem(LOCAL_KEY); } catch { /* ไม่มีที่เก็บ */ } }
+export function clearLocal() { try { localStorage.removeItem(localKey); } catch { /* ไม่มีที่เก็บ */ } }

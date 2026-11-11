@@ -7,6 +7,7 @@ import { state } from './state.js';
 import { isSupervisorRoleName } from '../shared/scheduling/employees.js';
 import { driverHtml } from '../features/external/view.js';
 import { historyHtml } from '../features/history/view.js';
+import { closedRosterHtml, hasClosedRosterAccess } from '../features/hr/closed-roster.js';
 import { hrHtml } from '../features/hr/view.js';
 import { annualHtml } from '../features/manager/annual.js';
 import { peopleHtml } from '../features/manager/people.js';
@@ -34,7 +35,7 @@ export function viewHtml() {
     if (v === 'my-history') return historyHtml(titleOf('my-history'));
   } else if (r === 'HR') {
     if (v === 'schedule') return scheduleHtml();
-    if (v === 'hr-export') return hrHtml();
+    if (v === 'hr-export') return hasClosedRosterAccess() ? closedRosterHtml() : hrHtml();
     if (v === 'hr-audit') return historyHtml(titleOf('hr-audit'));
   } else if (r === 'Manager') {
     if (v === 'manager-monitoring') return requestsHtml(titleOf('manager-monitoring'));

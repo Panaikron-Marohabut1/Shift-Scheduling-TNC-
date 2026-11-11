@@ -16,6 +16,8 @@ html { font-family: var(--font); font-size: 15px; line-height: 1.55; -webkit-tex
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); min-height: 100vh; }
 body.modal-open { overflow: hidden; }
 h1, h2, h3, p, ul, ol, dl, dd { margin: 0; }
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
 ul, ol { padding: 0; list-style: none; }
 h1 { font-size: 1.75rem; font-weight: 700; line-height: 1.25; }
 h2 { font-size: 1.15rem; font-weight: 600; line-height: 1.35; }
@@ -85,7 +87,7 @@ textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85
 .st.bad { color: var(--bad); }
 .badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #e5484d; color: #fff; font-size: 0.75rem; font-weight: 700; font-style: normal; line-height: 1; }
 .new { font-style: normal; font-size: 0.8rem; font-weight: 600; color: var(--primary); background: var(--primary-tint); padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
-.note { font-size: 0.95rem; color: var(--ink-2); }
+.note { font-size: 0.95rem; color: var(--ink-2); text-wrap: balance; }
 .note.warn { color: var(--warn); }
 .empty { padding: 48px 16px; text-align: center; color: var(--muted); background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); }
 .none { padding: 14px 0; color: var(--muted); }
