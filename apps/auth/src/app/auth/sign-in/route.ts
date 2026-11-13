@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { isAllowedEmail } from "@/lib/auth/config";
+import { getAuthConfig, isAllowedEmail } from "@/lib/auth/config";
 import { loginRedirectTarget, safeRedirectTarget } from "@/lib/auth/redirects";
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
+  const config = getAuthConfig();
+  if (config.pilot && request.headers.get("origin") !== config.authHost) return new NextResponse(null, { status: 403 });
   const formData = await request.formData();
   const email = String(formData.get("email") || "");
   const password = String(formData.get("password") || "");
   const redirectTo = safeRedirectTarget(String(formData.get("redirect_to") || ""));
   const failed = (reason: string) => {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", config.pilot ? config.authHost : request.url);
     if (redirectTo) loginUrl.searchParams.set("redirect_to", redirectTo);
     loginUrl.searchParams.set("error", reason);
     return NextResponse.redirect(loginUrl, 303);

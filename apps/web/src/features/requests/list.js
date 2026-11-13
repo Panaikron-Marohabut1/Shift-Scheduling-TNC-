@@ -47,7 +47,7 @@ export function requestsHtml(title) {
   const isEmp = state.activeRole === 'Shift Employee';
   const pendingN = list.filter(r => r.status && r.status.includes('รอ')).length;
   const right = [`<span class="st ${pendingN ? 'wait' : ''}">${isEmp ? `คำขอของฉัน ${list.length} รายการ` : `รอดำเนินการ ${pendingN} รายการ`}</span>`];
-  if (state.localRequests.length) right.push('<button class="btn" data-click="resetTestcases()" title="ล้างรายการคำขอทดลองในเครื่องนี้ เพื่อเริ่มทดสอบใหม่">ล้างคิวคำขอ</button>');
+  if (!state.actor?.remotePilot && state.localRequests.length) right.push('<button class="btn" data-click="resetTestcases()" title="ล้างรายการคำขอทดลองในเครื่องนี้ เพื่อเริ่มทดสอบใหม่">ล้างคิวคำขอ</button>');
   if (isEmp) right.push('<button class="btn primary" data-click="SF.newRequest()">ยื่นคำขอ</button>');
   return `
     ${pageHead(esc(title), right.join(''))}
@@ -61,7 +61,7 @@ export function requestsHtml(title) {
                 <td><b class="rq-type">${esc(r.type)}</b><small>${esc(r.person)} · ${esc(r.roleCategory)}</small></td>
                 <td class="nowrap">${esc(r.date)}<small>ยื่นเมื่อ ${esc(r.submittedAt)}</small></td>
                 <td>${esc(r.reason)}${r.currentShift && r.currentShift !== '-' ? `<small>${esc(r.type.includes('OT') ? 'กะเดิม → OT ที่ขอ' : 'กะเดิม → กะใหม่')}: ${esc(r.currentShift)} → ${esc(r.targetShift)}</small>` : ''}${r.targetPerson ? `<small>คู่สลับ/ผู้เกี่ยวข้อง: ${esc(r.targetPerson)}</small>` : ''}${r.quotaUsed && r.quotaUsed !== '-' ? `<small>โควตาเดือนนี้ ${esc(r.quotaUsed)}</small>` : ''}${stepsInline(r)}${r.rejectReason ? `<small class="err">เหตุผลที่ไม่อนุมัติ: ${esc(r.rejectReason)}</small>` : ''}</td>
-                <td><span class="st ${statusCls(r)}">${esc(r.status)}</span>${r.approvalBlockReason ? '<small>ต้องยื่นใหม่</small>' : ''}</td>
+                <td><span class="st ${statusCls(r)}">${esc(r.status)}</span>${r.approvalBlockReason ? '<small>ต้องยื่นใหม่</small>' : ''}${r.cancelBlockReason ? `<small>${esc(r.cancelBlockReason)}</small>` : ''}</td>
                 <td class="act"><div class="acts">${reqActions(r)}</div></td>
               </tr>`).join('')}
           </tbody>
@@ -73,6 +73,7 @@ export function requestsHtml(title) {
             <div class="rc-top"><b>${esc(r.type)} · ${esc(r.date)}</b><span class="st ${statusCls(r)}">${esc(r.status)}</span></div>
             <p class="muted small">${esc(r.person)} · ${esc(r.reason)}</p>
             ${r.approvalBlockReason ? `<p class="small err">${esc(r.approvalBlockReason)}</p>` : ''}
+            ${r.cancelBlockReason ? `<p class="muted small">${esc(r.cancelBlockReason)}</p>` : ''}
             ${r.rejectReason ? `<p class="small err">เหตุผลที่ไม่อนุมัติ: ${esc(r.rejectReason)}</p>` : ''}
             <div class="rc-act">${reqActions(r)}</div>
           </li>`).join('')}

@@ -44,8 +44,8 @@ export function scheduleState() {
   return {
     y, m, n: daysIn(y, m), monthLocked, readOnly, published,
     hasData: hasScheduleDataForMonth(y, m),
-    canPublish: state.activeRole === 'Manager' && !isYearPublished(y),
-    canExport: state.activeRole === 'Manager' || (readOnly && !hasClosedRosterAccess()),
+    canPublish: !state.actor?.remotePilot && state.activeRole === 'Manager' && !isYearPublished(y),
+    canExport: !state.actor?.remotePilot && (state.activeRole === 'Manager' || (readOnly && !hasClosedRosterAccess())),
     canInteract: !monthLocked && !readOnly && published,
     viewer: (isSupervisorRoleName(state.activeRole) || state.activeRole === 'Shift Employee') ? currentEmp() : null,
     hol: holidaysOf(y)
@@ -55,7 +55,7 @@ export function scheduleState() {
 export function statusChips(S) {
   const status = [];
   status.push(S.published ? '<span class="st ok">ประกาศใช้แล้ว</span>' : '<span class="st warn">ฉบับร่าง ยังไม่ประกาศใช้</span>');
-  if (!S.hasData) status.push('<span class="st warn">ตารางคาดการณ์ ยังไม่มีข้อมูลจริง</span>');
+  if (!S.hasData) status.push(`<span class="st warn">${state.actor?.remotePilot ? 'ยังไม่มีตารางกะในฐานทดสอบ' : 'ตารางคาดการณ์ ยังไม่มีข้อมูลจริง'}</span>`);
   if (S.readOnly) status.push('<span class="st">ดูข้อมูลอย่างเดียว</span>');
   else if (S.monthLocked) status.push('<span class="st">ข้อมูลถูกล็อก</span>');
   else if (S.published) status.push('<span class="st ok">ยื่นคำขอได้</span>');

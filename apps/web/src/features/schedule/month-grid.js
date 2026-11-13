@@ -6,7 +6,7 @@ import { state } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { TH_DW, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { getAllEmployees } from '../../shared/scheduling/employees.js';
-import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
+import { getShiftCodeForDate, getTeamForDate } from '../../shared/scheduling/roster.js';
 import { cellText, changeNote, codeClass, famOf } from './codes.js';
 import { dayClass } from './days.js';
 import { matchQ, teamSections } from './page.js';
@@ -17,7 +17,7 @@ export function gridHtml(S) {
   const cls = days.map(d => dayClass(y, m, d, hol));
   const head = days.map((d, i) => `<th class="${cls[i]}" ${hol[`${m}-${d}`] ? `title="${esc(hol[`${m}-${d}`])}"` : ''}><span>${TH_DW[new Date(y, m, d).getDay()]}</span><b>${d}</b></th>`).join('');
   let shown = 0;
-  const body = teamSections().map(sec => {
+  const body = teamSections(y, m).map(sec => {
     const list = sec.employees.filter(matchQ);
     if (!list.length) return '';
     shown += list.length;
@@ -25,14 +25,15 @@ export function gridHtml(S) {
     <tr class="team"><th class="nm" scope="rowgroup">${esc(sec.name.replace(/"/g, ''))}</th><td colspan="${n + 3}" class="team-note">${esc(sec.thaiName)} · ${sec.employees.length} ตำแหน่ง</td></tr>
     ${list.map(emp => {
       const isSup = emp.id === sec.supervisorId || emp.roleCategory === 'Shift Supervisor';
-      const codes = days.map(d => getShiftCodeForDate(emp, y, m, d));
+      const codes = days.map(d => getTeamForDate(emp, y, m, d) === emp.teamForDisplay ? getShiftCodeForDate(emp, y, m, d) : null);
       const sum = { work: 0, ot: 0, leave: 0 };
-      codes.forEach(c => { const def = state.shiftDefs[c] || {}; if (c === 'O') return; if (def.leave) sum.leave += def.half ? 0.5 : 1; else { sum.work++; if (def.ot) sum.ot++; } });
+      codes.forEach(c => { const def = state.shiftDefs[c] || {}; if (!c || c === 'O') return; if (def.leave) sum.leave += def.half ? 0.5 : 1; else { sum.work++; if (def.ot) sum.ot++; } });
       const me = S.viewer && S.viewer.id === emp.id;
       return `
         <tr class="${me ? 'me' : ''}">
           <th class="nm" scope="row"><div class="nm-in"><span class="name">${esc(emp.name)}</span>${me ? '<span class="you">คุณ</span>' : ''}${isSup ? '<span class="tag" title="หัวหน้ากะ">S</span>' : ''}</div></th>
           ${codes.map((code, i) => {
+            if (code === null) return `<td class="${cls[i]}" aria-label="อยู่ทีมอื่นในวันนี้"></td>`;
             const d = i + 1, def = state.shiftDefs[code] || state.shiftDefs.O;
             const chg = changeNote(emp, y, m, d, code);
             const tip = `${emp.name} ${d} ${thaiMonthName(m, 'short')} · ${def.label}${chg ? ` · ${chg}` : ''}${hol[`${m}-${d}`] ? ` · ${hol[`${m}-${d}`]}` : ''}${!S.hasData ? ' · คาดการณ์' : ''}`;

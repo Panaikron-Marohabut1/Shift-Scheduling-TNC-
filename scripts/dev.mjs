@@ -89,9 +89,9 @@ async function checkPort(port) {
 async function main() {
   const envFile = resolve(root, '.env');
   const authFile = resolve(root, 'apps/auth/.env.local');
-  requireFile(envFile, 'Run pnpm setup once to prepare the local database and .env.');
+  if (process.env.APP_MODE !== 'SHARED_DEMO') requireFile(envFile, 'Run pnpm setup once to prepare the local database and .env.');
   requireFile(authFile, 'Create apps/auth/.env.local using apps/auth/README.md before starting.');
-  const env = { ...parseEnv(readFileSync(envFile, 'utf8')), ...process.env };
+  const env = { ...(existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : {}), ...process.env };
   const authEnv = { ...parseEnv(readFileSync(authFile, 'utf8')), ...process.env };
   for (const key of ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']) {
     if (!authEnv[key]) throw new Error(`Set ${key} in apps/auth/.env.local.`);

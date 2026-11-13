@@ -9,7 +9,7 @@ import { esc, js } from '../../shared/dom.js';
 import { isYearPublished } from '../../shared/scheduling/annual.js';
 import { daysIn, shortDate, TH_DW } from '../../shared/scheduling/dates.js';
 import { currentEmp, getAllEmployees, getEmployeeFacingShiftLabel } from '../../shared/scheduling/employees.js';
-import { getShiftCodeForDate, hasScheduleDataForMonth } from '../../shared/scheduling/roster.js';
+import { getShiftCodeForDate, getTeamForDate, hasScheduleDataForMonth, isSchedulePublished } from '../../shared/scheduling/roster.js';
 import { countMonthlySwapRequests } from '../../shared/scheduling/rules.js';
 import { pageHead } from '../../shared/ui.js';
 import { statusCls } from '../requests/list.js';
@@ -23,8 +23,10 @@ export function myHtml() {
   const y = state.currentYear, m = state.currentMonth, n = daysIn(y, m);
   const todayNum = Math.min(state.currentDay, n);
   const hasData = hasScheduleDataForMonth(y, m);
+  if (state.actor?.remotePilot && !hasData) return `${pageHead('กะของฉัน')}<div class="bar">${monthNav(true)}</div><p class="empty">ยังไม่มีตารางกะในฐานทดสอบสำหรับเดือนนี้</p>`;
   const hol = holidaysOf(y);
-  const sup = getAllEmployees().find(e => e.roleCategory === 'Shift Supervisor' && e.shiftType === emp.shiftType && e.id !== emp.id);
+  const team = getTeamForDate(emp, y, m, todayNum);
+  const sup = getAllEmployees().find(e => e.roleCategory === 'Shift Supervisor' && getTeamForDate(e, y, m, todayNum) === team && e.id !== emp.id);
   const todayCode = getShiftCodeForDate(emp, y, m, todayNum);
   const todayDef = state.shiftDefs[todayCode] || state.shiftDefs.O;
   const todayStr = new Date(y, m, todayNum).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -62,12 +64,12 @@ export function myHtml() {
     ${pageHead('กะของฉัน', '<button class="btn primary" data-click="SF.newRequest()">ยื่นคำขอ</button>')}
     <div class="my">
       <section class="panel my-now">
-        <p class="my-date">${esc(todayStr)} · ${esc(emp.shiftType)}</p>
+        <p class="my-date">${esc(todayStr)} · ${esc(team)}</p>
         <div class="my-shift ${famOf(todayCode)}">
           <b>${esc(label(todayCode))}</b>
           <span>รหัส ${esc(todayCode)} · ${esc(todayDef.time || '-')}</span>
         </div>
-        ${!isYearPublished(y) ? `<p class="note warn">${draftNote(y)}</p>` : !hasData ? '<p class="note warn">ตารางเดือนนี้เป็นการคาดการณ์ ยังไม่ใช่ตารางจริง โปรดยืนยันกะกับหัวหน้ากะ</p>' : ''}
+        ${state.actor?.remotePilot ? (!isSchedulePublished(y, m) ? '<p class="note warn">ตารางกะเดือนนี้ยังไม่ประกาศใช้</p>' : '') : !isYearPublished(y) ? `<p class="note warn">${draftNote(y)}</p>` : !hasData ? '<p class="note warn">ตารางเดือนนี้เป็นการคาดการณ์ ยังไม่ใช่ตารางจริง โปรดยืนยันกะกับหัวหน้ากะ</p>' : ''}
         <dl class="facts plain my-meta">
           ${emp.roleCategory === 'Shift Supervisor' ? '<div><dt>ตำแหน่ง</dt><dd>หัวหน้ากะ</dd></div>' : `<div><dt>หัวหน้ากะ</dt><dd>${sup ? `คุณ${esc(sup.name)}` : 'ไม่ระบุ'}</dd></div>`}
           <div><dt>รหัสพนักงาน</dt><dd>${esc(emp.code || emp.id)}</dd></div>

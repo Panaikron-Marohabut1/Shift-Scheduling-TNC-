@@ -1,6 +1,6 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { databaseOptions, isLocalSchedulingDatabase, isLocalSwapPilotDatabase } from '../src/config';
+import { centralSchedulingEnabled, databaseOptions, isLocalSchedulingDatabase, isLocalSwapPilotDatabase, settings } from '../src/config';
 
 const original = { url: process.env.DATABASE_URL, ca: process.env.DATABASE_CA_CERT };
 afterEach(() => {
@@ -57,4 +57,45 @@ test('cloud database refuses missing CA, weaker TLS, administrator account and o
   assert.throws(databaseOptions, /restricted backend/);
   process.env.DATABASE_URL = 'postgresql://app:fixture@other.example.com:5432/postgres';
   assert.throws(databaseOptions, /restricted to Supabase/);
+});
+
+test('remote Pilot requires its own project, restricted account, HTTPS origin and local Auth', t => {
+  const ref = 'abcdefghijklmnopqrst';
+  const valid = `postgresql://tnc_pilot_backend.${ref}:fixture@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`;
+  for (const [key, value] of Object.entries({ APP_MODE: 'PILOT', PILOT_SUPABASE_PROJECT_REF: ref, DATABASE_URL: valid,
+    DATABASE_CA_CERT: 'config/certs/supabase-prod-ca-2021.crt', APP_ORIGIN: 'https://pilot.example.com',
+    AUTH_URL: 'http://127.0.0.1:3001', HOST: '127.0.0.1', ENABLE_LOCAL_SWAP_POLICY: 'true', ENABLE_LOCAL_MONTH_CLOSE: 'true' })) {
+    const original = process.env[key];
+    process.env[key] = value;
+    t.after(() => { if (original === undefined) delete process.env[key]; else process.env[key] = original; });
+  }
+  assert.equal(settings().remotePilot, true);
+  assert.equal(centralSchedulingEnabled(new URL(valid)), true);
+  assert.ok(databaseOptions().ssl);
+  process.env.APP_ORIGIN = 'http://pilot.example.com';
+  assert.throws(settings, /HTTPS/);
+  process.env.APP_ORIGIN = 'https://pilot.example.com';
+  process.env.AUTH_URL = 'https://other.example.com';
+  assert.throws(settings, /local HTTP/);
+  process.env.AUTH_URL = 'http://127.0.0.1:3001';
+  process.env.DATABASE_URL = valid.replaceAll(ref, 'mmesiubkvxmsklmgsepd');
+  process.env.PILOT_SUPABASE_PROJECT_REF = 'mmesiubkvxmsklmgsepd';
+  assert.throws(databaseOptions, /own Supabase project/);
+});
+
+test('shared demo uses the existing Supabase project with localhost UI and central scheduling', t => {
+  const uri = 'postgresql://tnc_backend_dev.mmesiubkvxmsklmgsepd:fixture@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+  const fixture = { APP_MODE: 'SHARED_DEMO', DATABASE_URL: uri,
+    DATABASE_CA_CERT: 'config/certs/supabase-prod-ca-2021.crt', APP_ORIGIN: 'http://localhost:3000',
+    AUTH_URL: 'http://localhost:3001', HOST: '127.0.0.1', ENABLE_LOCAL_SWAP_POLICY: 'true', ENABLE_LOCAL_MONTH_CLOSE: 'true' };
+  for (const [key, value] of Object.entries(fixture)) {
+    const before = process.env[key];
+    process.env[key] = value;
+    t.after(() => { if (before === undefined) delete process.env[key]; else process.env[key] = before; });
+  }
+  assert.equal(settings().sharedDemo, true);
+  assert.equal(centralSchedulingEnabled(new URL(uri)), true);
+  assert.ok(databaseOptions().ssl);
+  process.env.DATABASE_URL = uri.replace('tnc_backend_dev.', 'postgres.');
+  assert.throws(databaseOptions, /restricted backend account/);
 });

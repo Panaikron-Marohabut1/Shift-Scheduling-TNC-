@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { isAllowedEmail } from "@/lib/auth/config";
+import { getAuthConfig, isAllowedEmail } from "@/lib/auth/config";
 import { loginRedirectTarget, safeRedirectTarget } from "@/lib/auth/redirects";
 import { createSupabaseRouteClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
+  if (getAuthConfig().pilot) return new NextResponse(null, { status: 404 });
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const redirectTo = safeRedirectTarget(url.searchParams.get("redirect_to"));

@@ -11,7 +11,7 @@ export async function linkUser(args:string[]) {
  const pool=new Pool({connectionString:process.env.DATABASE_ADMIN_URL});
  try {
   if(!args.length) {
-   const rows=(await pool.query(`SELECT u.user_id, r.role_name AS role, t.team_code AS team,
+   const rows=(await pool.query(`SELECT u.user_id, u.demo_profile, r.role_name AS role, t.team_code AS team,
     COALESCE(e.first_name || ' ' || e.last_name,u.demo_display_name) AS name, e.email, u.azure_object_id AS supabase_id, u.is_active AS active
     FROM users u JOIN roles r USING(role_id) LEFT JOIN employees e USING(employee_id) LEFT JOIN teams t USING(team_id) ORDER BY u.user_id`)).rows;
    console.table(rows);

@@ -31,7 +31,7 @@ function restore(k) {
 // โหลดตารางของปีที่กำลังดูถ้ายังไม่มี แล้ววาดใหม่
 export const pendingYears = {};
 function ensureYears() {
-  if (state.actor && state.actor.role === 'EXTERNAL') return; // ผู้ใช้ภายนอกไม่โหลดตารางพนักงาน
+  if (['ADMIN', 'EXTERNAL'].includes(state.actor?.role)) return;
   [state.currentYear, state.annualScheduleYear].forEach(y => {
     if (pendingYears[y] !== undefined) return;
     pendingYears[y] = loadYear(y).then(() => { if (view.signed) renderApp(); }).catch(() => { delete pendingYears[y]; });
@@ -49,5 +49,5 @@ export function renderApp() {
   app.innerHTML = shellHtml(viewHtml());
   translateTree(app);
   restore(k);
-  saveLocal();
+  if (state.actor?.role !== 'ADMIN') saveLocal();
 }

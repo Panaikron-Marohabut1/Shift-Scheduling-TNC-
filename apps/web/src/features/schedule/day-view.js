@@ -31,7 +31,7 @@ export function dayViewHtml(S) {
   const d = Math.min(view.day, n);
   const dt = new Date(y, m, d);
   const groups = { 'c-M': [], 'c-N': [], 'c-D': [], 'c-X': [], 'c-L': [], 'c-O': [] };
-  const people = teamSections().reduce((a, s) => a.concat(s.employees), []).filter(matchQ);
+  const people = teamSections(y, m, d).flatMap(section => section.employees).filter(matchQ);
   people.forEach(e => {
     const c = getShiftCodeForDate(e, y, m, d);
     let f = famOf(c);
@@ -48,7 +48,7 @@ export function dayViewHtml(S) {
         <li class="${S.viewer && S.viewer.id === x.e.id ? 'me' : ''}">
           <button class="prow" data-click="SF.cell(${js(x.e.id)}, ${d})">
             <span class="pname">${esc(x.e.name)}${S.viewer && S.viewer.id === x.e.id ? ' <span class="you">คุณ</span>' : ''}${x.e.roleCategory === 'Shift Supervisor' ? ' <span class="tag" title="หัวหน้ากะ">S</span>' : ''}</span>
-            <span class="pmeta">${esc(x.e.shiftType)}${x.note && key !== 'c-O' ? `<em>${esc(x.note)}</em>` : ''}</span>
+            <span class="pmeta">${esc(x.e.teamForDisplay)}${x.note && key !== 'c-O' ? `<em>${esc(x.note)}</em>` : ''}</span>
           </button>
           ${telOf(x.e.phone)}
         </li>`).join('')}</ul>` : '<p class="none">ไม่มี</p>'}

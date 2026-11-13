@@ -40,13 +40,14 @@ export function managerCanAct(req) {
   return t.includes(`Supervisor ${letter}`) || t.includes(`Shift ${letter}`);
 }
 export function canWithdrawRequest(req) {
-  if (req.api) return req.canCancel;
+  if (req?.api) return !!req.canCancel && req.status.includes('รอ');
   if (!req || !req.status || !req.status.includes('รอ')) return false;
   return (req.approvers || []).every(a => a.status === 'pending');
 }
-// ยกเลิกคำขอที่อนุมัติแล้ว (คืนตารางเดิม): ผู้ยื่นหรือผู้จัดการ · คำขอเดโมที่ระบบจดช่องที่เปลี่ยนไว้ · เดือนยังไม่ถูกล็อก
 export function canCancelApproved(req) {
-  if (!req || req.api || req.status !== 'อนุมัติแล้ว' || !(req.applied || []).length) return false;
+  if (req?.status !== 'อนุมัติแล้ว') return false;
+  if (req.api) return !!req.canCancel;
+  if (!(req.applied || []).length) return false;
   if (req.applied.some(a => isMonthLocked(a.y, a.m))) return false;
   const me = currentEmp();
   return state.activeRole === 'Manager' || !!(me && req.requesterId === me.id);

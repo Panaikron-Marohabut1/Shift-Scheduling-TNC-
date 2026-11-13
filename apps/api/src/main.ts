@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { isLocalSchedulingDatabase, projectRoot, settings } from './config';
+import { isLocalSchedulingDatabase, pilotMigrations, projectRoot, settings } from './config';
 import { resolve } from 'node:path';
 import express from 'express';
 import { Database } from './database/database.service';
@@ -20,7 +20,12 @@ export async function start() {
  try {
   const schema=await db.query("SELECT name FROM schema_migrations WHERE name='004_request_cancellation.sql'");
   if(!schema.rowCount)throw new Error('Run db:migrate first.');
-  if (isLocalSchedulingDatabase(new URL(process.env.DATABASE_URL!))) {
+  if (config.remotePilot || config.sharedDemo) {
+    const result=await db.query('SELECT count(*)::int AS installed FROM schema_migrations WHERE name=ANY($1::text[])',[pilotMigrations]);
+    if(result.rows[0].installed!==pilotMigrations.length)throw new Error('Prepare the Pilot database before starting the app.');
+    const activation=await db.query('SELECT 1 FROM shiftflow_policy.swap_policy_activation WHERE singleton=true');
+    if(!activation.rowCount)throw new Error('Activate the central swap policy in the Pilot database before starting the app.');
+  } else if (isLocalSchedulingDatabase(new URL(process.env.DATABASE_URL!))) {
     const latest=await db.query("SELECT name FROM schema_migrations WHERE name='007_swap_policy_cutover.sql'");
     if(!latest.rowCount)throw new Error('Run pnpm db:migrate before starting the local scheduling app.');
   }

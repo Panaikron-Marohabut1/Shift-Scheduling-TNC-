@@ -35,8 +35,11 @@ function choices(f, emp, y, m) {
       if (!secondDates.length) continue;
       for (const date of workingDates) {
         if (!isDayOff(other[date]) || !canSwap(date, other)) continue;
+        const sameTeams = secondDates.filter(second => own[second].team_id === own[date].team_id
+          && other[second].team_id === other[date].team_id);
+        if (!sameTeams.length) continue;
         if (!crossDatePartners.has(date)) crossDatePartners.set(date, []);
-        crossDatePartners.get(date).push({ id, shift: other[date], secondDates });
+        crossDatePartners.get(date).push({ id, shift: other[date], secondDates: sameTeams });
       }
     }
   }
@@ -56,6 +59,10 @@ function choices(f, emp, y, m) {
 }
 
 const dayLabel = (date, y, m) => shortDate(y, m, Number(date.slice(-2)));
+const swapDateLabel = date => {
+  const [year, month, day] = date.split('-').map(Number);
+  return shortDate(year, month - 1, day);
+};
 const payloadFor = ({ a, b }) => ({
   assignmentId: a.assignment_id, targetAssignmentId: b.assignment_id,
   assignmentVersion: a.version, targetVersion: b.version,
@@ -66,9 +73,29 @@ const checkPresentation = {
   FAIL: { status: 'fail', statusText: 'ไม่ผ่าน' },
   UNCONFIRMED: { status: 'pending', statusText: 'รอยืนยัน' },
 };
+const hiddenPassingChecks = new Set(['OWN_ASSIGNMENT', 'SAME_DATE']);
 const quotaMonth = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'Asia/Bangkok' });
 
-function renderRulePreview(preview) {
+function renderSwapChecks(checks, selectedDates) {
+  const rows = new Map();
+  for (const check of checks) {
+    const presentation = checkPresentation[check.status];
+    if (!presentation) continue;
+    const key = JSON.stringify([check.rule, check.status, check.message, Boolean(check.workDate)]);
+    if (!rows.has(key)) rows.set(key, {
+      ...presentation, rule: check.label || '', msg: check.message, dates: new Set(),
+    });
+    if (check.workDate) rows.get(key).dates.add(check.workDate);
+  }
+  return checksList('', [...rows.values()].map(({ dates, ...row }) => {
+    const coversSelection = dates.size === selectedDates.length && selectedDates.every(date => dates.has(date));
+    if (!dates.size || coversSelection) return row;
+    const label = [...dates].map(swapDateLabel).join(' และ ');
+    return { ...row, msg: `${row.msg} (${label})` };
+  }));
+}
+
+function renderRulePreview(preview, requesterName, partnerName, selectedDates) {
   if (!preview) return '';
   const retry = '<button class="btn sm" type="button" id="centralSwapCheckRetry">ตรวจอีกครั้ง</button>';
   if (preview.error) {
@@ -82,35 +109,45 @@ function renderRulePreview(preview) {
   if (!result) {
     return '<section class="central-swap-checks" id="centralSwapChecks" aria-busy="true"><p role="status">กำลังตรวจเงื่อนไขและโควตา…</p></section>';
   }
-  const groups = new Map();
-  for (const check of result.checks) {
-    const presentation = checkPresentation[check.status];
-    if (!presentation) continue;
-    const day = check.workDate || '';
-    if (!groups.has(day)) groups.set(day, []);
-    groups.get(day).push({ ...presentation, rule: check.label || '', msg: check.message });
-  }
+  const pending = result.checks.filter(check => check.status === 'UNCONFIRMED');
+  const checked = result.checks.filter(check => check.status === 'FAIL'
+    || (check.status === 'PASS' && !hiddenPassingChecks.has(check.rule)));
   const quota = result.quota;
   const quotaBlock = quota ? `<div class="swap-quota-summary" id="centralSwapQuota">
-    <div><strong>โควตาสลับกะของคุณ เดือน${esc(quotaMonth.format(new Date(`${quota.month}T00:00:00+07:00`)))}</strong>
+    <div><strong>โควตาสลับกะ เดือน${esc(quotaMonth.format(new Date(`${quota.month}T00:00:00+07:00`)))}</strong>
       <p>ใช้แล้ว ${esc(quota.used)} จาก ${esc(quota.limit)} ครั้ง</p></div>
     <strong>เหลือ ${esc(quota.remaining)} ครั้ง</strong>
     <p class="small">คำขอที่รออนุมัติยังไม่ใช้โควตา${quota.remaining === 0 ? ' ส่งคำขอได้ ระบบจะตรวจโควตาอีกครั้งตอนอนุมัติ' : ''}</p>
   </div>` : '';
+  const sections = [
+    { id: 'Requester', title: 'ผู้ขอ', name: requesterName, extra: quotaBlock,
+      checks: checked.filter(check => check.participant === 'requester') },
+    { id: 'Partner', title: 'ผู้ถูกขอ (คู่สลับ)', name: partnerName,
+      checks: checked.filter(check => check.participant === 'partner') },
+    { id: 'Shared', title: 'เงื่อนไขร่วม', checks: checked.filter(check => !check.participant) },
+    { id: 'Pending', title: 'กฎที่รอยืนยัน', checks: pending },
+  ];
   return `<section class="central-swap-checks" id="centralSwapChecks" aria-labelledby="centralSwapChecksTitle">
     <h3 id="centralSwapChecksTitle">ตรวจเงื่อนไขคำขอ</h3>
+    ${selectedDates.length ? `<p class="small muted">วันที่สลับกะ ${esc(selectedDates.map(swapDateLabel).join(' และ '))}</p>` : ''}
     <p class="small" role="status">${result.valid ? 'ผ่านเงื่อนไขที่ตรวจได้' : 'มีเงื่อนไขที่ยังไม่ผ่าน'}</p>
-    ${quotaBlock}
-    ${[...groups].map(([day, checks]) => {
-      const [year, month, date] = day.split('-').map(Number);
-      return checksList(day ? `วันที่ ${shortDate(year, month - 1, date)}` : 'เงื่อนไขของคำขอ', checks);
-    }).join('')}
+    ${sections.filter(section => section.name || section.checks.length).map(({ id, title, name, extra, checks }) => `
+      <section class="swap-check-group" aria-labelledby="centralSwap${id}RulesTitle">
+        <h4 id="centralSwap${id}RulesTitle">${title}${name ? `<span> · ${esc(name)}</span>` : ''}</h4>
+        ${extra || ''}
+        ${renderSwapChecks(checks, selectedDates) || '<p class="small muted">ยังไม่ได้ตรวจเงื่อนไขรายคน</p>'}
+      </section>`).join('')}
     ${result.valid ? '' : `<div>${retry}</div>`}
   </section>`;
 }
 
 export function centralSwapForm({ f, emp, y, m }) {
   const { dates, firstDates, first, partners, partner, secondDates, second, pairs } = choices(f, emp, y, m);
+  const teams = new Map();
+  for (const { id, shift } of partners) {
+    if (!teams.has(shift.team_code)) teams.set(shift.team_code, []);
+    teams.get(shift.team_code).push(opt(id, shift.name, f.partner));
+  }
   const twoDates = f.mode === 'two';
   const noCrossDate = twoDates && !firstDates.length;
   const disabled = f.submitting ? 'disabled' : '';
@@ -133,7 +170,7 @@ export function centralSwapForm({ f, emp, y, m }) {
     `<div class="field"><label for="centralSwapPartner">คู่สลับ</label>
       <select class="inp" id="centralSwapPartner" data-change="SF.rq('partner', this.value)" ${disabled}>
         ${opt('', 'เลือกคนที่ตกลงสลับกะด้วย', f.partner)}
-        ${partners.map(({ id, shift }) => opt(id, `${shift.name} · ทีม ${shift.team_code}`, f.partner)).join('')}
+        ${[...teams.keys()].sort().map(team => `<optgroup label="Shift ${esc(team)}">${teams.get(team).join('')}</optgroup>`).join('')}
       </select></div>`,
   );
   if (twoDates && !noCrossDate) {
@@ -166,7 +203,8 @@ export function centralSwapForm({ f, emp, y, m }) {
     ${esc(dayLabel(second, y, m))} · ${esc(pairs[1].a.name)} รับ${esc(getEmployeeFacingShiftLabel(pairs[1].b.shift_code))}แทน ${esc(pairs[1].b.name)}
   </p>` : '';
   return {
-    fields, rows, checks: renderRulePreview(f.preview), ready: !f.submitting && f.preview?.result?.valid === true,
+    fields, rows, checks: renderRulePreview(f.preview, emp.name, partner?.shift.name, pairs.map(({ date }) => date)),
+    ready: !f.submitting && f.preview?.result?.valid === true,
     note: note + coverage, submit: 'submitCentralSwap()',
     approvers: noCrossDate ? [] : state.actor.role === 'SUPERVISOR' ? ['ผู้จัดการ'] : ['หัวหน้ากะทั้งสองทีม (กดได้ทั้งสองลำดับ)'],
   };

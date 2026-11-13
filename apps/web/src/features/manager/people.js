@@ -12,11 +12,13 @@ import { showToast } from '../../shared/toast.js';
 import { pageHead, telOf } from '../../shared/ui.js';
 import { changed, rerender } from './refresh.js';
 import { notify } from '../notifications/store.js';
+import { centralPeopleHtml } from './central-people.js';
 
 /* ==========================================================================
    พนักงานและทีม
    ========================================================================== */
 export function peopleHtml() {
+  if (state.actor?.peopleManagement) return centralPeopleHtml();
   const teams = ['ALL', 'Shift A', 'Shift B', 'Shift C', 'Shift D'];
   const all = getAllEmployees();
   const term = state.employeeSearch.trim().toLowerCase();

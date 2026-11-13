@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { isLocalSchedulingDatabase } from '../config';
+import { centralSchedulingEnabled } from '../config';
 import { Database } from '../database/database.service';
 import { id } from '../shared/input';
 import { Actor } from '../shared/types';
@@ -24,7 +24,7 @@ export class SwapQuotaService {
   localPilotEnabled(): boolean {
     if (process.env.ENABLE_LOCAL_SWAP_POLICY === 'false') return false;
     const database = new URL(this.db.pool.options.connectionString!);
-    return isLocalSchedulingDatabase(database);
+    return centralSchedulingEnabled(database);
   }
 
   localPilotMonth(workDate: string): string | null {

@@ -20,9 +20,12 @@ export const KINDS = [
   { k: 'dayoff', label: 'ขอย้ายวันหยุดนักขัตฤกษ์', hint: 'เลือกไปทำงานในวันหยุดเดิม แล้วระบุวันที่จะหยุดแทน' }
 ];
 // ทุกบทบาทที่มีกะ (พนักงานและหัวหน้ากะ) เปลี่ยนตารางได้ผ่านคำขอเท่านั้น
-export const kindsAllowed = () => state.actor?.centralSwap
-  ? KINDS.map(kind => kind.k === 'swap' ? { ...kind, hint: 'แลกกะกับเพื่อนในวันเดียวกัน หรือทำกะแทนกันคนละวัน', central: true } : kind)
-  : KINDS;
+export function kindsAllowed() {
+  const kinds = state.actor?.remotePilot ? KINDS.filter(kind => kind.k === 'swap' && state.actor.centralSwap) : KINDS;
+  return state.actor?.centralSwap
+    ? kinds.map(kind => kind.k === 'swap' ? { ...kind, hint: 'แลกกะกับเพื่อนในวันเดียวกัน หรือทำกะแทนกันคนละวัน', central: true } : kind)
+    : kinds;
+}
 export const kindLabel = k => (KINDS.find(x => x.k === k) || {}).label || '';
 export function requestOptions(list, day, { fromCell = false, title = 'คำขอสำหรับวันที่เลือก', emptyMessage = 'วันนี้ไม่มีคำขอให้เลือก' } = {}) {
   return `<section class="request-options" aria-labelledby="requestOptionsTitle">
@@ -41,6 +44,10 @@ export function requestOptions(list, day, { fromCell = false, title = 'คำข
 export const LOCKED_NOTE = 'เดือนนี้ถูกล็อกข้อมูลแล้ว ดูได้อย่างเดียว ยื่นคำขอได้ตั้งแต่เดือนปัจจุบันเป็นต้นไป';
 export const PAST_DATE_NOTE = 'วันที่ผ่านมาแล้ว ดูรายละเอียดได้อย่างเดียว';
 export function draftBlocked(kind) {
+  if (state.actor?.remotePilot && (!state.actor.centralSwap || (kind && kind !== 'swap'))) {
+    openModal('ยังยื่นคำขอไม่ได้', '<p>รอบทดสอบนี้เปิดให้ยื่นเฉพาะคำขอสลับกะจากตารางส่วนกลาง</p>', '<button class="btn" data-click="closeModal()">ปิด</button>');
+    return true;
+  }
   const y = state.currentYear, m = state.currentMonth;
   const central = state.actor?.centralSwap && (!kind || kind === 'swap');
   const published = central ? isSchedulePublished(y, m) : isYearPublished(y);

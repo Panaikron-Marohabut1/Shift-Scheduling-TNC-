@@ -113,7 +113,7 @@ export const state = {
 
 // หน้าจอที่ยังไม่เกี่ยวกับข้อมูล (มุมมอง ช่องค้นหา ฟอร์มที่กำลังกรอก)
 // authMsg/loginUrl/unlinked ใช้ในหน้าเข้าสู่ระบบ (features/session/view.js)
-export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false };
+export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false, accessPending: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false };
 
 /* ---------- เก็บข้อมูลเดโมในเบราว์เซอร์ ---------- */
 let lastSaved = '';
@@ -132,8 +132,12 @@ export function loadLocal(pilot = false) {
 }
 function snapshot() { const out = {}; SAVED_FIELDS.forEach(k => { out[k] = state[k]; }); return out; }
 export function saveLocal() {
+  if (state.actor?.remotePilot) return;
   const text = JSON.stringify(snapshot());
   if (text === lastSaved) return;
   try { localStorage.setItem(localKey, text); lastSaved = text; } catch { /* เบราว์เซอร์ไม่ให้เก็บ */ }
 }
-export function clearLocal() { try { localStorage.removeItem(localKey); } catch { /* ไม่มีที่เก็บ */ } }
+export function clearLocal() {
+  if (state.actor?.remotePilot) return;
+  try { localStorage.removeItem(localKey); } catch { /* ไม่มีที่เก็บ */ }
+}

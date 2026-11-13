@@ -20,6 +20,7 @@ export const monthText = (style = 'long') => new Date(state.currentYear, state.c
 
 // LOCAL: บันทึกคำขอเดโมในเบราว์เซอร์ — ตอนต่อ API ให้เปลี่ยนเป็น POST ไปยังระบบหลังบ้านที่นี่จุดเดียว
 export function saveLocalRequest(req, logText, actor) {
+  if (state.actor?.remotePilot) return;
   const id = Date.now();
   const requester = findEmployeeById(req.requesterId);
   const roles = routeApprovers(requester, req.approvers.map(a => a.role));

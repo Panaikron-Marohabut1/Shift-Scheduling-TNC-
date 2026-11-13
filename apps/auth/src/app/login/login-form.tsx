@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function LoginForm({ redirectTo, errorMessage }: { redirectTo: string; errorMessage?: string }) {
-  const hasError = Boolean(errorMessage);
+export default function LoginForm({ redirectTo, hasError }: { redirectTo: string; hasError: boolean }) {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -16,7 +15,6 @@ export default function LoginForm({ redirectTo, errorMessage }: { redirectTo: st
   return (
     <form className="login-form" action="/auth/sign-in" method="post" onSubmit={() => setSubmitting(true)} aria-busy={submitting}>
       <input type="hidden" name="redirect_to" value={redirectTo} />
-      {hasError && <div className="login-error" id="login-error" role="alert"><strong>เข้าสู่ระบบไม่สำเร็จ</strong><p>{errorMessage}</p></div>}
       <div className="form-field">
         <label htmlFor="email">อีเมล</label>
         <input id="email" name="email" type="email" placeholder="name@example.com" autoComplete="username" autoCapitalize="none" spellCheck={false} aria-describedby={hasError ? "login-error" : undefined} required />

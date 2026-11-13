@@ -23,6 +23,8 @@ export function openRequestDetails(reqId) {
         <span class="pill ${statusClass}">${esc(statusLabel)}</span>
       </div>
       ${req.approvalBlockReason ? `<p class="notice">${esc(req.approvalBlockReason)}</p>` : ''}
+      ${req.cancelBlockReason ? `<p class="notice">${esc(req.cancelBlockReason)}</p>` : ''}
+      ${req.api && req.cancelledAfterApproval ? '<p class="notice">คืนตารางและโควตาแล้ว</p>' : ''}
       <dl class="request-detail-list">
         <div class="request-detail-row"><dt>ประเภทคำขอ</dt><dd>${esc(req.type)}</dd></div>
         <div class="request-detail-row"><dt>วันที่เกี่ยวข้อง</dt><dd>${esc(req.date)}</dd></div>

@@ -202,7 +202,16 @@ function revertSteps(req) {
 }
 export function promptCancelApproved(reqId) {
   const req = findReq(reqId);
-  if (!req || !canCancelApproved(req)) { showToast('ยกเลิกคำขอนี้ไม่ได้ — เดือนนั้นถูกล็อกแล้ว หรือคำขอไม่ได้อยู่ในสถานะอนุมัติแล้ว', 'alert'); return; }
+  if (!canCancelApproved(req)) { showToast(req?.cancelBlockReason || 'ยกเลิกคำขอนี้ไม่ได้', 'alert'); return; }
+  if (req.api) {
+    openModal('ยกเลิกการสลับกะที่อนุมัติแล้ว', `
+      <p>ระบบจะคืนกะเดิมของคุณและคู่สลับครบทุกวันที่เกี่ยวข้อง พร้อมคืนโควตา 1 สิทธิ์ให้คุณในเดือนเดิม</p>
+      <p class="muted small">วันที่สลับกะ ${esc(req.date)}</p>
+      <p id="approvedSwapCancelError" class="notice bad" role="alert" hidden></p>`, `
+      <button type="button" class="btn btn-secondary" data-click="closeModal()">เก็บคำขอไว้</button>
+      <button id="approvedSwapCancelConfirm" type="button" class="btn btn-danger" data-click="confirmCancelApproved(${js(req.id)})">ยืนยันยกเลิกและคืนตาราง</button>`);
+    return;
+  }
   const st = revertSteps(req);
   const list = (title, items) => (items.length ? `<h3>${esc(title)}</h3><ul class="howto">${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '');
   openModal('ยกเลิกคำขอที่อนุมัติแล้ว', `
@@ -216,7 +225,8 @@ export function promptCancelApproved(reqId) {
 }
 export async function confirmCancelApproved(reqId) {
   const req = findReq(reqId);
-  if (!req || !canCancelApproved(req)) return;
+  if (!canCancelApproved(req)) return;
+  if (req.api) { await cancelApprovedSwap(req); return; }
   const reason = (($('#cancelReasonInput') || {}).value || '').trim();
   if (!reason) { showToast('กรุณาระบุเหตุผลที่ยกเลิก', 'alert'); ($('#cancelReasonInput') || { focus() {} }).focus(); return; }
   const st = revertSteps(req);
@@ -234,8 +244,48 @@ export async function confirmCancelApproved(reqId) {
   showToast('ยกเลิกคำขอและคืนตารางกะเดิมเรียบร้อยแล้ว');
   await afterChange(false);
 }
+
+const approvedCancelAttempts = new Map();
+async function cancelApprovedSwap(req) {
+  const previous = approvedCancelAttempts.get(req.id);
+  if (previous?.pending) return;
+  const attempt = previous?.version === req.version ? previous : { version: req.version, key: crypto.randomUUID() };
+  attempt.pending = true;
+  approvedCancelAttempts.set(req.id, attempt);
+  const button = $('#approvedSwapCancelConfirm');
+  const failure = $('#approvedSwapCancelError');
+  if (failure) failure.hidden = true;
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'กำลังคืนตาราง…';
+  }
+  try {
+    await cancelApi(req, attempt.key);
+    if (button?.isConnected) closeModal();
+    approvedCancelAttempts.delete(req.id);
+    showToast('ยกเลิกการสลับกะและคืนโควตา 1 สิทธิ์แล้ว');
+  } catch (error) {
+    if (error.code !== 'NETWORK_ERROR') approvedCancelAttempts.delete(req.id);
+    const message = error.message || 'ยกเลิกคำขอไม่สำเร็จ';
+    if (failure?.isConnected) {
+      failure.textContent = message;
+      failure.hidden = false;
+    } else showToast(message, 'alert');
+  } finally {
+    try {
+      await afterChange(true);
+    } finally {
+      attempt.pending = false;
+      if (button?.isConnected) {
+        button.disabled = !canCancelApproved(findReq(req.id));
+        button.textContent = 'ยืนยันยกเลิกและคืนตาราง';
+      }
+    }
+  }
+}
 // ล้างคำขอทดลองในเครื่องนี้ (คำขอสลับกะในฐานข้อมูลไม่ถูกลบ)
 export async function resetTestcases() {
+  if (state.actor?.remotePilot) return;
   state.localRequests = [];
   saveLocal();
   merge();

@@ -1,10 +1,11 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { isLocalSchedulingDatabase } from '../config';
+import { centralSchedulingEnabled } from '../config';
 import { Database } from '../database/database.service';
 import { Actor, Assignment } from '../shared/types';
 import { bangkokWorkDate } from '../requests/swap-request-time';
 type ClosedRosterRow={employeeCode:string;team:string;workDate:string;shiftCode:string};
+type RestoredRosterSlot=Pick<Assignment,'assignment_id'|'version'|'work_date'|'shift_type_id'> & {restoredFromVersion:number};
 type SchedulePeriod={year:number;month:number};
 const monthKey=(period:SchedulePeriod)=>`${period.year}-${String(period.month).padStart(2,'0')}`;
 function previousMonth(current:string) {
@@ -15,15 +16,22 @@ const csvCell=(value:string)=>{
  const safe=/^[\s\uFEFF]*[=+\-@]|^[\t\r\n]/u.test(value)?`'${value}`:value;
  return `"${safe.replace(/"/g,'""')}"`;
 };
-export const assignmentSelect=`SELECT a.*, e.team_id, e.position, e.first_name||' '||e.last_name AS name,
+const assignmentSelect=`SELECT a.*, t.team_id, e.position, e.first_name||' '||e.last_name AS name,
  t.team_code, t.team_name, e.employee_code, st.shift_code, st.shift_name, st.is_working, st.start_time, st.end_time
- FROM shift_assignments a JOIN employees e USING(employee_id) JOIN shift_types st USING(shift_type_id) JOIN teams t USING(team_id)`;
+ FROM shift_assignments a JOIN employees e USING(employee_id) JOIN shift_types st USING(shift_type_id)`;
 @Injectable()
 export class SchedulesService {
  constructor(@Inject(Database) private readonly db:Database) {}
+ effectiveTeamsEnabled() { return centralSchedulingEnabled(new URL(this.db.pool.options.connectionString!)); }
+ assignmentTeamJoin() {
+  return this.effectiveTeamsEnabled()
+   ? 'JOIN teams t ON t.team_id=shiftflow_policy.employee_team_on(e.employee_id,e.team_id,a.work_date)'
+   : 'JOIN teams t ON t.team_id=e.team_id';
+ }
+ assignmentSelect() { return `${assignmentSelect} ${this.assignmentTeamJoin()}`; }
  localMonthCloseEnabled() {
   if(process.env.ENABLE_LOCAL_MONTH_CLOSE==='false') return false;
-  return isLocalSchedulingDatabase(new URL(this.db.pool.options.connectionString!));
+  return this.effectiveTeamsEnabled();
  }
  isClosed(periods:SchedulePeriod[],workDates:string[],checkedAt:Date) {
   if(!this.localMonthCloseEnabled()) return false;
@@ -59,7 +67,7 @@ export class SchedulesService {
    if(!schedule) throw new NotFoundException({code:'CLOSED_ROSTER_NOT_FOUND',message:'ไม่พบตารางที่ประกาศใช้แล้วสำหรับเดือนนี้'});
    const {rows}=await c.query<ClosedRosterRow>(`
     SELECT e.employee_code AS "employeeCode",t.team_code AS team,a.work_date::text AS "workDate",st.shift_code AS "shiftCode"
-    FROM shift_assignments a JOIN employees e USING(employee_id) JOIN teams t USING(team_id) JOIN shift_types st USING(shift_type_id)
+    FROM shift_assignments a JOIN employees e USING(employee_id) JOIN shift_types st USING(shift_type_id) ${this.assignmentTeamJoin()}
     WHERE a.schedule_id=$1 AND a.status='ACTIVE' AND a.work_date >= $2::date AND a.work_date < $2::date + interval '1 month'
     ORDER BY t.team_code,e.employee_code,a.work_date,a.assignment_id
    `,[schedule.schedule_id,`${month}-01`]);
@@ -79,7 +87,7 @@ export class SchedulesService {
   const [year,number]=month.split('-').map(Number);
   return this.db.transaction(async c=>{
   await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
-  const assignments=(await c.query(`${assignmentSelect} WHERE a.schedule_id IN
+  const assignments=(await c.query(`${this.assignmentSelect()} WHERE a.schedule_id IN
    (SELECT schedule_id FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')) ORDER BY e.employee_id,a.work_date`,[year,number,actor.role])).rows;
   const schedule=(await c.query("SELECT schedule_id,month,year,status,version,updated_at FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')",[year,number,actor.role])).rows[0]??null;
   await this.attachAppliedSwaps(c,assignments);
@@ -101,13 +109,30 @@ export class SchedulesService {
       OR (al.new_value->'secondSwap'->'source'->>'assignment_id')::int=ANY($1::int[])
       OR (al.new_value->'secondSwap'->'target'->>'assignment_id')::int=ANY($1::int[]))
    ORDER BY al.audit_id DESC`,[assignments.map(a=>a.assignment_id)])).rows;
+  if(!rows.length)return;
   const visible=new Map(assignments.map(a=>[a.assignment_id,a]));
+  const restored=(await c.query<{slot:RestoredRosterSlot}>(`SELECT entry.slot
+   FROM audit_logs al JOIN requests r ON r.request_id=al.entity_id
+   CROSS JOIN LATERAL jsonb_array_elements(al.new_value->'assignments') AS entry(slot)
+   WHERE al.entity_type='REQUEST' AND al.action='SCHEDULE_SWAP_REVERSED' AND r.status='CANCELLED'
+    AND (entry.slot->>'assignment_id')::int=ANY($1::int[])
+   ORDER BY al.audit_id DESC`,[assignments.map(a=>a.assignment_id)])).rows;
+  const evidenceVersions=new Map<number,number>();
+  // A reversal writes a new version. Follow protected evidence back to the restored roster state.
+  for(const {slot} of restored) {
+   const current=visible.get(slot.assignment_id);
+   if(current&&current.work_date===slot.work_date&&current.shift_type_id===slot.shift_type_id
+    && (evidenceVersions.get(slot.assignment_id)??current.version)===slot.version
+    && Number.isSafeInteger(slot.restoredFromVersion)&&slot.restoredFromVersion<slot.version) {
+    evidenceVersions.set(slot.assignment_id,slot.restoredFromVersion);
+   }
+  }
   for(const row of rows) for(const [oldPair,newPair] of [[row.old_value,row.new_value],[row.old_value?.secondSwap,row.new_value?.secondSwap]]) {
    for(const [side,other] of [['source','target'],['target','source']]) {
    const before=oldPair?.[side],after=newPair?.[side],partnerAfter=newPair?.[other];
    if(!before||!after||!partnerAfter)continue;
    const current=visible.get(after.assignment_id),partner=visible.get(partnerAfter.assignment_id);
-   if(!current||!partner||current.swap||current.status!=='ACTIVE'||current.version!==after.version||current.shift_type_id!==after.shift_type_id||current.work_date!==after.work_date||current.work_date!==partner.work_date)continue;
+   if(!current||!partner||current.swap||current.status!=='ACTIVE'||(evidenceVersions.get(current.assignment_id)??current.version)!==after.version||current.shift_type_id!==after.shift_type_id||current.work_date!==after.work_date||current.work_date!==partner.work_date)continue;
    current.swap={requestId:row.request_id,appliedAt:row.applied_at.toISOString(),originalShiftCode:before.shift_code,receivedShiftCode:after.shift_code,
     partner:{employeeId:partner.employee_id,name:partner.name,teamCode:partner.team_code,teamName:partnerAfter.team_name??partner.team_code}};
    }
@@ -115,6 +140,6 @@ export class SchedulesService {
  }
  async pair(c:PoolClient,ids:number[],lock=false):Promise<Assignment[]> {
   if(lock) await c.query('SELECT assignment_id FROM shift_assignments WHERE assignment_id=ANY($1::int[]) ORDER BY assignment_id FOR UPDATE',[ids]);
-  return (await c.query(`${assignmentSelect} WHERE a.assignment_id=ANY($1::int[]) ORDER BY a.assignment_id`,[ids])).rows;
+  return (await c.query(`${this.assignmentSelect()} WHERE a.assignment_id=ANY($1::int[]) ORDER BY a.assignment_id`,[ids])).rows;
  }
 }

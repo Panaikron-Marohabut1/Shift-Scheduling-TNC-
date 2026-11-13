@@ -1,15 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { Actor, Assignment, Check, SwapPair } from '../shared/types';
-type DisplayCheck = Check & {label:string;workDate?:string;employeeName?:string};
+type DisplayCheck = Check & {
+ label:string;
+ workDate?:string;
+ employeeName?:string;
+ participant?:'requester'|'partner';
+};
 
 export const pendingPolicies:DisplayCheck[]=[
  {rule:'SWAP_QUOTA',label:'โควตาสลับกะ',status:'UNCONFIRMED',message:'รอยืนยันกติกาการนับโควตา'},
  {rule:'REQUEST_WINDOW',label:'ช่วงเวลายื่นคำขอ',status:'UNCONFIRMED',message:'รอยืนยันช่วงเวลายื่นคำขอ'},
- {rule:'COVERAGE',label:'กำลังคนขั้นต่ำ',status:'UNCONFIRMED',message:'รอยืนยันจำนวนคนขั้นต่ำและข้อยกเว้น'},
- {rule:'SKILLS',label:'ทักษะเฉพาะงาน',status:'UNCONFIRMED',message:'รอยืนยันเกณฑ์ทักษะและคุณสมบัติ'},
- {rule:'REST_AFTER_NIGHT',label:'พักหลังกะดึก',status:'UNCONFIRMED',message:'รอยืนยันระยะพักขั้นต่ำหลังจบกะดึก'},
- {rule:'ROTATION_PATTERN',label:'รอบทำงาน 2 วัน หยุด 2 วัน',status:'UNCONFIRMED',message:'รอยืนยันว่าต้องใช้รอบนี้เป็นข้อบังคับหลังสลับกะหรือไม่'}
+ {rule:'COVERAGE',label:'กำลังคนขั้นต่ำ',status:'UNCONFIRMED',message:'แต่ละกะต้องเหลือคนอย่างน้อยกี่คนหลังสลับ'},
+ {rule:'SKILLS',label:'ทักษะเฉพาะงาน',status:'UNCONFIRMED',message:'คนที่มารับกะต้องมีทักษะหรือคุณสมบัติอะไรบ้าง'},
+ {rule:'REST_AFTER_NIGHT',label:'พักหลังกะดึก',status:'UNCONFIRMED',message:'ต้องพักกี่ชั่วโมงก่อนเริ่มกะถัดไป'},
+ {rule:'ROTATION_PATTERN',label:'รอบทำงาน 2 วัน หยุด 2 วัน',status:'UNCONFIRMED',message:'หลังสลับต้องรักษารอบนี้ทุกครั้งหรือไม่'}
 ];
 export function longestWorkingRun(rows:{work_date:string;is_working:boolean}[]):number {
  let longest=0,run=0,last='';
@@ -29,10 +34,10 @@ export function crossDateCoverChecks(first:SwapPair,second:SwapPair):DisplayChec
  return [
   {rule:'CROSS_DATE_FIRST_COVER',label:'วันที่คู่สลับมาทำแทน',workDate:requesterWorks.work_date,
    status:requesterWorks.is_working&&partnerOff.shift_code==='O'&&!partnerOff.is_working?'PASS':'FAIL',
-   message:'วันที่คู่สลับมาทำแทน ผู้ยื่นต้องมีกะและคู่สลับต้องหยุด'},
+   message:'ผู้ขอมีกะที่ต้องส่งต่อ และคู่สลับต้องเป็นวันหยุด'},
   {rule:'CROSS_DATE_SECOND_COVER',label:'วันที่ผู้ยื่นไปทำแทน',workDate:requesterOff.work_date,
    status:partnerWorks.is_working&&requesterOff.shift_code==='O'&&!requesterOff.is_working?'PASS':'FAIL',
-   message:'วันที่ผู้ยื่นไปทำแทน คู่สลับต้องมีกะและผู้ยื่นต้องหยุด'},
+   message:'คู่สลับมีกะที่ต้องส่งต่อ และผู้ขอต้องเป็นวันหยุด'},
  ];
 }
 @Injectable()
@@ -42,44 +47,70 @@ export class ValidationService {
  }
  async checkPairs(c:PoolClient,actor:Actor,pairs:[SwapPair,...SwapPair[]],submission=true) {
   const checks:DisplayCheck[]=[];
-  const add=(rule:string,label:string,ok:boolean,message:string,context?:Pick<DisplayCheck,'workDate'|'employeeName'>)=>
+  const add=(rule:string,label:string,ok:boolean,message:string,context?:Pick<DisplayCheck,'workDate'|'employeeName'|'participant'>)=>
    checks.push({rule,label,status:ok?'PASS':'FAIL',message,...context});
   const [source,target]=pairs[0];
   const dates=pairs.flatMap(pair=>pair.map(item=>item.work_date)).sort();
   if(pairs[1]) {
-   add('DISTINCT_DATES','วันที่สลับ',new Set(pairs.map(([a])=>a.work_date)).size===pairs.length,'ต้องเลือกวันที่สลับต่างกัน');
-   add('SAME_MONTH','เดือนของวันที่สลับ',dates[0].slice(0,7)===dates.at(-1)!.slice(0,7),'ทุกวันที่สลับต้องอยู่ในเดือนเดียวกัน');
-   add('SAME_PARTICIPANTS','ผู้เกี่ยวข้อง',pairs.every(([a,b])=>a.employee_id===source.employee_id&&b.employee_id===target.employee_id),'ต้องใช้คู่สลับคนเดิมทั้งสองวัน');
+   add('DISTINCT_DATES','วันทำแทน',new Set(pairs.map(([a])=>a.work_date)).size===pairs.length,'การสลับแบบคนละวันต้องเลือกวันทำแทนสองวันที่ต่างกัน');
+   add('SAME_MONTH','เดือนของวันที่สลับ',dates[0].slice(0,7)===dates.at(-1)!.slice(0,7),'วันทำแทนทั้งสองวันต้องอยู่เดือนและปีเดียวกัน');
+   add('SAME_PARTICIPANTS','คู่สลับทั้งสองวัน',pairs.every(([a,b])=>a.employee_id===source.employee_id&&b.employee_id===target.employee_id),'ทั้งสองวันต้องเป็นการทำแทนกันระหว่างคนคู่เดิม');
    checks.push(...crossDateCoverChecks(pairs[0],pairs[1]));
   }
   for(const [a,b] of pairs) {
    const context={workDate:a.work_date};
-   add('OWN_ASSIGNMENT','เจ้าของกะ',!submission||a.employee_id===actor.employeeId,'กะต้นทางต้องเป็นของผู้ยื่นคำขอ',context);
-   add('DISTINCT_TEAMS','สังกัดทีม',a.employee_id!==b.employee_id&&a.team_id!==b.team_id,'ผู้ยื่นและคู่สลับต้องอยู่คนละทีม',context);
-   add('SAME_DATE','วันที่ของกะทั้งคู่',a.work_date===b.work_date,'กะทั้งสองช่องในแต่ละรอบต้องเป็นวันเดียวกัน',context);
-   add('EFFECTIVE_ASSIGNMENT','สถานะกะเดิม',a.status==='ACTIVE'&&b.status==='ACTIVE','ทั้งสองช่องต้องเป็นกะที่มีผลอยู่',context);
-   add('POSITION','ประเภทพนักงาน',!!a.position&&a.position===b.position,'ผู้ยื่นและคู่สลับต้องเป็นพนักงานประเภทเดียวกัน',context);
-   add('DIFFERENT_SHIFT','รหัสกะเดิม',a.shift_type_id!==b.shift_type_id,`เลือกกะต่างกันเพื่อให้ตารางเปลี่ยน (${a.shift_code} / ${b.shift_code})`,context);
+   const differentTeams=a.employee_id!==b.employee_id&&a.team_id!==b.team_id;
+   const matchingDate=a.work_date===b.work_date;
+   const active=a.status==='ACTIVE'&&b.status==='ACTIVE';
+   const samePosition=!!a.position&&a.position===b.position;
+   const differentShifts=a.shift_type_id!==b.shift_type_id;
+   add('OWN_ASSIGNMENT','เจ้าของกะ',!submission||a.employee_id===actor.employeeId,
+    'ระบบตรวจว่ารายการกะฝั่งผู้ขอเป็นของคนที่ส่งคำขอ',{...context,participant:'requester'});
+   add('DISTINCT_TEAMS','สังกัดทีม',differentTeams,differentTeams
+    ? `ผู้ขออยู่ Shift ${a.team_code} คู่สลับอยู่ Shift ${b.team_code}` : 'เลือกคู่สลับจากทีมอื่น',context);
+   add('SAME_DATE','วันที่ในตาราง',matchingDate,matchingDate
+    ? 'รายการกะของทั้งคู่ตรงกับวันที่ที่ใช้จับคู่ในตาราง' : 'รายการกะของทั้งคู่อ้างถึงคนละวันที่ในตาราง',context);
+   add('EFFECTIVE_ASSIGNMENT','สถานะกะเดิม',active,active
+    ? 'รายการกะของทั้งสองคนยังมีผลในตาราง' : 'มีรายการกะที่ไม่มีผลในตารางแล้ว กรุณาเลือกใหม่',context);
+   add('POSITION','ประเภทพนักงาน',samePosition,samePosition
+    ? 'ผู้ขอและคู่สลับเป็นพนักงานประเภทเดียวกัน' : 'พนักงานกะสลับกับพนักงานกะ หัวหน้ากะสลับกับหัวหน้ากะ',context);
+   add('DIFFERENT_SHIFT','กะเดิมต่างกัน',differentShifts,differentShifts
+    ? `ก่อนสลับ ผู้ขอเป็น${a.shift_name} คู่สลับเป็น${b.shift_name}` : 'ทั้งสองคนมีกะเดิมเหมือนกัน สลับแล้วตารางจะไม่เปลี่ยน',context);
   }
   const result=()=>({valid:checks.every(x=>x.status==='PASS'),checks:[...checks,...pendingPolicies],dataSource:'SYNTHETIC',companyPoliciesConfirmed:false});
   if(checks.some(check=>check.status==='FAIL')) return result();
   for(const side of [0,1] as const) {
    const own=pairs[0][side];
    const replacements=new Map(pairs.map(pair=>[pair[side].assignment_id,pair[side===0?1:0]]));
-   const rows=(await c.query(`SELECT a.work_date,a.assignment_id,st.is_working,st.start_time,st.end_time FROM shift_assignments a JOIN shift_types st USING(shift_type_id)
-    WHERE a.employee_id=$1 AND a.status='ACTIVE' AND a.work_date BETWEEN $2::date-7 AND $3::date+7 ORDER BY a.work_date`,[own.employee_id,dates[0],dates.at(-1)])).rows;
-   const projected=rows.map(row=>{
-    const incoming=replacements.get(row.assignment_id);
-    return incoming?{...row,is_working:incoming.is_working,start_time:incoming.start_time,end_time:incoming.end_time}:row;
-   });
-   const consecutiveDays=longestWorkingRun(projected);
-   const context={employeeName:own.name};
+   const {consecutiveDays,noOverlap}=await this.projectedRoster(c,own.employee_id,dates[0],dates.at(-1)!,replacements);
+   const context={employeeName:own.name,participant:side===0?'requester' as const:'partner' as const};
    add(`MAX_SIX_DAYS_${own.employee_id}`,'วันทำงานต่อเนื่อง',consecutiveDays<=6,
-    `หลังสลับ ${own.name} ทำงานต่อเนื่องสูงสุด ${consecutiveDays} วันในช่วงที่ตรวจ เกณฑ์ไม่เกิน 6 วัน`,context);
-   const spans=projected.filter(r=>r.is_working&&r.start_time&&r.end_time).map(r=>interval(r.work_date,r.start_time,r.end_time)).sort((x,y)=>x[0]-y[0]);
-   add(`NO_OVERLAP_${own.employee_id}`,'ช่วงเวลาทำงาน',spans.every((s,i)=>i===0||s[0]>=spans[i-1][1]),
-    `ช่วงเวลาทำงานของ ${own.name} ต้องไม่ทับซ้อนกัน รวมกะข้ามคืน`,context);
+    `หลังสลับทำงานติดกันสูงสุด ${consecutiveDays} วันในช่วงที่ตรวจ ทำงานติดกันได้ไม่เกิน 6 วัน ถ้ากะที่สลับทำให้ต้องทำงานวันที่ 7 ติดต่อกัน จะส่งคำขอไม่ได้`,context);
+   add(`NO_OVERLAP_${own.employee_id}`,'ช่วงเวลาทำงาน',noOverlap,noOverlap
+    ? 'ระบบเทียบเวลาเริ่มและเลิกกะหลังสลับ รวมเวลาเลิกกะดึกในวันถัดไป กะถัดไปเริ่มได้ตั้งแต่เวลาที่กะก่อนหน้าเลิก'
+    : 'หลังสลับมีกะที่เริ่มก่อนกะก่อนหน้าเลิก ระบบนับรวมกะดึกที่เลิกวันถัดไปด้วย กรุณาเลือกกะหรือวันอื่น',context);
   }
   return result();
+ }
+ async canRestoreRoster(c:PoolClient,slots:Pick<Assignment,'employee_id'|'assignment_id'|'work_date'|'is_working'|'start_time'|'end_time'>[]) {
+  const dates=slots.map(slot=>slot.work_date).sort();
+  const replacements=new Map(slots.map(slot=>[slot.assignment_id,slot]));
+  for(const employeeId of new Set(slots.map(slot=>slot.employee_id))) {
+   const {consecutiveDays,noOverlap}=await this.projectedRoster(c,employeeId,dates[0],dates.at(-1)!,replacements);
+   if(consecutiveDays>6||!noOverlap)return false;
+  }
+  return true;
+ }
+ private async projectedRoster(c:PoolClient,employeeId:number,firstDate:string,lastDate:string,
+  replacements:ReadonlyMap<number,Pick<Assignment,'is_working'|'start_time'|'end_time'>>) {
+  const rows=(await c.query(`SELECT a.work_date,a.assignment_id,st.is_working,st.start_time,st.end_time FROM shift_assignments a JOIN shift_types st USING(shift_type_id)
+   WHERE a.employee_id=$1 AND a.status='ACTIVE' AND a.work_date BETWEEN $2::date-7 AND $3::date+7 ORDER BY a.work_date`,[employeeId,firstDate,lastDate])).rows;
+  const projected=rows.map(row=>{
+   const incoming=replacements.get(row.assignment_id);
+   return incoming?{...row,is_working:incoming.is_working,start_time:incoming.start_time,end_time:incoming.end_time}:row;
+  });
+  const spans=projected.filter(row=>row.is_working&&row.start_time&&row.end_time)
+   .map(row=>interval(row.work_date,row.start_time,row.end_time)).sort((x,y)=>x[0]-y[0]);
+  return {consecutiveDays:longestWorkingRun(projected),noOverlap:spans.every((span,index)=>index===0||span[0]>=spans[index-1][1])};
  }
 }

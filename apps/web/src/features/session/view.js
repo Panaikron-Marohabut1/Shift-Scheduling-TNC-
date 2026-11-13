@@ -22,8 +22,9 @@ export function goToLogin(loginUrl) {
 export function loginHtml() {
   const actions = [
     view.loginUrl ? '<button class="btn primary block" type="button" data-click="SF.toLogin()">เข้าสู่ระบบ</button>' : '',
-    view.unlinked ? '<button class="btn block" type="button" data-click="SF.logout()">ออกจากระบบ / ใช้บัญชีอื่น</button>' : '',
-    !view.loginUrl && !view.unlinked && view.authMsg ? '<button class="btn primary block" type="button" data-click="SF.retry()">ลองอีกครั้ง</button>' : ''
+    view.accessPending ? '<button class="btn primary block" type="button" data-click="SF.retry()">ตรวจสอบสิทธิ์อีกครั้ง</button>' : '',
+    view.unlinked || view.accessPending ? '<button class="btn block" type="button" data-click="SF.logout()">ออกจากระบบ / ใช้บัญชีอื่น</button>' : '',
+    !view.loginUrl && !view.unlinked && !view.accessPending && view.authMsg ? '<button class="btn primary block" type="button" data-click="SF.retry()">ลองอีกครั้ง</button>' : ''
   ].join('');
   return `
     <div class="login">
@@ -32,7 +33,7 @@ export function loginHtml() {
       </section>
       <section class="login-main">
         <div class="login-form">
-          <h1>เข้าสู่ระบบ</h1>
+          <h1>${view.accessPending ? 'รอกำหนดบทบาท' : 'เข้าสู่ระบบ'}</h1>
           <p${view.unlinked ? ' class="form-err" role="alert"' : ''}>${esc(view.authMsg || 'กำลังตรวจสอบการเข้าสู่ระบบ…')}</p>
           ${actions}
         </div>

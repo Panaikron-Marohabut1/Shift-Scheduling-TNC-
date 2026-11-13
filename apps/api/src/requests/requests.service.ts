@@ -1,12 +1,13 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { Database } from '../database/database.service';
-import { SchedulesService, assignmentSelect } from '../schedules/schedules.service';
+import { SchedulesService } from '../schedules/schedules.service';
 import { crossDateCoverChecks, ValidationService } from '../validation/validation.service';
 import { Actor, Assignment, SwapPair } from '../shared/types';
 import { hash } from '../auth/auth.service';
 import { SwapQuotaService } from './swap-quota.service';
-import { pendingSwapClosure, requireOpenSubmission, requireOpenSwap } from './swap-request-time';
+import { bangkokWorkDate, pendingSwapClosure, requireOpenSubmission, requireOpenSwap } from './swap-request-time';
+import { AppliedSwapEvidence, cancellationConflict, cancellationDeadlineIssue, cancellationPlan, cancellationSlotsMatch } from './approved-swap-cancellation';
 type SwapLeg={assignmentId:number;targetAssignmentId:number;assignmentVersion:number;targetVersion:number};
 export type SwapInput=SwapLeg&{secondSwap?:SwapLeg};
 export type DecisionInput={decision:'APPROVE'|'REJECT';expectedVersion:number;reason:string};
@@ -34,6 +35,12 @@ const swapSlots=`(VALUES
 const staleSlots=`EXISTS (SELECT 1 FROM ${swapSlots}
  LEFT JOIN shift_assignments live ON live.assignment_id=slots.assignment_id
  WHERE slots.assignment_id IS NOT NULL AND live.version IS DISTINCT FROM slots.version)`;
+const appliedSwapEvidence=(requestId:string)=>`SELECT jsonb_build_object('before',old_value,'after',new_value) AS evidence
+ FROM audit_logs WHERE entity_type='REQUEST' AND action='SCHEDULE_SWAP_APPLIED' AND entity_id=${requestId}
+ ORDER BY audit_id DESC LIMIT 1`;
+const cancellationAssignmentIds=(change:{assignment_id:number;target_assignment_id:number;
+ snapshot:{secondSwap?:{source:Assignment;target:Assignment}}})=>[change.assignment_id,change.target_assignment_id,
+ ...(change.snapshot.secondSwap?[change.snapshot.secondSwap.source.assignment_id,change.snapshot.secondSwap.target.assignment_id]:[])];
 @Injectable()
 export class RequestsService {
  constructor(@Inject(Database) private readonly db:Database,@Inject(SchedulesService) private readonly schedules:SchedulesService,@Inject(ValidationService) private readonly validation:ValidationService,@Inject(SwapQuotaService) private readonly quota:SwapQuotaService) {}
@@ -42,7 +49,7 @@ export class RequestsService {
    const a=(await this.schedules.pair(c,[assignmentId]))[0];
    if(!a||!this.canSubmit(actor,a)) this.denied();
    this.demoScope(a);
-   const rows=(await c.query(`${assignmentSelect} WHERE a.work_date=$1 AND e.team_id<>$2 AND e.position=$3 AND t.team_code IN ('A','B','C','D') AND a.status='ACTIVE' AND st.is_active AND t.is_active ORDER BY e.team_id,e.employee_id`,[a.work_date,a.team_id,a.position])).rows;
+   const rows=(await c.query(`${this.schedules.assignmentSelect()} WHERE a.work_date=$1 AND t.team_id<>$2 AND e.position=$3 AND t.team_code IN ('A','B','C','D') AND a.status='ACTIVE' AND st.is_active AND t.is_active ORDER BY t.team_id,e.employee_id`,[a.work_date,a.team_id,a.position])).rows;
    const candidates=[];
    for(const b of rows) candidates.push({...b,validation:await this.validation.check(c,actor,a,b)});
    return {assignment:a,candidates};
@@ -64,7 +71,7 @@ export class RequestsService {
    const checks=validation.checks.filter(check=>check.rule!=='SWAP_QUOTA'&&check.rule!=='REQUEST_WINDOW');
    if(validation.valid) checks.push({
     rule:'REQUEST_WINDOW',label:'ช่วงเวลายื่นคำขอ',status:'PASS',
-    message:'ยื่นได้ตั้งแต่วันนี้ถึงสิ้นเดือนนี้ตามเวลาไทย'
+    message:'เลือกวันสลับได้ตั้งแต่วันนี้ถึงวันสุดท้ายของเดือนนี้ตามเวลาไทย ยื่นได้แม้กะของวันนี้เริ่มแล้ว ยื่นย้อนหลังหรือข้ามเดือนไม่ได้'
    });
    const quota=await this.quota.readRequesterQuota(c,source.employee_id,quotaMonth);
    return {...validation,checks,quota};
@@ -91,7 +98,7 @@ export class RequestsService {
     quotaMonth?[assignmentIds,quotaMonth,checkedAt]:[assignmentIds]);
    if(duplicate.rowCount) throw new ConflictException({code:'PENDING_REQUEST',message:'มีคำขอรออนุมัติสำหรับกะนี้อยู่แล้ว กรุณาดูสถานะก่อนยื่นใหม่'});
    const needsManager=actor.role==='SUPERVISOR';
-   const approvers=await this.approversFor(c,a,b,needsManager);
+   const approvers=await this.approversFor(c,a,b,needsManager,pairs[1]?.[0].work_date);
    const submittedAt=new Date();
    if(quotaMonth) this.checkSubmissionDates(pairs,submittedAt);
    const {rows:[created]}=quotaMonth
@@ -162,7 +169,7 @@ export class RequestsService {
    })) {
     throw new ConflictException({code:'SWAP_PARTICIPANTS_CHANGED',message:'ผู้เกี่ยวข้องหรือทีมเปลี่ยนไป กรุณาสร้างคำขอใหม่'});
    }
-   if(!needsManager&&actor.teamId!==(step.approver_level===1?a.team_id:b.team_id)) this.denied();
+   if(!needsManager&&(await this.approverTeam(c,actor))!==(step.approver_level===1?a.team_id:b.team_id)) this.denied();
    if(needsManager&&pairs.flat().some(slot=>slot.position!=='SUPERVISOR')) {
     throw new ConflictException({code:'VALIDATION_CHANGED',message:'ตำแหน่งของคู่สลับเปลี่ยนไป กรุณาสร้างคำขอใหม่'});
    }
@@ -215,12 +222,17 @@ export class RequestsService {
   });
  }
  async cancel(actor:Actor,requestId:number,expectedVersion:number,key:string) {
-  if(actor.role!=='EMPLOYEE')this.denied();
+  if(!['EMPLOYEE','SUPERVISOR'].includes(actor.role))this.denied();
   return this.operation(actor,key,{action:'CANCEL',requestId,expectedVersion},async (c,beforeCommit)=>{
    // Decisions acquire this same row lock before reading/updating approval steps.
    const request=(await c.query('SELECT * FROM requests WHERE request_id=$1 FOR UPDATE',[requestId])).rows[0];
    if(!request)throw new NotFoundException({code:'NOT_FOUND',message:'ไม่พบคำขอ'});
    if(request.requester_id!==actor.employeeId)this.denied();
+   if(request.status==='APPROVED'&&request.request_type==='SWAP'&&request.quota_month) {
+    if(request.version!==expectedVersion)throw new ConflictException({code:'VERSION_CONFLICT',message:'คำขอมีการเปลี่ยนแปลง กรุณาโหลดสถานะล่าสุด'});
+    return this.cancelApprovedSwap(c,actor,request,beforeCommit);
+   }
+   if(actor.role!=='EMPLOYEE')this.denied();
    if(request.status!=='PENDING')throw new ConflictException({code:'REQUEST_CLOSED',message:'คำขอนี้สิ้นสุดแล้ว กรุณาโหลดสถานะล่าสุด'});
    requireOpenSwap(request.quota_month,request.submitted_at,new Date());
    if(request.version!==expectedVersion)throw new ConflictException({code:'VERSION_CONFLICT',message:'คำขอมีการเปลี่ยนแปลง กรุณาโหลดสถานะล่าสุด'});
@@ -240,15 +252,70 @@ export class RequestsService {
    return {requestId,status:'CANCELLED',version:request.version+1};
   });
  }
+ private async cancelApprovedSwap(c:PoolClient,actor:Actor,
+  request:{request_id:number;requester_id:number;quota_month:string;version:number},beforeCommit:(check:()=>void)=>void) {
+  const requestId=request.request_id;
+  const {rows:[change]}=await c.query('SELECT * FROM change_requests WHERE request_id=$1',[requestId]);
+  const {rows:[applied]}=await c.query<{evidence:AppliedSwapEvidence}>(appliedSwapEvidence('$1'),[requestId]);
+  const ids=change?cancellationAssignmentIds(change):[];
+  const plan=cancellationPlan(applied?.evidence??null,request.quota_month,request.requester_id,ids);
+  if(plan.issue)throw new ConflictException(plan.issue);
+
+  const workDates=plan.changes.map(({before})=>before.work_date);
+  const checkDeadline=()=>{
+   const issue=cancellationDeadlineIssue(plan.deadline,new Date());
+   if(issue)throw new ConflictException(issue);
+  };
+  this.schedules.requireWritable([],workDates,new Date());
+  checkDeadline();
+  // Keep the same employee -> assignment -> schedule lock order used by final approval.
+  const current=await this.lockAssignments(c,ids,plan.changes.map(({before})=>before.employee_id));
+  const scheduleIds=[...new Set(plan.changes.map(({before})=>before.schedule_id))];
+  const {rows:periods}=await c.query<{year:number;month:number}>(
+   'SELECT year,month FROM schedules WHERE schedule_id=ANY($1::int[]) ORDER BY schedule_id FOR UPDATE',[scheduleIds]);
+  const checkWritable=()=>{
+   this.schedules.requireWritable(periods,workDates,new Date());
+   checkDeadline();
+  };
+  checkWritable();
+  if(!cancellationSlotsMatch(plan.changes,current as (Assignment & {assigned_by:number})[]))throw new ConflictException(cancellationConflict);
+  if(!await this.validation.canRestoreRoster(c,plan.changes.map(({before})=>before))) {
+   throw new ConflictException({code:'SWAP_CANCELLATION_SCHEDULE_INVALID',message:'คืนกะเดิมแล้วจะทำงานติดกันเกิน 6 วันหรือมีเวลางานซ้อนกัน กรุณาตรวจตารางล่าสุด'});
+  }
+
+  for(const {before} of plan.changes) {
+   await c.query('UPDATE shift_assignments SET shift_type_id=$1,assigned_by=$2,version=version+1,updated_at=now() WHERE assignment_id=$3',
+    [before.shift_type_id,before.assigned_by,before.assignment_id]);
+  }
+  await c.query('UPDATE schedules SET version=version+1,updated_at=now() WHERE schedule_id=ANY($1::int[])',[scheduleIds]);
+  // Usage is counted from APPROVED requests in the original month. This transition refunds exactly one slot.
+  await c.query("UPDATE requests SET status='CANCELLED',version=version+1,updated_at=now() WHERE request_id=$1",[requestId]);
+  await this.audit(c,actor,'SCHEDULE_SWAP_REVERSED',requestId,
+   {assignments:plan.changes.map(({after})=>after)},
+   {assignments:plan.changes.map(({before,after})=>({...before,restoredFromVersion:before.version,version:after.version+1})),quota:{month:request.quota_month,returned:1}});
+  await this.audit(c,actor,'REQUEST_CANCELLED',requestId,{status:'APPROVED',requestVersion:request.version},
+   {status:'CANCELLED',requestVersion:request.version+1});
+  const recipients=(await c.query('SELECT user_id FROM users WHERE employee_id=ANY($1::int[]) AND is_active',
+   [plan.changes.map(({before})=>before.employee_id)])).rows;
+  for(const user of recipients)await this.notify(c,user.user_id,requestId,'คำขอสลับกะถูกยกเลิก','คืนกะเดิมแล้ว กรุณาตรวจตารางล่าสุด');
+  beforeCommit(checkWritable);
+  return {requestId,status:'CANCELLED',version:request.version+1};
+ }
  async list(actor:Actor) {
   if(!['EMPLOYEE','SUPERVISOR','MANAGER'].includes(actor.role))this.denied();
   const rows=(await this.db.query(`SELECT r.*,ch.snapshot,ch.assignment_id,ch.target_assignment_id,
    source_team.team_code AS source_snapshot_team_code,target_team.team_code AS target_snapshot_team_code,
-   aa.version AS source_current_version, bb.version AS target_current_version, ${staleSlots} AS stale_schedule
+   aa.version AS source_current_version, bb.version AS target_current_version, ${staleSlots} AS stale_schedule,
+   applied.evidence AS cancellation_evidence, live.slots AS cancellation_slots
    FROM requests r JOIN change_requests ch USING(request_id)
    JOIN shift_assignments aa ON aa.assignment_id=ch.assignment_id JOIN shift_assignments bb ON bb.assignment_id=ch.target_assignment_id
    LEFT JOIN teams source_team ON source_team.team_id=(ch.snapshot->'source'->>'team_id')::int
    LEFT JOIN teams target_team ON target_team.team_id=(ch.snapshot->'target'->>'team_id')::int
+   LEFT JOIN LATERAL (${appliedSwapEvidence('r.request_id')}) applied
+    ON r.request_type='SWAP' AND r.status='APPROVED' AND r.quota_month IS NOT NULL AND r.requester_id=$1
+   LEFT JOIN LATERAL (SELECT jsonb_agg(slot) AS slots FROM (
+    ${this.schedules.assignmentSelect()} WHERE a.assignment_id IN (SELECT slots.assignment_id FROM ${swapSlots})
+   ) slot) live ON applied.evidence IS NOT NULL
    WHERE $2='MANAGER' OR r.requester_id=$1 OR ($2='SUPERVISOR' AND EXISTS(SELECT 1 FROM approvals ap WHERE ap.request_id=r.request_id AND ap.approver_id=$3))
    ORDER BY r.request_id DESC`,[actor.employeeId,actor.role,actor.userId])).rows;
   const checkedAt=new Date();
@@ -258,9 +325,12 @@ export class RequestsService {
     if(closure) row.status=closure.status;
    }
    if(row.status==='PENDING'&&this.schedules.isClosed([],rosterDates(row.snapshot),checkedAt)) row.status='MONTH_CLOSED';
+   const needsManager=managerApproval(row.snapshot);
    row.approvals=(await this.db.query(`SELECT a.*,COALESCE(e.first_name||' '||e.last_name,u.demo_display_name) AS name,t.team_name
-    FROM approvals a JOIN users u ON u.user_id=a.approver_id LEFT JOIN employees e USING(employee_id) LEFT JOIN teams t USING(team_id)
-    WHERE a.request_id=$1 ORDER BY approver_level`,[row.request_id])).rows;
+    FROM approvals a JOIN users u ON u.user_id=a.approver_id LEFT JOIN employees e USING(employee_id)
+    LEFT JOIN teams t ON t.team_id=CASE WHEN $2::boolean THEN e.team_id
+     ELSE COALESCE(CASE WHEN a.approver_level=1 THEN $3::int ELSE $4::int END,e.team_id) END
+    WHERE a.request_id=$1 ORDER BY approver_level`,[row.request_id,needsManager,row.snapshot.source.team_id,row.snapshot.target.team_id])).rows;
    row.hasConflict=row.status==='PENDING'&&row.stale_schedule;
    if(row.status==='PENDING') {
     if(invalidCrossDate(row.snapshot)) row.approvalBlockReason=crossDateApprovalBlocked;
@@ -269,10 +339,22 @@ export class RequestsService {
    delete row.stale_schedule;
    // Older snapshots keep stable team IDs but predate team_code. Do not rewrite approved payloads.
    row.demoSupported=demoTeam(row.source_snapshot_team_code)&&demoTeam(row.target_snapshot_team_code);
-   const needsManager=managerApproval(row.snapshot);
    row.approvalRouteConfirmed=validApprovalSteps(row.approvals,needsManager);
    row.canDecide=row.demoSupported&&row.approvalRouteConfirmed&&!row.hasConflict&&row.status==='PENDING'&&actor.role===(needsManager?'MANAGER':'SUPERVISOR')&&pendingStep(row.approvals,actor.userId,parallelApprovals(row.snapshot))?.approver_id===actor.userId;
    row.canCancel=actor.role==='EMPLOYEE'&&row.requester_id===actor.employeeId&&row.status==='PENDING'&&row.approvals.every((step:any)=>step.status==='PENDING');
+   if(['EMPLOYEE','SUPERVISOR'].includes(actor.role)&&row.status==='APPROVED'&&row.request_type==='SWAP'&&row.quota_month&&row.requester_id===actor.employeeId) {
+    const plan=cancellationPlan(row.cancellation_evidence,row.quota_month,row.requester_id,cancellationAssignmentIds(row));
+    if(plan.issue)row.cancelBlockReason=plan.issue.message;
+    else if(this.schedules.isClosed([],plan.changes.map(({before})=>before.work_date),checkedAt))row.cancelBlockReason='ตารางเดือนนี้ปิดแล้ว แก้ไขไม่ได้';
+    else {
+     const deadlineIssue=cancellationDeadlineIssue(plan.deadline,checkedAt);
+     if(deadlineIssue)row.cancelBlockReason=deadlineIssue.message;
+     else if(!cancellationSlotsMatch(plan.changes,row.cancellation_slots??[]))row.cancelBlockReason=cancellationConflict.message;
+     else row.canCancel=true;
+    }
+   }
+   delete row.cancellation_evidence;
+   delete row.cancellation_slots;
   }
   return rows;
  }
@@ -286,39 +368,64 @@ export class RequestsService {
   const source=slots.find(slot=>slot.assignment_id===input.assignmentId)!;
   if(submission&&!this.canSubmit(actor,source)) this.denied();
   if(submission&&input.secondSwap&&!this.quota.localPilotMonth(source.work_date)) this.denied();
-  if(lock) {
-   const employees=[...new Set(slots.map(a=>a.employee_id))].sort((a,b)=>a-b);
-   for(const employeeId of employees) await c.query('SELECT pg_advisory_xact_lock(810,$1)',[employeeId]);
-   // Keep team/participant data stable while checking and applying this decision.
-   await c.query('SELECT employee_id FROM employees WHERE employee_id=ANY($1::int[]) ORDER BY employee_id FOR SHARE',[employees]);
-   slots=await this.schedules.pair(c,ids,true);
-  }
+  if(lock)slots=await this.lockAssignments(c,ids,slots.map(a=>a.employee_id));
   const find=(id:number)=>slots.find(slot=>slot.assignment_id===id)!;
   if(slots.length!==ids.length) throw new NotFoundException({code:'ASSIGNMENT_NOT_FOUND',message:'ไม่พบรายการกะที่ระบุ'});
   const pairs:[SwapPair,...SwapPair[]]=[[find(input.assignmentId),find(input.targetAssignmentId)]];
   if(input.secondSwap) pairs.push([find(input.secondSwap.assignmentId),find(input.secondSwap.targetAssignmentId)]);
+  if(submission&&pairs[1]&&pairs[1].some((slot,index)=>slot.team_id!==pairs[0][index].team_id)) {
+   throw new ConflictException({code:'SWAP_PARTICIPANTS_CHANGED',message:'ทีมของผู้เกี่ยวข้องเปลี่ยนระหว่างวันที่เลือก กรุณาส่งคำขอแยกกัน'});
+  }
   return pairs;
+ }
+ private async lockAssignments(c:PoolClient,ids:number[],employeeIds:number[]) {
+  const employees=[...new Set(employeeIds)].sort((a,b)=>a-b);
+  for(const employeeId of employees)await c.query('SELECT pg_advisory_xact_lock(810,$1)',[employeeId]);
+  // Keep team/participant data stable while checking and applying this decision.
+  await c.query('SELECT employee_id FROM employees WHERE employee_id=ANY($1::int[]) ORDER BY employee_id FOR SHARE',[employees]);
+  return this.schedules.pair(c,ids,true);
  }
  private canSubmit(actor:Actor,assignment:Assignment) {
   if(assignment.employee_id!==actor.employeeId) return false;
   if(actor.role==='EMPLOYEE') return assignment.position!=='SUPERVISOR'||!this.quota.localPilotMonth(assignment.work_date);
   return actor.role==='SUPERVISOR'&&assignment.position==='SUPERVISOR'&&Boolean(this.quota.localPilotMonth(assignment.work_date));
  }
- private async approversFor(c:PoolClient,a:Assignment,b:Assignment,needsManager:boolean):Promise<number[]> {
+ private async approverTeam(c:PoolClient,actor:Actor) {
+  if(!this.schedules.effectiveTeamsEnabled()) return actor.teamId;
+  const {rows:[row]}=await c.query<{teamId:number}>(`SELECT shiftflow_policy.employee_team_on(employee_id,team_id,$2::date) AS "teamId"
+   FROM employees WHERE employee_id=$1`,[actor.employeeId,bangkokWorkDate(new Date())]);
+  return row?.teamId;
+ }
+ private async approversFor(c:PoolClient,a:Assignment,b:Assignment,needsManager:boolean,secondDate?:string):Promise<number[]> {
+  const effectiveTeams=this.schedules.effectiveTeamsEnabled();
   if(needsManager) {
-   const {rows}=await c.query(`SELECT u.user_id FROM users u JOIN roles r USING(role_id)
-    WHERE r.role_name='MANAGER' AND u.is_active AND u.identity_source='DEMO'`);
-   if(rows.length!==1) throw new ConflictException({code:'APPROVER_UNRESOLVED',message:'ยังระบุผู้จัดการคนเดียวสำหรับคำขอนี้ไม่ได้'});
-   return [rows[0].user_id];
+   const {rows}=await c.query<{user_id:number;designated:boolean}>(`SELECT u.user_id,(u.demo_profile='manager') AS designated FROM users u JOIN roles r USING(role_id)
+    WHERE r.role_name='MANAGER' AND u.is_active AND u.identity_source='DEMO'
+    ${effectiveTeams?"AND u.initial_access_state IS DISTINCT FROM 'PENDING'":''}`);
+   const selected=this.selectApprover(rows,effectiveTeams);
+   if(!selected) throw new ConflictException({code:'APPROVER_UNRESOLVED',message:'ยังระบุผู้จัดการคนเดียวสำหรับคำขอนี้ไม่ได้'});
+   return [selected];
   }
   const approvers:number[]=[];
   for(const team of [a.team_id,b.team_id]) {
-   const {rows}=await c.query(`SELECT u.user_id FROM users u JOIN employees e USING(employee_id) JOIN roles r USING(role_id)
-    WHERE e.team_id=$1 AND r.role_name='SUPERVISOR' AND u.is_active AND u.identity_source='DEMO' AND u.demo_order IS NOT NULL`,[team]);
-   if(rows.length!==1) throw new ConflictException({code:'APPROVER_UNRESOLVED',message:'ยังระบุหัวหน้าทีมที่รับผิดชอบไม่ได้ ต้องยืนยันก่อนยื่นคำขอ'});
-   approvers.push(rows[0].user_id);
+   const {rows}=await c.query<{user_id:number;designated:boolean}>(`SELECT u.user_id,(u.demo_order IS NOT NULL) AS designated
+    FROM users u JOIN employees e USING(employee_id) JOIN roles r USING(role_id)
+    WHERE r.role_name='SUPERVISOR' AND u.is_active AND u.identity_source='DEMO'
+    ${effectiveTeams?`AND u.initial_access_state IS DISTINCT FROM 'PENDING'
+     AND shiftflow_policy.employee_team_on(e.employee_id,e.team_id,$2::date)=$1
+     AND shiftflow_policy.employee_team_on(e.employee_id,e.team_id,$3::date)=$1
+     AND shiftflow_policy.employee_team_on(e.employee_id,e.team_id,$4::date)=$1`:'AND e.team_id=$1 AND u.demo_order IS NOT NULL'}`,
+   effectiveTeams?[team,bangkokWorkDate(new Date()),a.work_date,secondDate??a.work_date]:[team]);
+   const selected=this.selectApprover(rows,effectiveTeams);
+   if(!selected) throw new ConflictException({code:'APPROVER_UNRESOLVED',message:'ยังระบุหัวหน้าทีมที่รับผิดชอบไม่ได้ ต้องยืนยันก่อนยื่นคำขอ'});
+   approvers.push(selected);
   }
   return approvers;
+ }
+ private selectApprover(rows:{user_id:number;designated:boolean}[],preferDesignated:boolean) {
+  const designated=preferDesignated?rows.filter(row=>row.designated):[];
+  if(designated.length===1)return designated[0].user_id;
+  return rows.length===1?rows[0].user_id:null;
  }
  private checkVersions(pairs:[SwapPair,...SwapPair[]],input:SwapInput) {
   const expected=[input,input.secondSwap];
@@ -338,6 +445,13 @@ export class RequestsService {
   const inputHash=hash(JSON.stringify(input));
   return this.db.transaction(async c=>{
    await c.query('SELECT pg_advisory_xact_lock(811,hashtext($1))',[`${actor.userId}:${key}`]);
+   if(this.schedules.effectiveTeamsEnabled()) {
+    await c.query('SELECT pg_advisory_xact_lock_shared(814,1)');
+    const current=await c.query(`SELECT 1 FROM users u JOIN roles r USING(role_id)
+     WHERE u.user_id=$1 AND u.employee_id IS NOT DISTINCT FROM $2::int AND u.is_active AND r.role_name=$3`,
+    [actor.userId,actor.employeeId,actor.role]);
+    if(!current.rowCount)this.denied();
+   }
    const old=(await c.query('SELECT * FROM operation_receipts WHERE user_id=$1 AND operation_key=$2',[actor.userId,key])).rows[0];
    if(old) { if(old.input_hash!==inputHash) throw new ConflictException({code:'KEY_REUSED',message:'รหัสรายการถูกใช้กับคำสั่งอื่นแล้ว'}); return old.response; }
    let commitCheck=()=>{};

@@ -43,3 +43,28 @@
 }
 .yr-act { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
 #employeeForm { display: grid; gap: 14px; }
+
+.people-access-list { margin-top: 12px; }
+.people-access-row { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 14px 0; border-top: 1px solid var(--line-2); }
+.people-access-form { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+#admin-access .notice, #central-people > .notice { margin-bottom: 12px; }
+#admin-accounts .notice { margin-bottom: 12px; }
+.admin-accounts-table { width: 100%; }
+.admin-accounts-table th, .admin-accounts-table td { white-space: normal; }
+.admin-account-meta { display: block; color: var(--ink-2); font-weight: 400; }
+.admin-account-meta:empty { display: none; }
+.employee-edit-person { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.employee-edit-person span, .employee-edit-hint { color: var(--ink-2); }
+.employee-edit-hint { text-wrap: balance; }
+.employee-edit-hint span { display: block; }
+.employee-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.employee-edit-grid .field, .employee-edit-grid .inp { min-width: 0; }
+#centralEmployeeError:empty { display: none; }
+#centralEmployeeError ul { margin-block-start: 6px; }
+@media (max-width: 480px) {
+  .employee-edit-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .people-access-form { display: grid; width: 100%; }
+  .people-access-form .btn { justify-self: start; }
+}

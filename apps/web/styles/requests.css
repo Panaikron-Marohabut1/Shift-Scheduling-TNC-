@@ -83,6 +83,9 @@
 .rc-act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 
 /* แบบฟอร์มคำขอ (ชื่อคลาสตามต้นแบบ) */
+.facts.plain.request-requester > div { grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; }
+.request-requester dt { color: var(--ink-2); }
+.request-requester dd { overflow-wrap: anywhere; }
 .modal-body form { display: grid; gap: 14px; }
 .form-group { display: grid; gap: 6px; }
 .form-group label { font-size: 0.93rem; font-weight: 500; color: var(--ink-2); }
@@ -160,6 +163,10 @@ textarea.form-control { height: auto; padding: 9px 12px; line-height: 1.5; }
 .checks li b { font-weight: 600; margin-right: 4px; }
 .central-swap-checks { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
 .central-swap-checks .checks ul { display: grid; gap: 3px; }
+.swap-check-group { display: grid; gap: 8px; min-width: 0; padding: 12px 0 4px; border-top: 1px solid var(--line); }
+.swap-check-group h4 { margin: 0; font-size: 1rem; text-wrap: balance; }
+.swap-check-group h4 span { color: var(--ink-2); font-weight: 500; }
+.swap-check-group .checks li > span { min-width: 0; text-wrap: pretty; }
 .swap-quota-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 10px 12px; border-radius: 10px; background: var(--soft); }
 .swap-quota-summary > .small { grid-column: 1 / -1; color: var(--ink-2); }
 .checks .check-status { display: inline-block; margin-right: 5px; font-weight: 600; color: var(--ink-2); }

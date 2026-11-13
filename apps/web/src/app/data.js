@@ -60,14 +60,16 @@ export function rebuildSchedule() {
       id: a.employee_code, eid: a.employee_id, code: a.employee_code, name: a.name, phone: '-', initials: a.name.slice(0, 2),
       roleCategory: sup ? 'Shift Supervisor' : 'Shift Employee', position: sup ? 'Shift Supervisor (S)' : 'Field Operator', shiftType: `Shift ${a.team_code}`
     };
-    Object.assign(emp, state.peopleEdits.byId[emp.id] || {});
+    if (!state.actor?.remotePilot) Object.assign(emp, state.peopleEdits.byId[emp.id] || {});
     const team = state.shiftsData[`shift${emp.shiftType.slice(-1)}`];
     if (!team) return;
     team.employees.push(emp);
     if (sup && a.team_code === emp.shiftType.slice(-1) && !team.supervisorId) team.supervisorId = emp.id;
   });
   // LOCAL: พนักงานที่ผู้จัดการเพิ่มในเดโม
-  state.peopleEdits.added.forEach(e => { const team = state.shiftsData[`shift${e.shiftType.slice(-1)}`]; if (team && !team.employees.some(x => x.id === e.id)) team.employees.push({ ...e }); });
+  if (!state.actor?.remotePilot) {
+    state.peopleEdits.added.forEach(e => { const team = state.shiftsData[`shift${e.shiftType.slice(-1)}`]; if (team && !team.employees.some(x => x.id === e.id)) team.employees.push({ ...e }); });
+  }
   clearPatternCache();
 }
 
@@ -97,6 +99,8 @@ function mapRequest(r) {
   return {
     id: r.request_id, api: true, ts: Date.parse(r.submitted_at) || 0, version: r.version, canDecide: !!r.canDecide, canCancel: !!r.canCancel, hasConflict: !!r.hasConflict,
     approvalBlockReason: r.approvalBlockReason,
+    cancelBlockReason: state.actor?.employeeId === a.employee_id ? r.cancelBlockReason : null,
+    cancelledAfterApproval: r.status === 'CANCELLED' && approvals.length > 0 && approvals.every(s => s.status === 'APPROVED'),
     type: 'สลับกะข้ามทีม', person: a.name, requesterId: requester ? requester.id : a.employee_code, targetPerson: b.name, targetId: target ? target.id : b.employee_code,
     day: d, y, m, aNewCode: b.shift_code, bNewCode: a.shift_code, initials: a.name.slice(0, 2),
     roleCategory: requester ? requester.roleCategory : 'Shift Employee', targetRole: target ? target.roleCategory : 'Shift Employee',
@@ -133,9 +137,10 @@ export async function loadLogs() {
 
 // รวมข้อมูลจาก API กับเดโมในเครื่อง ให้หน้าจออ่านจาก state.requests / state.auditLogs ที่เดียว
 export function merge() {
-  const local = state.actor?.swapPolicy ? state.localRequests.filter(request => request.kind !== 'swap') : state.localRequests;
+  const local = state.actor?.remotePilot ? [] : state.actor?.swapPolicy ? state.localRequests.filter(request => request.kind !== 'swap') : state.localRequests;
+  const localLogs = state.actor?.remotePilot ? [] : state.localLogs;
   state.requests = [...local, ...state.apiRequests].sort((a, b) => (b.ts || b.id) - (a.ts || a.id));
-  state.auditLogs = [...state.localLogs, ...state.apiLogs].sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  state.auditLogs = [...localLogs, ...state.apiLogs].sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
 /* ---------- แจ้งเตือน ---------- */
 export async function loadNotifications() {
@@ -148,6 +153,7 @@ export async function refreshAll() {
 
 /* ---------- บันทึกประวัติของเดโม (LOCAL) ---------- */
 export function addLog(action, extra = {}) {
+  if (state.actor?.remotePilot) return;
   const role = state.roles[state.activeRole] || {};
   state.localLogs.unshift({ id: Date.now(), at: new Date().toISOString(), actor: role.name || state.activeRole, avatar: role.initials || '--', action, time: nowText(), ...extra });
   merge();
@@ -174,6 +180,6 @@ export function submitApiSwap(a, b) {
 export function decideApi(req, decision, reason = '') {
   return api(`/requests/${req.id}/decisions`, { method: 'POST', key: crypto.randomUUID(), body: { decision, expectedVersion: req.version, reason } });
 }
-export function cancelApi(req) {
-  return api(`/requests/${req.id}/cancel`, { method: 'POST', key: crypto.randomUUID(), body: { expectedVersion: req.version } });
+export function cancelApi(req, key = crypto.randomUUID()) {
+  return api(`/requests/${req.id}/cancel`, { method: 'POST', key, body: { expectedVersion: req.version } });
 }

@@ -17,6 +17,7 @@ import { seedYearData } from '../shared/scheduling/annual.js';
 import { isSupervisorRoleName } from '../shared/scheduling/employees.js';
 import { clearPatternCache } from '../shared/scheduling/roster.js';
 import { watchTranslate } from '../shared/translate.js';
+import { loadAdminAccess } from '../features/admin/access.js';
 import { onDriverChange } from '../features/external/view.js';
 import { onManagerChange } from '../features/manager/refresh.js';
 import { onNotificationsChange } from '../features/notifications/view.js';
@@ -40,9 +41,9 @@ document.addEventListener('keydown', ev => {
 });
 // session ของระบบกลางหมดอายุระหว่างใช้งาน → กลับไปหน้าเข้าสู่ระบบ (กลับมาที่หน้านี้หลังเข้าสู่ระบบ)
 window.addEventListener('session-expired', ev => {
-  if (!view.signed) return;
+  if (!view.signed && !view.accessPending) return;
   closeModal();
-  saveLocal();
+  if (state.actor && state.actor.role !== 'ADMIN') saveLocal();
   leave((ev.detail || {}).loginUrl, 'หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง');
   goToLogin();
 });
@@ -51,7 +52,8 @@ window.addEventListener('session-expired', ev => {
 setInterval(() => {
   const tag = document.activeElement && document.activeElement.tagName;
   if (!view.signed || view.loading || modalOpen() || ['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;
-  if (state.actor.role === 'EXTERNAL') void refreshNotificationsOnly();
+  if (state.actor.role === 'ADMIN') void loadAdminAccess(renderApp);
+  else if (state.actor.role === 'EXTERNAL') void refreshNotificationsOnly();
   else void afterApi();
 }, 30000);
 
@@ -66,15 +68,20 @@ async function boot() {
   try { me = await api('/me'); }
   catch (error) {
     const details = error.details || {};
-    Object.assign(view, { signed: false, loginUrl: details.loginUrl || '', unlinked: error.code === 'ACCOUNT_NOT_LINKED', authMsg: error.message || 'เชื่อมต่อระบบหลังบ้านไม่สำเร็จ' });
+    Object.assign(view, { signed: false, loginUrl: details.loginUrl || '', unlinked: error.code === 'ACCOUNT_NOT_LINKED',
+      accessPending: error.code === 'ACCESS_PENDING', authMsg: error.message || 'เชื่อมต่อระบบหลังบ้านไม่สำเร็จ' });
     if (error.status === 401 && goToLogin(details.loginUrl)) return;
     renderApp();
     return;
   }
-  loadLocal(me.capabilities?.swapPolicy === true || me.capabilities?.monthClose === true);
-  seedYearData();
+  if (me.actor.role !== 'ADMIN' && me.capabilities?.remotePilot !== true) {
+    loadLocal(me.capabilities?.swapPolicy === true || me.capabilities?.monthClose === true);
+    seedYearData();
+  }
   await enter({ ...me.actor, centralSwap: me.capabilities?.centralSwap === true,
     swapPolicy: me.capabilities?.swapPolicy === true,
-    hrClosedRoster: me.capabilities?.hrClosedRoster === true, monthClose: me.capabilities?.monthClose === true });
+    hrClosedRoster: me.capabilities?.hrClosedRoster === true, monthClose: me.capabilities?.monthClose === true,
+    remotePilot: me.capabilities?.remotePilot === true,
+    peopleManagement: me.capabilities?.peopleManagement === true });
 }
 void boot();

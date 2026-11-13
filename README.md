@@ -33,6 +33,20 @@ Frontend และ API เปิดด้วยกันที่ `http://localh
 
 การเชื่อมฐานข้อมูล Supabase เป็นการตั้งค่าแยกจากฐานเดโม่ในเครื่อง ดู [สถานะฐานข้อมูล Supabase](.docs/06-development/2026-11-01-supabase-migration.md)
 
+### ทดลองสลับกะร่วมกันใน Milestone 5
+
+ใช้ `pnpm dev:supabase` เพื่อเปิดแอปในเครื่องของแต่ละคนและใช้ฐาน Supabase เดิมร่วมกัน ดู [วิธีตั้งค่าและทดสอบร่วมกัน](.docs/06-development/2026-11-13-remote-swap-pilot.md)
+
+### ทดลอง Admin และ Manager ใน Milestone 4
+
+ในฐานเดโม่เดิมให้รัน `pnpm db:migrate` แล้ว `pnpm db:seed` จากนั้นเปิดด้วย `pnpm dev` ใช้ `pnpm link-user` ดู `demo_profile` และ `user_id` ก่อนผูก UID ของบัญชี Supabase Auth สำหรับทดลอง
+
+- ผูกบัญชี Admin กับ `admin-demo` แล้วเข้าเมนู **กำหนดบทบาท**
+- ผูกบัญชีที่จะทดลองเข้าคิวกับ `employee-b2-onboarding` ให้บัญชีนี้เข้าแอปครั้งแรก จากนั้นเปิดคิวด้วย Admin และกำหนดบทบาทเริ่มต้น พนักงานเปิดแอปใหม่เพื่อใช้งานตามบทบาทที่ได้รับ
+- บัญชี Manager เดโม่เปิดเมนู **พนักงานและทีม** เพื่อแก้ตำแหน่ง บทบาทระหว่าง Employee กับ Supervisor และย้ายทีมตามวันที่ ระบบเก็บทีมตามวันที่ในตารางเดิมและพักการเปลี่ยนเมื่อพบคำขอที่ต้องจัดการก่อน
+
+การตั้ง Admin คนแรกและขั้นตอนให้หรือถอนสิทธิ์ระดับสูงของบัญชีบริษัทอยู่ใน [แผน Milestone 4](.docs/06-development/access-management-checkpoint.md#แผนเริ่ม-milestone-4--12-พฤศจิกายน-2569)
+
 Auth ยังมี `package-lock.json` ของตัวเองและใช้ npm แยกจาก API แต่มีคำสั่งรวมให้รันจาก root ของโปรเจคแล้ว เมื่อตั้งค่าตาม [คู่มือ Auth](apps/auth/README.md):
 
 ```powershell

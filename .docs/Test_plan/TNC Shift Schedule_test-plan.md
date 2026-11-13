@@ -2,7 +2,7 @@
 
 ## 1. Scope
 
-The testing focuses on the employee shift swap workflow, including a swap that is later reversed.
+The testing focuses on the employee shift swap workflow, including a reverse swap and cancellation of an approved swap.
 
 ### 1.1 Must Requirement
 
@@ -22,9 +22,11 @@ A shift swap counts toward the requester’s limit only after both supervisors h
 4.  The system updates the shift schedule if the request is approved.
 5.  The employees verify that the updated schedule reflects the approved shift swap.
 
-**Reverse swap:** If a swap has already been approved and the employees want to return to their original shifts, a new swap request must be submitted following steps 1–5. The same business rules and approval process apply. Once both shift supervisors have approved the new request, the system restores the original shift assignments and counts one additional swap toward the requester’s monthly limit. A reverse swap does not cancel the original request or restore the quota already used.
+**Reverse swap:** Employees can submit a new swap request following steps 1–5. It follows the usual approval rules and uses a slot from its requester’s quota when approved. The original approval and quota use remain in effect.
 
 **Example:** A submits a request to swap shifts with B. Once fully approved, it counts as one swap toward A’s monthly limit. If B later submits a reverse swap request and it is fully approved, it counts as one swap toward B’s monthly limit. A’s original swap still counts toward A’s limit.
+
+**Cancellation of an approved swap:** Before the earliest affected shift begins, the original requester can cancel when all affected roster entries still match the approved result. Successful cancellation restores all original assignments and one slot in the original requester’s month while preserving approval history. [Business Rules, section 6](../01-requirements/01-spec/2026-11-04-01-business-rules-master.md#6-การอนุมัติ-สถานะ-และการยกเลิก)
 
 ### 1.3 Out of Scope
 
@@ -49,7 +51,7 @@ Verify interactions between the application components needed for the shift swap
 
 ### 2.3 End-to-End (E2E) Testing
 
-Verify the complete shift swap workflow, from viewing the schedule and submitting a request, through the required approvals, to updating the shift schedule. This includes a rejected request and a reverse swap.
+Verify the complete shift swap workflow, from viewing the schedule and submitting a request, through the required approvals, to updating the shift schedule. Include rejection, a reverse swap, and cancellation of an approved swap.
 
 ### 2.4 User Acceptance Testing (UAT)
 
@@ -62,7 +64,7 @@ Task completion results and user feedback will be collected. The System Usabilit
 
 ### 2.5 Testing Pyramid
 
-The largest number of cases is at the unit level (9), fewer are at the integration level (7), and the fewest are at the E2E level (4). Business rules such as the monthly swap limit and the consecutive working day limit are verified first as unit tests because they are fast to run. They are then checked once through the system as integration tests, and finally by real users in UAT07. E2E tests are kept for complete workflows: viewing the schedule, a successful swap, a rejected swap, and a reverse swap.
+The largest number of cases is at the unit level (9), followed by integration (7) and E2E (5). Business rules such as the monthly swap limit and the consecutive working day limit are verified first as unit tests, then through the integration suite and UAT07. E2E tests cover the schedule, approval, rejection, a reverse swap, and cancellation of an approved swap.
 
 ## 3. Test Cases and UAT Scenarios
 
@@ -120,6 +122,7 @@ Test Data lists the accounts and schedules used by the test cases, so that anyon
 | E2E-02 | Successful Shift Swap | Employee A swaps the 4 Nov shift with Employee B. Supervisor A and Supervisor B. | 1) Sign in as Employee A. 2) Open Shift Schedule and select the shift to swap. 3) Open Shift Swap/Change Request. 4) Select Employee B and the shift to exchange. 5) Review the request details and submit the request. 6) Sign in as the first required supervisor and process the request. 7) Sign in as the other required supervisor and complete the approval. 8) Check the request status and both employees' schedules. | The request is recorded and approved by both required supervisors. On 4 Nov, Employee A is on the night shift and Employee B is on the day shift. |  |  |
 | E2E-03 | Rejected Shift Swap | Same request as E2E-02. Supervisor A rejects the request. | 1) Sign in as Employee A and submit a valid shift swap request. 2) Sign in as the assigned supervisor. 3) Open the pending request. 4) Reject the request. 5) Check the request status. 6) Check both employees' schedules. | The request is recorded as rejected, and neither employee's schedule is changed as a result of the rejected request (Employee A on the day shift and Employee B on the night shift on 4 Nov). |  |  |
 | E2E-04 | Reverse Swap | Schedule after E2E-02 (Employee A on the night shift, Employee B on the day shift on 4 Nov). Employee B has no earlier request this month, so the reverse request is within the monthly limit. | 1) Sign in as Employee B. 2) Open Shift Schedule and select the shift to swap on 4 Nov. 3) Open Shift Swap/Change Request. 4) Select Employee A and the shift to exchange. 5) Review the request details and submit the request. 6) Sign in as the first required supervisor and process the request. 7) Sign in as the other required supervisor and complete the approval. 8) Check the request status and both employees' schedules. | The reverse request is recorded as a new request and approved by both required supervisors. The schedules return to the original: Employee A on the day shift and Employee B on the night shift on 4 Nov. |  |  |
+| E2E-05 | Cancel an Approved Swap | Future approved one-day or two-date swap by A and B with no subsequent changes. | 1) Sign in as A. 2) Open the approved request before the earliest affected shift. 3) Cancel and confirm. 4) Check the request, both schedules, and A’s monthly quota. | The request is cancelled. All affected assignments are restored, one slot returns to A in the same month, and the original approval history is retained. |  |  |
 
 ### 
 

@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import { isLocalSchedulingDatabase } from '../src/config';
+import { adminDemoProfile, onboardingDemoProfile } from '../src/admin-access/demo-access';
 import { bangkokWorkDate } from '../src/requests/swap-request-time';
 import { PILOT_ROSTER_START, pilotShiftCode, SHIFT_ROTATION } from './pilot-rotation';
 // ชื่อพนักงานเดโม (ชื่อสมมติชุดเดียวกับต้นแบบ ShiftFlow) — ใช้ทั้งตอนสร้างข้อมูลใหม่และตอนรัน seed ซ้ำ
@@ -9,7 +10,7 @@ const DEMO_NAMES:Record<string,[string,string]>={
  'DEMO-C0':['ไกรสร','ดวงดี'],'DEMO-C1':['นพดล','ใจกล้า'],'DEMO-C2':['อนุชา','บัวแก้ว'],
  'DEMO-D0':['ศักดิ์ชัย','สายบุญ'],'DEMO-D1':['ณรงค์','ศรีงาม'],'DEMO-D2':['คมกริช','เจริญสุข']
 };
-async function profiles(c:PoolClient) {
+async function profiles(c:PoolClient,local:boolean) {
  const roleIds:Record<string,number>={};
  for(const role of ['MANAGER','EXTERNAL']) roleIds[role]=(await c.query('INSERT INTO roles(role_name) VALUES($1) ON CONFLICT(role_name) DO UPDATE SET role_name=EXCLUDED.role_name RETURNING role_id',[role])).rows[0].role_id;
  await c.query("UPDATE users SET demo_order=NULL WHERE identity_source='DEMO'");
@@ -23,10 +24,21 @@ async function profiles(c:PoolClient) {
  }
  for(const [code,[first,last]] of Object.entries(DEMO_NAMES))
   await c.query("UPDATE employees SET first_name=$2,last_name=$3,updated_at=now() WHERE employee_code=$1 AND department='DEMO'",[code,first,last]);
+ if(local) {
+  await c.query("INSERT INTO roles(role_name) VALUES('ADMIN') ON CONFLICT(role_name) DO NOTHING");
+  await c.query(`INSERT INTO users(role_id,identity_source,demo_display_name,demo_profile)
+   SELECT role_id,'DEMO','ผู้ดูแลระบบทดสอบ',$1 FROM roles WHERE role_name='ADMIN'
+   ON CONFLICT(demo_profile) DO NOTHING`,[adminDemoProfile]);
+  await c.query(`INSERT INTO users(employee_id,role_id,identity_source,demo_profile,initial_access_state)
+   SELECT e.employee_id,r.role_id,'DEMO',$1,'PENDING' FROM employees e CROSS JOIN roles r
+   WHERE e.employee_code='DEMO-B2' AND e.department='DEMO' AND r.role_name='EMPLOYEE'
+   ON CONFLICT(employee_id) DO NOTHING`,[onboardingDemoProfile]);
+ }
 }
 export async function seed(centralRoster=Boolean(process.env.DATABASE_ADMIN_URL&&isLocalSchedulingDatabase(new URL(process.env.DATABASE_ADMIN_URL)))) {
  if(process.env.APP_MODE!=='DEMO') throw new Error('Seeding is available only in DEMO mode.');
- if(centralRoster&&(!process.env.DATABASE_ADMIN_URL||!isLocalSchedulingDatabase(new URL(process.env.DATABASE_ADMIN_URL)))) {
+ const local=Boolean(process.env.DATABASE_ADMIN_URL&&isLocalSchedulingDatabase(new URL(process.env.DATABASE_ADMIN_URL)));
+ if(centralRoster&&!local) {
   throw new Error('Current-month fixtures require a local demo database.');
  }
  const pool=new Pool({connectionString:process.env.DATABASE_ADMIN_URL});
@@ -34,7 +46,18 @@ export async function seed(centralRoster=Boolean(process.env.DATABASE_ADMIN_URL&
  try {
   await c.query('BEGIN');
   await c.query('SELECT pg_advisory_xact_lock(900702)');
-  if((await c.query('SELECT 1 FROM users LIMIT 1')).rowCount) { await profiles(c); await c.query('COMMIT');console.log('Nine demo profiles ready. Existing IDs, requests, schedules and audit preserved.'); return; }
+  const result=await seedDemoData(c,centralRoster,local);
+  await c.query('COMMIT');
+  console.log(result);
+ } catch(e) { await c.query('ROLLBACK'); throw e; }
+ finally {c.release();await pool.end();}
+}
+
+export async function seedDemoData(c:PoolClient,centralRoster:boolean,local:boolean) {
+  if((await c.query('SELECT 1 FROM users LIMIT 1')).rowCount) {
+   await profiles(c,local);
+   return 'Demo profiles ready. Existing IDs, requests, schedules and audit preserved.';
+  }
   const roles:Record<string,number>={};
   for(const role of ['EMPLOYEE','SUPERVISOR','HR']) roles[role]=(await c.query('INSERT INTO roles(role_name) VALUES($1) RETURNING role_id',[role])).rows[0].role_id;
   const employees:{id:number;team:number;slot:number;supervisor:boolean}[]=[];
@@ -60,7 +83,7 @@ export async function seed(centralRoster=Boolean(process.env.DATABASE_ADMIN_URL&
    codes[code]=(await c.query('INSERT INTO shift_types(shift_code,shift_name,start_time,end_time,is_working) VALUES($1,$2,$3,$4,$5) RETURNING shift_type_id',[code,name,start,end,working])).rows[0].shift_type_id;
   const [year,month]=centralRoster?bangkokWorkDate(new Date()).split('-').map(Number):[2026,11];
   const start=centralRoster?Math.min(Date.parse(PILOT_ROSTER_START),Date.UTC(year,month-1,1)):Date.UTC(year,month-3,1);
-  const end=Date.UTC(year,month,1);
+  const end=Date.UTC(year,month+(centralRoster&&!local?1:0),1);
   const schedules:Record<string,number>={};
   for(const date=new Date(start);date.getTime()<end;date.setUTCMonth(date.getUTCMonth()+1)) {
    schedules[date.toISOString().slice(0,7)]=(await c.query("INSERT INTO schedules(month,year,status,created_by) VALUES($1,$2,'PUBLISHED',$3) RETURNING schedule_id",
@@ -75,9 +98,7 @@ export async function seed(centralRoster=Boolean(process.env.DATABASE_ADMIN_URL&
     await c.query("INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by) VALUES($1,$2,$3,$4,'ACTIVE',$5)",[schedules[date.slice(0,7)],employee.id,codes[code],date,supervisorIds[employee.team]]);
    }
   }
-  await profiles(c);await c.query('COMMIT');
-  console.log(`Synthetic demo ready: nine accounts and A–D schedules for ${Object.keys(schedules).join(', ')}.`);
- } catch(e) { await c.query('ROLLBACK'); throw e; }
- finally {c.release();await pool.end();}
+  await profiles(c,local);
+  return `Synthetic demo ready: A–D schedules for ${Object.keys(schedules).join(', ')}.`;
 }
 if(require.main===module) seed().catch(e=>{console.error(e.message);process.exitCode=1;});

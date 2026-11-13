@@ -9,6 +9,7 @@ import { pendingYears, renderApp } from './render.js';
 import { DEMO_TODAY, saveLocal, state, view } from './state.js';
 import { closeModal } from '../shared/modal.js';
 import { showToast } from '../shared/toast.js';
+import { loadAdminAccess } from '../features/admin/access.js';
 import { unreadCount } from '../features/notifications/store.js';
 import { newSinceLastCheck, resetNotificationCheck } from '../features/notifications/view.js';
 import { goToLogin } from '../features/session/view.js';
@@ -26,23 +27,25 @@ export async function enter(actor) {
   state.currentYear = DEMO_TODAY.getFullYear();
   state.currentMonth = DEMO_TODAY.getMonth();
   state.annualScheduleYear = DEMO_TODAY.getFullYear();
-  Object.assign(view, { signed: true, authMsg: '', unlinked: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: true });
+  Object.assign(view, { signed: true, authMsg: '', unlinked: false, accessPending: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: true });
   renderApp();
   try {
-    if (actor.role !== 'EXTERNAL') await Promise.all([loadYear(state.currentYear), refreshAll()]);
-    else await loadNotifications();
+    if (actor.role === 'ADMIN') await loadAdminAccess(renderApp);
+    else if (actor.role === 'EXTERNAL') await loadNotifications();
+    else await Promise.all([loadYear(state.currentYear), refreshAll()]);
   } catch (error) { showToast(error.message || 'โหลดข้อมูลไม่สำเร็จ', 'alert'); }
+  if (state.actor !== actor) return;
   view.loading = false;
   window.scrollTo(0, 0);
   renderApp();
   resetNotificationCheck();
-  const unread = newSinceLastCheck(unreadCount());
+  const unread = actor.role === 'ADMIN' ? 0 : newSinceLastCheck(unreadCount());
   if (unread) showToast(`คุณมีแจ้งเตือนที่ยังไม่อ่าน ${unread} รายการ`);
 }
 // ออกจากระบบกลางด้วย (ลบ cookie ของ Supabase) แล้วกลับไปหน้าเข้าสู่ระบบ
 export async function logout() {
   closeModal();
-  saveLocal();
+  if (state.actor && state.actor.role !== 'ADMIN') saveLocal();
   let result;
   try { result = await api('/auth/logout', { method: 'POST' }); }
   catch (error) { showToast(error.message || 'ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง', 'alert'); return; }
@@ -50,7 +53,7 @@ export async function logout() {
   goToLogin(result.loginUrl);
 }
 export function leave(loginUrl = view.loginUrl, message = '') {
-  Object.assign(view, { signed: false, loading: false, authMsg: message, loginUrl: loginUrl || '', unlinked: false });
+  Object.assign(view, { signed: false, loading: false, authMsg: message, loginUrl: loginUrl || '', unlinked: false, accessPending: false });
   state.actor = null;
   state.roles = {};
   state.apiRequests = [];
@@ -65,6 +68,7 @@ export function leave(loginUrl = view.loginUrl, message = '') {
 
 /* ---------- หลังมีการเปลี่ยนแปลงข้อมูล ---------- */
 export async function afterApi() {
+  if (state.actor?.role === 'ADMIN') return loadAdminAccess(renderApp);
   try { await Promise.all([refreshAll(), reloadLoadedYears()]); } catch { /* แสดงข้อมูลเดิม */ }
   renderApp();
   announceNew();

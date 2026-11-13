@@ -477,11 +477,11 @@ As a system owner, I want to limit shift swaps so that frequent schedule changes
 **Release:** MVP
 
 **Acceptance Criteria**
-- Employee and Supervisor requesters each have an equal limit of 2 approved swaps per month. Only the requester is charged; the counterpart is not charged for this request.
+- Employee and Supervisor requesters share the same monthly limit, with a default of 2. Only the requester is charged.
 - Only fully approved requests consume quota; pending requests neither consume nor reserve it, and additional requests may be submitted while others are pending.
-- At final approval the server checks current usage and records quota use, approvals and all assignment changes atomically, so concurrent final approvals cannot exceed 2.
+- At final approval the server checks current usage and records quota use, approvals and all assignment changes atomically, so concurrent final approvals cannot exceed the applicable limit.
 - An approval command exceeding quota is blocked without changing the schedule; the user receives a clear reason. Pending-request closure behavior remains conditional.
-- The cost of a two-date request, quota month basis and quota restoration after an approved cancellation remain unresolved in the [dated review](01-spec/2026-11-04-01-business-rules-master.md). No counting basis is silently selected.
+- Each approved request uses one slot in its request month, including a two-date swap. A successful cancellation of an eligible approved swap restores one slot to the original requester in that same month and restores all affected assignments atomically. See the [dated Business Rules, sections 5–6](01-spec/2026-11-04-01-business-rules-master.md).
 
 ---
 
@@ -1050,7 +1050,7 @@ As a Supervisor, I want to see schedule changes and requests by period so that I
 | BR-007 | Planned schedule/leave changes retain the existing advance rule outside SWAP. For SWAP, the owner-confirmed 2026-11-04 exception permits advance submission without a fixed-day limit and submission/approval throughout the swap date; no past-date actions. Two-date cutoff remains conditional. |
 | BR-008 | Emergency sick leave may require a retrospective schedule update to reflect actual work. |
 | BR-009 | Replacement/OT employees must be eligible for the target shift and must not exceed the consecutive-working-day limit. |
-| BR-010 | Employee and Supervisor requesters each have 2 approved swaps per month; count only the requester at final approval, not pending requests. Two-date unit, month basis and approved-cancellation treatment remain conditional in the 2026-11-04 review. |
+| BR-010 | Employee and Supervisor requesters share the same monthly quota, defaulting to 2. Charge only the requester one slot per fully approved request, including a two-date swap. Successful cancellation of an eligible approved swap restores that slot in the same month. See the [dated Business Rules, sections 5–6](01-spec/2026-11-04-01-business-rules-master.md). |
 | BR-011 | Supervisor-requested swaps require one Manager. Employee-requested cross-team swaps retain the two-Supervisor baseline for review; the conflicting extra Manager step and approval order await confirmation. |
 | BR-012 | A schedule change becomes effective only after all required approvals are completed. |
 | BR-013 | Approved schedule changes must update the central schedule. |

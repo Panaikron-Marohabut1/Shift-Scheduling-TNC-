@@ -16,6 +16,8 @@ import { isYearPublished } from '../shared/scheduling/annual.js';
 import { daysIn } from '../shared/scheduling/dates.js';
 import { isMonthLocked } from '../shared/scheduling/roster.js';
 import { showToast } from '../shared/toast.js';
+import { assignAdminRole, loadAdminAccess, updateAdminRole } from '../features/admin/access.js';
+import { loadAdminAccounts, searchAdminAccounts, showAdminAccounts } from '../features/admin/accounts.js';
 import { acknowledgeDriverSchedule } from '../features/external/view.js';
 import { downloadClosedRoster, hasClosedRosterAccess, loadClosedRoster } from '../features/hr/closed-roster.js';
 import { exportLeaveRecordsCSV, exportMonthlyCSV, exportOTRecordsCSV, exportYear } from '../features/hr/view.js';
@@ -24,6 +26,7 @@ import {
   updateAnnualTeamFamily
 } from '../features/manager/annual.js';
 import { filterEmployeeSearch, filterEmployeeTeam, openEmployeeForm, saveEmployeeProfile } from '../features/manager/people.js';
+import { editCentralEmployee, loadManagerPeople, saveCentralEmployee, syncCentralEmployeeFields } from '../features/manager/central-people.js';
 import { loadSwapQuota, saveSwapQuota, updateManagerRule, updateManagerShiftTime, updateSwapQuotaDraft } from '../features/manager/settings.js';
 import { openNotification, readAllNotifications } from '../features/notifications/view.js';
 import {
@@ -41,12 +44,21 @@ import { openCell } from '../features/schedule/cell.js';
 import { codesModal } from '../features/schedule/page.js';
 import { goToLogin } from '../features/session/view.js';
 
+const localDemoOnly = action => (...args) => {
+  if (!state.actor?.remotePilot) return action(...args);
+};
+
 /* ---------- เปลี่ยนหน้า เดือน และมุมมอง ---------- */
 function switchView(id) {
+  if (state.actor?.role === 'ADMIN' && !['admin-access', 'admin-accounts'].includes(id)) return;
+  if (state.actor?.remotePilot && ['people', 'annual-schedule', 'hr-export', 'hr-audit'].includes(id)) return;
   state.activeView = id;
   view.moreNav = false;
   state.monthPickerOpen = false;
-  if (id === 'manager-settings' && state.actor?.role === 'MANAGER') void loadSwapQuota();
+  if (id === 'admin-access' && state.actor?.role === 'ADMIN') void loadAdminAccess(renderApp);
+  else if (id === 'admin-accounts' && state.actor?.role === 'ADMIN') void loadAdminAccounts(renderApp);
+  else if (id === 'people' && state.actor?.peopleManagement) void loadManagerPeople();
+  else if (id === 'manager-settings' && state.actor?.role === 'MANAGER') void loadSwapQuota();
   else if (id === 'hr-export' && hasClosedRosterAccess()) void loadClosedRoster(renderApp);
   else renderApp();
 }
@@ -130,24 +142,26 @@ const SF = {
   retry() { window.location.reload(); },
   account() {
     const role = state.roles[state.activeRole] || {};
+    const remotePilot = state.actor?.remotePilot;
     openModal('ผู้ใช้งาน', `
       <dl class="facts plain">
         <div><dt>ชื่อ</dt><dd>${esc(role.name)}</dd></div>
         <div><dt>บทบาท</dt><dd>${esc(state.activeRole)}</dd></div>
         <div><dt>ตำแหน่ง</dt><dd>${esc(role.title)}</dd></div>
-        <div><dt>ข้อมูล</dt><dd>${esc(DATA_LABEL)} · ส่วนที่ระบบหลังบ้านยังไม่รองรับเก็บในเครื่องนี้</dd></div>
+        <div><dt>ข้อมูล</dt><dd>${remotePilot ? 'ข้อมูลจำลองจากฐานทดสอบส่วนกลาง' : `${esc(DATA_LABEL)} · ส่วนที่ระบบหลังบ้านยังไม่รองรับเก็บในเครื่องนี้`}</dd></div>
       </dl>
-      <button class="link danger" data-click="SF.resetAsk()">ล้างข้อมูลทดลองในเครื่องนี้</button>`,
+      ${remotePilot || state.actor?.role === 'ADMIN' ? '' : '<button class="link danger" data-click="SF.resetAsk()">ล้างข้อมูลทดลองในเครื่องนี้</button>'}`,
     '<button class="btn" data-click="closeModal()">ปิด</button><button class="btn danger" data-click="SF.logout()">ออกจากระบบ</button>');
   },
-  pubAsk,
-  pub: publishYear,
-  unpubAsk,
-  unpub: unpublishYear,
+  pubAsk: localDemoOnly(pubAsk),
+  pub: localDemoOnly(publishYear),
+  unpubAsk: localDemoOnly(unpubAsk),
+  unpub: localDemoOnly(unpublishYear),
   monthOf(y, m) { view.mode = 'month'; state.currentYear = y; state.currentMonth = m; switchView('schedule'); },
-  toAnnual(y) { state.annualScheduleYear = y; switchView('annual-schedule'); },
-  exportYear(y) { if (!hasClosedRosterAccess()) { exportYear(y); renderApp(); } },
+  toAnnual: localDemoOnly(y => { state.annualScheduleYear = y; switchView('annual-schedule'); }),
+  exportYear: localDemoOnly(y => { if (!hasClosedRosterAccess()) { exportYear(y); renderApp(); } }),
   resetAsk() {
+    if (state.actor?.remotePilot) return;
     openModal('ล้างข้อมูลทดลองในเครื่องนี้', '<p>คำขอ การแก้ไขตาราง และประวัติที่ทำในเครื่องนี้ (ส่วนที่ยังไม่ได้เก็บในฐานข้อมูล) จะถูกลบทั้งหมด แล้วกลับไปใช้ข้อมูลตั้งต้น เรียกคืนไม่ได้ ข้อมูลในฐานข้อมูลไม่ถูกลบ</p>',
       '<button class="btn" data-click="closeModal()">ยกเลิก</button><button class="btn danger" data-click="SF.reset()">ล้างข้อมูล</button>');
   },
@@ -159,15 +173,22 @@ register({
   ...Object.fromEntries(Object.entries(SF).map(([k, v]) => [`SF.${k}`, v])),
   switchView, changeScheduleMonth, jumpToScheduleMonth, toggleMonthPicker, filterScheduleShiftType,
   openRequestDetails, approveRequest, promptRejectRequest, confirmRejectRequest, withdrawRequest, resetTestcases,
-  submitColleagueSwapRequest, submitCentralSwap: () => submitCentralSwap(renderForm),
-  submitLeaveRequest, submitDayOffChangeRequest, submitOTRequest, promptCancelApproved, confirmCancelApproved,
-  filterEmployeeTeam, filterEmployeeSearch, openEmployeeForm, saveEmployeeProfile,
-  jumpAnnualYear, jumpAnnualYearTo, updateAnnualTeamFamily, addAnnualHoliday, holidayKey, removeAnnualHoliday,
+  submitColleagueSwapRequest: localDemoOnly(submitColleagueSwapRequest), submitCentralSwap: () => submitCentralSwap(renderForm),
+  submitLeaveRequest: localDemoOnly(submitLeaveRequest), submitDayOffChangeRequest: localDemoOnly(submitDayOffChangeRequest),
+  submitOTRequest: localDemoOnly(submitOTRequest), promptCancelApproved, confirmCancelApproved,
+  filterEmployeeTeam, filterEmployeeSearch, openEmployeeForm: localDemoOnly(openEmployeeForm), saveEmployeeProfile: localDemoOnly(saveEmployeeProfile),
+  loadAdminAccess: () => loadAdminAccess(renderApp), assignAdminRole: (id, form) => assignAdminRole(id, form, renderApp), updateAdminRole,
+  loadAdminAccounts: () => loadAdminAccounts(renderApp),
+  showAdminAccounts: mode => showAdminAccounts(mode, renderApp),
+  searchAdminAccounts: value => searchAdminAccounts(value, renderApp),
+  loadManagerPeople, editCentralEmployee, saveCentralEmployee, syncCentralEmployeeFields,
+  jumpAnnualYear, jumpAnnualYearTo, updateAnnualTeamFamily: localDemoOnly(updateAnnualTeamFamily),
+  addAnnualHoliday: localDemoOnly(addAnnualHoliday), holidayKey: localDemoOnly(holidayKey), removeAnnualHoliday: localDemoOnly(removeAnnualHoliday),
   updateManagerShiftTime, updateManagerRule, loadSwapQuota, updateSwapQuotaDraft, saveSwapQuota,
-  exportMonthlyCSV: () => { if (!hasClosedRosterAccess()) exportMonthlyCSV(); },
-  exportLeaveRecordsCSV: () => { if (!hasClosedRosterAccess()) exportLeaveRecordsCSV(); },
-  exportOTRecordsCSV: () => { if (!hasClosedRosterAccess()) exportOTRecordsCSV(); },
-  acknowledgeDriverSchedule, openNotification, readAllNotifications,
+  exportMonthlyCSV: localDemoOnly(() => { if (!hasClosedRosterAccess()) exportMonthlyCSV(); }),
+  exportLeaveRecordsCSV: localDemoOnly(() => { if (!hasClosedRosterAccess()) exportLeaveRecordsCSV(); }),
+  exportOTRecordsCSV: localDemoOnly(() => { if (!hasClosedRosterAccess()) exportOTRecordsCSV(); }),
+  acknowledgeDriverSchedule: localDemoOnly(acknowledgeDriverSchedule), openNotification, readAllNotifications,
   selectHrClosedRosterMonth: month => loadClosedRoster(renderApp, month),
   openLatestHrClosedRoster: () => loadClosedRoster(renderApp, ''),
   refreshHrClosedRoster: () => loadClosedRoster(renderApp),

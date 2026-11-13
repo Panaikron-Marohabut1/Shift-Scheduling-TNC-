@@ -138,6 +138,7 @@ function swapQuotaHtml() {
    ตั้งค่าระบบ — บันทึกทันทีเมื่อเปลี่ยนค่า
    ========================================================================== */
 export function settingsHtml() {
+  if (state.actor?.remotePilot) return `${pageHead('โควตาสลับกะ')}${swapQuotaHtml()}`;
   const cfg = state.managerConfig;
   const hol = getHolidaysForYear(state.currentYear);
   return `
@@ -172,6 +173,7 @@ export function settingsHtml() {
     </section>`;
 }
 export function updateManagerShiftTime(code, value) {
+  if (state.actor?.remotePilot) return;
   state.managerConfig.shiftTimes[code] = value;
   addLog(`แก้ไขช่วงเวลากะ ${code} เป็น ${value}`);
   notify('all', `เปลี่ยนเวลากะ ${code}`, `เวลาใหม่: ${value}`);
@@ -179,6 +181,7 @@ export function updateManagerShiftTime(code, value) {
   saveLocal();
 }
 export function updateManagerRule(key, rawValue) {
+  if (state.actor?.remotePilot) return;
   const value = parseInt(rawValue, 10);
   if (Number.isNaN(value) || value <= 0) { showToast('กรุณาระบุตัวเลขที่มากกว่า 0', 'alert'); rerender(); return; }
   state.managerConfig[key] = value;

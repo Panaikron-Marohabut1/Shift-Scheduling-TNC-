@@ -24,6 +24,7 @@ async function microsoftEnabled() {
 }
 
 export async function POST(request: Request) {
+  if (getAuthConfig().pilot) return new NextResponse(null, { status: 404 });
   const formData = await request.formData();
   const redirectTo = safeRedirectTarget(String(formData.get("redirect_to") || ""));
   const callback = new URL("/auth/callback", getAuthConfig().authHost);

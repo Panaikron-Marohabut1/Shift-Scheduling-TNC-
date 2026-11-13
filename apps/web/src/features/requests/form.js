@@ -53,7 +53,12 @@ export function renderForm() {
   const central = f.k === 'swap' && state.actor?.centralSwap;
   const { fields, rows, checks, approvers, ready, submit, note } = (central ? centralSwapForm : FORMS[f.k])({ f, emp, y, m, n, myCode });
   const body = `
-    <dl class="facts plain"><div><dt>ผู้ขอ</dt><dd>${esc(emp.name)} (${esc(emp.id)}) ${esc(getEmployeeFacingRoleLabel(emp.roleCategory))} ${esc(emp.shiftType)}</dd></div></dl>
+    <dl class="facts plain request-requester">
+      <div>
+        <dt>ผู้ขอ</dt>
+        <dd>${esc(emp.name)} (${esc(emp.id)}) ${esc(getEmployeeFacingRoleLabel(emp.roleCategory))} ${esc(emp.shiftType)}</dd>
+      </div>
+    </dl>
     <div class="form">${fields.join('')}</div>
     ${note}
     ${changesTable(rows)}

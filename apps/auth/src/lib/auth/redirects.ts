@@ -26,7 +26,9 @@ export function safeRedirectTarget(value: string | null | undefined): string | n
     return null;
   }
 
-  const originIsTrusted = getAuthConfig().trustedOrigins.some((origin) => {
+  const config = getAuthConfig();
+  if (config.pilot && (target.pathname !== "/" || target.search || target.hash)) return null;
+  const originIsTrusted = config.trustedOrigins.some((origin) => {
     try {
       return target.origin === new URL(origin).origin;
     } catch {

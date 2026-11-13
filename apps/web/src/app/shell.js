@@ -12,6 +12,7 @@ import { canUserReviewRequestForRole } from '../features/requests/permissions.js
 export const DATA_LABEL = 'เชื่อมฐานข้อมูลแล้ว';
 /* ---------- เมนู ---------- */
 const NAV_ICON = {
+  'admin-access': 'people', 'admin-accounts': 'people',
   'manager-monitoring': 'requests', people: 'people', 'annual-schedule': 'annual', 'manager-settings': 'settings',
   schedule: 'schedule', overview: 'overview', requests: 'requests', history: 'history',
   'team-schedule': 'my', 'my-shift': 'my', 'my-requests': 'requests', 'my-history': 'history',
@@ -33,9 +34,10 @@ export function navBadges() {
 }
 function navList() {
   const role = state.roles[state.activeRole];
+  const items = (role ? role.nav : []).map(n => ({ id: n.id, label: shortLabel(n.label), icon: NAV_ICON[n.id], badge: n.badge }));
+  if (state.activeRole === 'Admin') return items;
   const bell = { id: 'notifications', label: 'แจ้งเตือน', icon: 'bell', badge: unreadCount() };
   if (state.activeRole === 'Contractor / Van Driver') return [{ id: 'driver', label: 'ตารางรับส่งพนักงาน', icon: 'driver' }, bell];
-  const items = (role ? role.nav : []).map(n => ({ id: n.id, label: shortLabel(n.label), icon: NAV_ICON[n.id], badge: n.badge }));
   // หัวหน้ากะก็เป็นพนักงาน: มี "กะของฉัน" และยื่นคำขอของตัวเองได้
   if (isSupervisorRoleName(state.activeRole)) items.splice(1, 0, { id: 'my-shift', label: 'กะของฉัน', icon: 'my' });
   // พนักงาน: ตารางกะรวมเป็นเมนูแยก
@@ -49,7 +51,7 @@ export function shellHtml(content) {
   const active = state.activeView === 'notifications' ? 'notifications'
     : state.activeRole === 'Contractor / Van Driver' ? 'driver'
     : (isSupervisorRoleName(state.activeRole) && state.activeView === 'my-requests') ? 'requests'
-      : (state.activeRole === 'Manager' && state.activeView === 'schedule') ? 'annual-schedule'
+      : (state.activeRole === 'Manager' && state.activeView === 'schedule' && !state.actor?.remotePilot) ? 'annual-schedule'
         : (state.activeView === 'team-schedule' && state.operatorShowFullGrid) ? 'schedule' : state.activeView;
   const role = state.roles[state.activeRole] || {};
   const btn = it => `<button class="${it.id === active ? 'on' : ''}" data-click="SF.nav(${js(it.id)})" title="${esc(it.label)}" ${it.id === active ? 'aria-current="page"' : ''}>${icon(it.icon)}<span>${esc(it.label)}</span>${it.badge ? `<em class="badge">${it.badge}</em>` : ''}</button>`;
@@ -62,7 +64,7 @@ export function shellHtml(content) {
   return `
     <div class="shell ${rail ? 'rail' : ''}">
       <aside class="side">
-        <div class="side-brand"><b>ShiftFlow</b><i class="brand-short" aria-hidden="true">SF</i><span>ฝ่ายผลิต</span></div>
+        <div class="side-brand"><b>ShiftFlow</b><i class="brand-short" aria-hidden="true">SF</i><span>${state.actor?.remotePilot ? 'รอบทดสอบสลับกะ' : 'ฝ่ายผลิต'}</span></div>
         <nav class="side-nav" aria-label="เมนูหลัก">${items.map(btn).join('')}</nav>
         <div class="side-foot">
           <button class="side-user" data-click="SF.account()"><b>${esc(role.name)}</b><span>${esc(role.title)}</span></button>
@@ -71,9 +73,9 @@ export function shellHtml(content) {
       </aside>
       <div class="main">
         <header class="mtop">
-          <div class="mtop-brand">ShiftFlow</div>
+          <div class="mtop-brand">${state.actor?.remotePilot ? 'ShiftFlow Pilot' : 'ShiftFlow'}</div>
           <div class="mtop-r">
-            <button class="mtop-bell ${active === 'notifications' ? 'on' : ''}" data-click="SF.nav('notifications')" aria-label="แจ้งเตือน${bellItem.badge ? ` ยังไม่อ่าน ${bellItem.badge} รายการ` : ''}">${icon('bell')}${bellItem.badge ? `<em class="badge">${bellItem.badge}</em>` : ''}</button>
+            ${bellItem ? `<button class="mtop-bell ${active === 'notifications' ? 'on' : ''}" data-click="SF.nav('notifications')" aria-label="แจ้งเตือน${bellItem.badge ? ` ยังไม่อ่าน ${bellItem.badge} รายการ` : ''}">${icon('bell')}${bellItem.badge ? `<em class="badge">${bellItem.badge}</em>` : ''}</button>` : ''}
             <button class="mtop-user" data-click="SF.account()">${esc(role.name)}</button>
           </div>
         </header>

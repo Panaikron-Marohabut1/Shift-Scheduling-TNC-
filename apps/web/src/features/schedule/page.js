@@ -6,8 +6,9 @@ import { state, view } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
 import { openModal } from '../../shared/modal.js';
-import { monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
-import { dataMonth } from '../../shared/scheduling/roster.js';
+import { daysIn, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
+import { getAllEmployees } from '../../shared/scheduling/employees.js';
+import { dataMonth, getTeamForDate } from '../../shared/scheduling/roster.js';
 import { pageHead } from '../../shared/ui.js';
 import { swatch } from './codes.js';
 import { dayNav, dayViewHtml } from './day-view.js';
@@ -15,9 +16,16 @@ import { draftNote } from './days.js';
 import { gridHtml } from './month-grid.js';
 import { monthNav, scheduleState, statusChips } from './month-nav.js';
 
-export function teamSections() {
+export function teamSections(y, m, day) {
   const map = { A: 'shiftA', B: 'shiftB', C: 'shiftC', D: 'shiftD' };
-  return Object.keys(map).filter(k => state.selectedShiftFilter === 'ALL' || state.selectedShiftFilter === k).map(k => state.shiftsData[map[k]]);
+  const selected = Object.keys(map).filter(k => state.selectedShiftFilter === 'ALL' || state.selectedShiftFilter === k);
+  const days = day ? [day] : Array.from({ length: daysIn(y, m) }, (_, i) => i + 1);
+  const sections = new Map(selected.map(key => [`Shift ${key}`, { ...state.shiftsData[map[key]], employees: [] }]));
+  for (const employee of getAllEmployees()) {
+    const memberships = new Set(days.map(d => getTeamForDate(employee, y, m, d)));
+    for (const team of memberships) sections.get(team)?.employees.push({ ...employee, teamForDisplay: team });
+  }
+  return [...sections.values()];
 }
 export const matchQ = e => { const q = view.q.trim().toLowerCase(); return !q || e.name.toLowerCase().includes(q) || String(e.id).toLowerCase().includes(q); };
 
@@ -25,7 +33,7 @@ export function scheduleHtml() {
   const S = scheduleState();
   const base = dataMonth();
   const right = [];
-  if (state.activeRole === 'Manager') right.push(`<button class="btn ghost" data-click="SF.toAnnual(${S.y})">${icon('left')} ตารางรายปี</button>`);
+  if (state.activeRole === 'Manager' && !state.actor?.remotePilot) right.push(`<button class="btn ghost" data-click="SF.toAnnual(${S.y})">${icon('left')} ตารางรายปี</button>`);
   if (S.canExport) right.push(`<button class="btn" data-click="SF.exportYear(${S.y})">${icon('export')} ส่งออกทั้งปี ${S.y + 543}</button>`);
   if (S.canPublish) right.push(`<button class="btn primary" data-click="SF.pubAsk(${S.y})">อนุมัติและประกาศใช้ทั้งปี ${S.y + 543}</button>`);
   return `
@@ -43,9 +51,9 @@ export function scheduleHtml() {
       <label class="sr" for="schedQ">ค้นหาชื่อหรือรหัสพนักงาน</label>
       <input class="inp q" id="schedQ" type="search" placeholder="ค้นหาชื่อ" value="${esc(view.q)}" data-input="SF.search(this.value)" autocomplete="off">
     </div>
-    ${view.mode === 'month' ? `
+    ${state.actor?.remotePilot && !S.hasData ? '<p class="empty">ยังไม่มีตารางกะในฐานทดสอบสำหรับเดือนนี้</p>' : view.mode === 'month' ? `
       <div class="mstatus">${statusChips(S)}</div>
-      ${!S.published ? `<p class="note warn proj-note">${draftNote(S.y)}</p>` : !S.hasData ? `<p class="note warn proj-note">${esc(monthLabel(S.y, S.m))} ยังไม่มีตารางกะจริง ระบบคาดการณ์จากรอบ 2 วันสลับ 2 วันของเดือน${esc(thaiMonthName(base.m, 'long'))} ${base.y + 543} ${S.monthLocked ? 'เดือนนี้ถูกล็อก ดูได้อย่างเดียว' : 'กดช่องกะเพื่อยื่นคำขอได้ตามปกติ'}</p>` : ''}
+      ${!S.published ? `<p class="note warn proj-note">${state.actor?.remotePilot ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(S.y)}</p>` : !S.hasData ? `<p class="note warn proj-note">${esc(monthLabel(S.y, S.m))} ยังไม่มีตารางกะจริง ระบบคาดการณ์จากรอบ 2 วันสลับ 2 วันของเดือน${esc(thaiMonthName(base.m, 'long'))} ${base.y + 543} ${S.monthLocked ? 'เดือนนี้ถูกล็อก ดูได้อย่างเดียว' : 'กดช่องกะเพื่อยื่นคำขอได้ตามปกติ'}</p>` : ''}
       ${gridHtml(S)}
       ${legendHtml()}` : dayViewHtml(S)}`;
 }

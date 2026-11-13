@@ -7,6 +7,7 @@
 
 // ชื่อบทบาทในหน้าจอ จากบัญชีที่เข้าสู่ระบบ (พนักงานทุกทีมใช้หน้าพนักงานปฏิบัติเหมือนกัน)
 export function roleKeyOf(actor) {
+  if (actor.role === 'ADMIN') return 'Admin';
   if (actor.role === 'MANAGER') return 'Manager';
   if (actor.role === 'SUPERVISOR') return `Shift Supervisor ${actor.teamCode}`;
   if (actor.role === 'EMPLOYEE') return 'Shift Employee';
@@ -24,19 +25,25 @@ const SUP_NAV = [
 export function buildRole(roleKey, actor) {
   const team = actor.teamCode || 'A';
   const base = {
+    Admin: { title: 'ผู้ดูแลสิทธิ์ (Admin)', short: 'ผู้ดูแลสิทธิ์', nav: [
+      { id: 'admin-access', label: 'กำหนดบทบาท' }, { id: 'admin-accounts', label: 'บัญชีผู้ใช้' }] },
     Manager: { title: 'Manager (ฝ่ายผลิต)', short: 'ผู้จัดการฝ่ายผลิต', nav: [
       { id: 'manager-monitoring', label: 'ติดตามสถานะคำขอ' },
-      { id: 'people', label: 'พนักงานและทีม' },
-      { id: 'annual-schedule', label: 'ตารางรายปี (Annual Schedule)' },
-      { id: 'manager-settings', label: 'ตั้งค่าระบบ (Settings)' }] },
+      ...(actor.remotePilot ? [{ id: 'schedule', label: 'ตารางกะ' }] : [
+        { id: 'people', label: 'พนักงานและทีม' },
+        { id: 'annual-schedule', label: 'ตารางรายปี (Annual Schedule)' }
+      ]),
+      { id: 'manager-settings', label: actor.remotePilot ? 'โควตาสลับกะ' : 'ตั้งค่าระบบ (Settings)' }] },
     'Shift Employee': { title: `Shift Employee (Shift ${team})`, short: 'พนักงานปฏิบัติ', nav: [
       { id: 'team-schedule', label: 'กะของฉัน' },
       { id: 'my-requests', label: 'คำขอของฉัน', badge: 0 },
       { id: 'my-history', label: 'ประวัติของฉัน' }] },
     HR: { title: 'เจ้าหน้าที่ฝ่ายบุคคล', short: 'ฝ่ายบุคคล', nav: [
       { id: 'schedule', label: 'ตารางกะรวม (Schedule)' },
-      { id: 'hr-export', label: actor.hrClosedRoster ? 'ตารางกะปิดเดือนและ CSV' : 'ข้อมูลและส่งออก CSV' },
-      { id: 'hr-audit', label: 'ตรวจสอบ OT และประวัติ' }] },
+      ...(actor.remotePilot ? [] : [
+        { id: 'hr-export', label: actor.hrClosedRoster ? 'ตารางกะปิดเดือนและ CSV' : 'ข้อมูลและส่งออก CSV' },
+        { id: 'hr-audit', label: 'ตรวจสอบ OT และประวัติ' }
+      ])] },
     'Contractor / Van Driver': { title: 'พนักงานขับรถตู้รับส่ง (สายหลัก) — External User', short: 'ผู้ใช้ภายนอก (External User)', nav: [] }
   }[roleKey] || { title: `Shift Supervisor (Shift ${team})`, short: `หัวหน้ากะ ${team}`, team: `shift${team}`, nav: SUP_NAV.map(n => ({ ...n })) };
   return { initials: String(actor.name || '').slice(0, 2), name: actor.name, ...base };

@@ -47,6 +47,7 @@ export function partiesOf(req) {
 
 // LOCAL: สร้างแจ้งเตือน — ตอนระบบหลังบ้านมี API ให้ส่ง POST ไปที่นี่แทน
 export function notify(to, title, message, reqId = null) {
+  if (state.actor?.remotePilot) return;
   const keys = [...new Set((Array.isArray(to) ? to : [to]).filter(Boolean))];
   if (!keys.length) return;
   const ts = Date.now();
@@ -60,7 +61,7 @@ export function myNotifications() {
   const me = meKey();
   const keys = new Set(myKeys());
   const readApi = new Set(state.notifRead[me] || []);
-  const local = state.localNotifications
+  const local = (state.actor?.remotePilot ? [] : state.localNotifications)
     .filter(n => n.by !== me && n.to.some(k => keys.has(k)))
     .map(n => ({ id: n.id, ts: n.ts, title: n.title, message: n.message, reqId: n.reqId, read: n.readBy.includes(me) }));
   const fromApi = state.apiNotifications.map(n => {

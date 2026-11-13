@@ -17,6 +17,7 @@ export function hasScheduleDataForMonth(year, month) {
 }
 export function isSchedulePublished(year, month) {
   const schedule = state.apiMonths[monthKey(year, month)]?.schedule;
+  if (state.actor?.remotePilot) return schedule?.status === 'PUBLISHED';
   return (state.actor?.swapPolicy || state.actor?.monthClose) && schedule
     ? schedule.status === 'PUBLISHED' : isYearPublished(year);
 }
@@ -78,6 +79,7 @@ export function naturalFamily(team) {
 export const NATURAL_TEAM_FAMILY = new Proxy({}, { get: (_, team) => naturalFamily(String(team)) });
 
 export function getShiftOverride(emp, year, month, day) {
+  if (state.actor?.remotePilot) return undefined;
   if (state.actor?.monthClose && isMonthLocked(year, month)) return undefined;
   if (state.actor?.swapPolicy && state.apiAssign[emp.id]?.[isoOf(year, month, day)]) return undefined;
   return state.scheduleOverrides[monthKey(year, month)]?.[emp.id]?.[day];
@@ -98,7 +100,15 @@ export function getShiftCodeForDate(emp, year, month, day) {
   if (nat && yr && nat !== yr) code = code === 'M' ? 'N' : code === 'N' ? 'M' : code;
   return code;
 }
+export function getTeamForDate(emp, year, month, day) {
+  if (state.actor?.swapPolicy || state.actor?.monthClose || state.actor?.peopleManagement) {
+    const team = state.apiAssign[emp.id]?.[isoOf(year, month, day)]?.team_code;
+    if (team) return `Shift ${team}`;
+  }
+  return emp.shiftType;
+}
 export function setShiftOverride(empId, year, month, day, code) {
+  if (state.actor?.remotePilot) return;
   const key = monthKey(year, month);
   if (!state.scheduleOverrides[key]) state.scheduleOverrides[key] = {};
   if (!state.scheduleOverrides[key][empId]) state.scheduleOverrides[key][empId] = {};

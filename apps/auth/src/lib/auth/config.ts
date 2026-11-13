@@ -12,6 +12,7 @@ function required(name: string): string {
 }
 
 export function getAuthConfig() {
+  const pilot = process.env.APP_MODE === "PILOT";
   const shareAuthCookie = process.env.SHARE_AUTH_COOKIE === "true";
   const cookieDomain = shareAuthCookie ? process.env.AUTH_COOKIE_DOMAIN : undefined;
   const trustedOrigins = (process.env.TRUSTED_APP_ORIGINS || defaultTrustedOrigins.join(","))
@@ -27,16 +28,39 @@ export function getAuthConfig() {
     .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
     .filter(Boolean);
 
+  const supabaseUrl = required("NEXT_PUBLIC_SUPABASE_URL");
+  const authHost = process.env.AUTH_HOST || "http://localhost:3001";
+  const pilotEmails = pilot ? readPilotEmails(supabaseUrl, authHost, trustedOrigins, shareAuthCookie) : [];
+
   return {
-    supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
+    pilot,
+    pilotEmails,
+    supabaseUrl,
     supabasePublishableKey: required("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
-    authHost: process.env.AUTH_HOST || "http://localhost:3001",
+    authHost,
     trustedOrigins,
     cookieName: process.env.AUTH_COOKIE_NAME || "sb-session",
     cookieDomain,
     shareAuthCookie,
     allowedEmailDomains,
   };
+}
+
+function readPilotEmails(supabaseUrl: string, authHost: string, trustedOrigins: string[], shareAuthCookie: boolean) {
+  const project = required("PILOT_SUPABASE_PROJECT_REF");
+  if (!/^[a-z0-9]+$/.test(project) || supabaseUrl.replace(/\/$/, "") !== `https://${project}.supabase.co`) {
+    throw new Error("Pilot Auth must use the configured Supabase project.");
+  }
+  const origin = new URL(required("APP_ORIGIN"));
+  if (origin.protocol !== "https:" || origin.origin !== process.env.APP_ORIGIN || origin.port ||
+      origin.origin !== authHost || trustedOrigins.length !== 1 || trustedOrigins[0] !== authHost || shareAuthCookie) {
+    throw new Error("Pilot Auth requires one HTTPS origin and a host-only cookie.");
+  }
+  const emails = required("PILOT_AUTH_EMAILS").split(",").map(email => email.trim().toLowerCase());
+  if (emails.some(email => !/^[^\s@*,]+@[^\s@*,]+\.[^\s@*,]+$/.test(email))) {
+    throw new Error("PILOT_AUTH_EMAILS must contain exact email addresses.");
+  }
+  return emails;
 }
 
 export function authCookieOptions() {
@@ -51,7 +75,7 @@ export function authCookieOptions() {
     domain: config.cookieDomain,
     path: "/",
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: config.pilot || process.env.NODE_ENV === "production",
     httpOnly: true,
   };
 }
@@ -66,8 +90,9 @@ export function authCookieWriteOptions() {
 
 // Exact domain match on the part after the last "@" (sub.thainitrate.com and lookalikes are rejected).
 export function isAllowedEmail(email: string | null | undefined) {
-  const domains = getAuthConfig().allowedEmailDomains;
+  const { pilot, pilotEmails, allowedEmailDomains } = getAuthConfig();
+  if (pilot) return pilotEmails.includes(email?.trim().toLowerCase() || "");
   const at = (email || "").lastIndexOf("@");
   if (at < 1) return false;
-  return domains.includes((email || "").slice(at + 1).trim().toLowerCase());
+  return allowedEmailDomains.includes((email || "").slice(at + 1).trim().toLowerCase());
 }

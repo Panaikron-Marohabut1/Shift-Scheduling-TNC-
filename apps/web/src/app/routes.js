@@ -5,6 +5,8 @@
 import { titleOf } from './shell.js';
 import { state } from './state.js';
 import { isSupervisorRoleName } from '../shared/scheduling/employees.js';
+import { adminAccessHtml } from '../features/admin/access.js';
+import { adminAccountsHtml } from '../features/admin/accounts.js';
 import { driverHtml } from '../features/external/view.js';
 import { historyHtml } from '../features/history/view.js';
 import { closedRosterHtml, hasClosedRosterAccess } from '../features/hr/closed-roster.js';
@@ -20,6 +22,7 @@ import { scheduleHtml } from '../features/schedule/page.js';
 
 export function viewHtml() {
   const r = state.activeRole, v = state.activeView;
+  if (r === 'Admin') return v === 'admin-accounts' ? adminAccountsHtml() : adminAccessHtml();
   if (v === 'notifications') return notificationsHtml();
   if (r === 'Contractor / Van Driver') return driverHtml();
   if (isSupervisorRoleName(r)) {

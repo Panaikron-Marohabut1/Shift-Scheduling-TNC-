@@ -12,7 +12,7 @@ import { $, esc, js } from '../../shared/dom.js';
 import { openModal } from '../../shared/modal.js';
 import { isoOf, shortDate } from '../../shared/scheduling/dates.js';
 import { currentEmp, findEmployeeById, getEmployeeFacingShiftLabel, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
-import { getShiftCodeForDate, hasScheduleDataForMonth, isMonthLocked, isPastScheduleDate, isSchedulePublished } from '../../shared/scheduling/roster.js';
+import { getShiftCodeForDate, getTeamForDate, hasScheduleDataForMonth, isMonthLocked, isPastScheduleDate, isSchedulePublished } from '../../shared/scheduling/roster.js';
 import { getEligibleSwapColleagues, validateSwapBothSides } from '../../shared/scheduling/rules.js';
 import { telOf } from '../../shared/ui.js';
 import { kindsAllowed, requestOptions } from '../requests/new-request.js';
@@ -41,7 +41,14 @@ export function renderCell() {
   const isMine = me && me.id === emp.id;
   const requestRole = role === 'Shift Employee' || isSupervisorRoleName(role);
   const past = isPastScheduleDate(y, m, d);
-  const canRequest = requestRole && !locked && !past && me;
+  const canRequest = requestRole && !locked && !past && me && (!state.actor?.remotePilot || state.actor.centralSwap);
+  const date = isoOf(y, m, d);
+  const ownAssignment = state.apiAssign[me?.id]?.[date];
+  const selectedAssignment = state.apiAssign[emp.id]?.[date];
+  const canSwapHere = me && (state.actor?.centralSwap
+    ? ownAssignment?.status === 'ACTIVE' && selectedAssignment?.status === 'ACTIVE'
+      && ownAssignment.team_id !== selectedAssignment.team_id && ownAssignment.position === selectedAssignment.position
+    : getEligibleSwapColleagues(me).some(e => e.id === emp.id));
   const unavailable = !published ? (state.actor?.swapPolicy || state.actor?.monthClose ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(y))
     : locked ? 'เดือนนี้ถูกล็อกข้อมูลแล้ว ดูได้อย่างเดียว' : '';
   const dateText = new Date(y, m, d).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -52,7 +59,7 @@ export function renderCell() {
       <i>${esc(code)}</i>
     </div>
     <dl class="facts plain">
-      <div><dt>พนักงาน</dt><dd>${esc(emp.name)} (${esc(emp.id)}) · ${esc(emp.position || '')} · ${esc(emp.shiftType)}</dd></div>
+      <div><dt>พนักงาน</dt><dd>${esc(emp.name)} (${esc(emp.id)}) · ${esc(emp.position || '')} · ${esc(getTeamForDate(emp, y, m, d))}</dd></div>
       <div><dt>โทรศัพท์</dt><dd>${telOf(emp.phone)}</dd></div>
       ${chg ? `<div><dt>การเปลี่ยนแปลง</dt><dd>${esc(chg)}</dd></div>` : ''}
       ${chg ? changeInfoRows(source, emp, y, m, d) : ''}
@@ -72,10 +79,11 @@ export function renderCell() {
       if (code === 'H' || def.family === 'O' || hol) kinds = ['dayoff', 'ot'];
       else if (def.leave) kinds = [];
       else kinds = ['swap', 'leave', 'ot'];
-      if (state.actor?.centralSwap && state.apiAssign[emp.id]?.[isoOf(y, m, d)]?.status === 'ACTIVE') kinds.push('swap');
+      if (state.actor?.centralSwap && selectedAssignment?.status === 'ACTIVE') kinds.push('swap');
+      if (state.actor?.remotePilot && selectedAssignment?.status !== 'ACTIVE') kinds = [];
       const list = kindsAllowed().filter(x => kinds.includes(x.k));
       body += requestOptions(list, d, { fromCell: true, emptyMessage: def.leave ? 'ตารางระบุว่าเป็นวันลาแล้ว' : undefined });
-    } else if (getEligibleSwapColleagues(me).some(e => e.id === emp.id)) {
+    } else if (canSwapHere) {
       const myCode = getShiftCodeForDate(me, y, m, d);
       const legacyBlocked = !state.actor?.centralSwap && !validateSwapBothSides(me.id, emp.id, d).valid;
       body += `
