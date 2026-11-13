@@ -4,7 +4,7 @@ import type { Response as ExpressResponse } from 'express';
 import { Database } from '../database/database.service';
 import { Actor } from '../shared/types';
 import { settings } from '../config';
-import { isDemoAdmin, localDemoAccess, onboardingDemoProfile } from '../admin-access/demo-access';
+import { adminDemoProfile, demoPeopleAccess, isDemoAdmin, localDemoAccess, onboardingDemoProfile, sharedDemoAccess } from '../admin-access/demo-access';
 import { bangkokWorkDate } from '../requests/swap-request-time';
 const actorSelect=`SELECT u.user_id AS "userId", u.employee_id AS "employeeId", r.role_name AS role,
  t.team_id AS "teamId", COALESCE(e.first_name || ' ' || e.last_name,u.demo_display_name) AS name,
@@ -23,6 +23,10 @@ const linkedDemoActor=`${actorSelect}, u.initial_access_state AS "initialAccess"
 const linkedPilotActor=`${linkedDemoActor} AND u.identity_source='DEMO'
  AND r.role_name IN ('EMPLOYEE','SUPERVISOR','MANAGER')
  AND u.demo_profile IN ('employee-a','employee-b','supervisor-a','supervisor-b','manager')`;
+const linkedSharedDemoActor=`${linkedDemoActor} AND u.identity_source='DEMO' AND (
+ (r.role_name IN ('EMPLOYEE','SUPERVISOR','MANAGER') AND u.demo_profile IN
+  ('employee-a','employee-b','supervisor-a','supervisor-b','manager',$3))
+ OR (r.role_name='ADMIN' AND u.demo_profile=$4))`;
 const emailMatch=`SELECT u.user_id AS "userId", u.azure_object_id AS linked FROM users u JOIN employees e USING(employee_id)
  WHERE lower(e.email)=lower($1) AND u.is_active AND u.demo_profile IS DISTINCT FROM $2`;
 type Identity={id:string;email:string|null;microsoft:boolean};
@@ -97,6 +101,11 @@ export class AuthService {
  }
  private async findActor(identityId:string):Promise<LinkedActor|undefined> {
   const local=localDemoAccess(this.db);
+  if(sharedDemoAccess(this.db)) {
+   const {rows:[actor]}=await this.db.query(linkedSharedDemoActor,
+    [identityId,bangkokWorkDate(new Date()),onboardingDemoProfile,adminDemoProfile]);
+   return actor;
+  }
   const pilot=['PILOT','SHARED_DEMO'].includes(process.env.APP_MODE??'');
   const {rows:[actor]}=await this.db.query(pilot?linkedPilotActor:local?linkedDemoActor:linkedActor,
    [identityId,local||pilot?bangkokWorkDate(new Date()):onboardingDemoProfile]);
@@ -114,13 +123,13 @@ export class AuthService {
   });
  }
  allowsDemoPeople(actor:Actor) {
-  return actor.role==='MANAGER'&&!!actor.demoProfile&&localDemoAccess(this.db);
+  return actor.role==='MANAGER'&&!!actor.demoProfile&&demoPeopleAccess(this.db);
  }
  async resolve(cookie:string|undefined,res?:ExpressResponse):Promise<Actor> {
   const identity=await this.identity(cookie,res);
   let linked=await this.findActor(identity.id);
   if(!linked&&await this.autoLink(identity)) linked=await this.findActor(identity.id);
-  if(!linked||(linked.role==='ADMIN'&&(!localDemoAccess(this.db)||linked.identitySource!=='DEMO'||!isDemoAdmin(linked)))) {
+  if(!linked||(linked.role==='ADMIN'&&(!demoPeopleAccess(this.db)||linked.identitySource!=='DEMO'||!isDemoAdmin(linked)))) {
    throw new ForbiddenException({code:'ACCOUNT_NOT_LINKED',message:'บัญชีนี้ยังไม่ได้ผูกกับพนักงานในระบบ กรุณาติดต่อผู้ดูแลระบบ'});
   }
   const {initialAccess,identitySource,...actor}=linked;

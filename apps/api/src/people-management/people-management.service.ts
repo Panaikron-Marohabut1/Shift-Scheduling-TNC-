@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { isLocalSchedulingDatabase } from '../config';
+import { demoPeopleAccess } from '../admin-access/demo-access';
 import { Database } from '../database/database.service';
 import { bangkokWorkDate, pendingSwapClosure } from '../requests/swap-request-time';
 import { id } from '../shared/input';
@@ -53,7 +53,7 @@ export class PeopleManagementService {
  constructor(@Inject(Database) private readonly db:Database) {}
 
  async list(actor:Actor) {
-  this.requireLocalManager(actor);
+  this.requireDemoManager(actor);
   return this.db.transaction(async c=>{
    await this.requireActiveDemoManager(c,actor);
    const today=bangkokWorkDate(new Date());
@@ -63,7 +63,7 @@ export class PeopleManagementService {
  }
 
  async update(actor:Actor,employeeId:number,body:Record<string,unknown>) {
-  this.requireLocalManager(actor);
+  this.requireDemoManager(actor);
   const input=parseUpdate(body);
   return this.db.transaction(async c=>{
    // Swap operations share this lock before reading team/role and choosing approvers.
@@ -124,8 +124,8 @@ export class PeopleManagementService {
    .map(({requestId,status,workDate})=>({requestId,status,workDate}));
  }
 
- private requireLocalManager(actor:Actor) {
-  if(actor.role!=='MANAGER'||!isLocalSchedulingDatabase(new URL(this.db.pool.options.connectionString!))) this.denied();
+ private requireDemoManager(actor:Actor) {
+  if(actor.role!=='MANAGER'||!demoPeopleAccess(this.db)) this.denied();
  }
 
  private async requireActiveDemoManager(c:PoolClient,actor:Actor) {

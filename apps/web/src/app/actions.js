@@ -51,7 +51,7 @@ const localDemoOnly = action => (...args) => {
 /* ---------- เปลี่ยนหน้า เดือน และมุมมอง ---------- */
 function switchView(id) {
   if (state.actor?.role === 'ADMIN' && !['admin-access', 'admin-accounts'].includes(id)) return;
-  if (state.actor?.remotePilot && ['people', 'annual-schedule', 'hr-export', 'hr-audit'].includes(id)) return;
+  if (state.actor?.remotePilot && (['annual-schedule', 'hr-export', 'hr-audit'].includes(id) || (id === 'people' && !state.actor.peopleManagement))) return;
   state.activeView = id;
   view.moreNav = false;
   state.monthPickerOpen = false;

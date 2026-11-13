@@ -29,7 +29,8 @@ export function buildRole(roleKey, actor) {
       { id: 'admin-access', label: 'กำหนดบทบาท' }, { id: 'admin-accounts', label: 'บัญชีผู้ใช้' }] },
     Manager: { title: 'Manager (ฝ่ายผลิต)', short: 'ผู้จัดการฝ่ายผลิต', nav: [
       { id: 'manager-monitoring', label: 'ติดตามสถานะคำขอ' },
-      ...(actor.remotePilot ? [{ id: 'schedule', label: 'ตารางกะ' }] : [
+      ...(actor.remotePilot ? [{ id: 'schedule', label: 'ตารางกะ' },
+        ...(actor.peopleManagement ? [{ id: 'people', label: 'พนักงานและทีม' }] : [])] : [
         { id: 'people', label: 'พนักงานและทีม' },
         { id: 'annual-schedule', label: 'ตารางรายปี (Annual Schedule)' }
       ]),

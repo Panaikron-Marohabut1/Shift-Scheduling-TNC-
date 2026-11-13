@@ -3,7 +3,7 @@ import { ActorRequest, DemoAdminAllowed } from '../auth/access.guard';
 import { Database } from '../database/database.service';
 import { bangkokWorkDate } from '../requests/swap-request-time';
 import { pathId } from '../shared/input';
-import { isDemoAdmin, localDemoAccess, onboardingDemoProfile } from './demo-access';
+import { isDemoAdmin, demoPeopleAccess, onboardingDemoProfile } from './demo-access';
 
 const initialRoles=new Set(['EMPLOYEE','SUPERVISOR','MANAGER']);
 const pendingAccount=`u.identity_source='DEMO' AND u.demo_profile=$1 AND u.is_active
@@ -16,8 +16,8 @@ export class AdminAccessController {
  constructor(@Inject(Database) private readonly db:Database) {}
 
  private authorize(req:ActorRequest) {
-  if(!isDemoAdmin(req.actor)||!localDemoAccess(this.db)) {
-   throw new ForbiddenException({code:'ACTION_DENIED',message:'เฉพาะ Admin เดโม่ในเครื่องที่จัดการการเข้าใช้งานครั้งแรกได้'});
+  if(!isDemoAdmin(req.actor)||!demoPeopleAccess(this.db)) {
+   throw new ForbiddenException({code:'ACTION_DENIED',message:'เฉพาะ Admin เดโม่ที่จัดการการเข้าใช้งานครั้งแรกได้'});
   }
  }
 

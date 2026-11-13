@@ -35,7 +35,7 @@ Frontend และ API เปิดด้วยกันที่ `http://localh
 
 ### ทดลองสลับกะร่วมกันใน Milestone 5
 
-ใช้ `pnpm dev:supabase` เพื่อเปิดแอปในเครื่องของแต่ละคนและใช้ฐาน Supabase เดิมร่วมกัน ดู [วิธีตั้งค่าและทดสอบร่วมกัน](.docs/06-development/2026-11-13-remote-swap-pilot.md)
+ใช้ `pnpm dev:supabase` เพื่อเปิดแอปในเครื่องของแต่ละคนและใช้ฐาน Supabase เดิมร่วมกันสำหรับสลับกะ เมนู Admin เดโม่ และการจัดการพนักงานโดย Manager ดู [วิธีตั้งค่าและทดสอบร่วมกัน](.docs/06-development/2026-11-13-remote-swap-pilot.md)
 
 ### ทดลอง Admin และ Manager ใน Milestone 4
 

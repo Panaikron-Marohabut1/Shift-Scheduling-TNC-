@@ -15,9 +15,22 @@ function controller(connectionString:string) {
  } as unknown as Database);
 }
 
-test('initial access demo only accepts the reserved admin profile on a local synthetic database',async()=>{
+test('initial access rejects other profiles and arbitrary cloud databases',async()=>{
  await assert.rejects(()=>controller(local).pending(actor('MANAGER')),ForbiddenException);
  await assert.rejects(()=>controller(local).pending(actor('ADMIN','other-admin')),ForbiddenException);
+ await assert.rejects(()=>controller(cloud).pending(actor('ADMIN')),ForbiddenException);
+});
+
+test('shared demo accepts only the reserved Admin on its configured database',async t=>{
+ const previous=process.env.APP_MODE;
+ process.env.APP_MODE='SHARED_DEMO';
+ t.after(()=>{if(previous===undefined)delete process.env.APP_MODE;else process.env.APP_MODE=previous;});
+ const shared='postgresql://tnc_backend_dev.mmesiubkvxmsklmgsepd:fixture@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+ const service=new AdminAccessController({pool:{options:{connectionString:shared}},query:async()=>({rows:[]})} as unknown as Database);
+ assert.deepEqual(await service.pending(actor('ADMIN')),{users:[]});
+ await assert.rejects(()=>service.pending(actor('MANAGER')),ForbiddenException);
+ await assert.rejects(()=>service.pending(actor('ADMIN','other-admin')),ForbiddenException);
+ await assert.rejects(()=>controller(local).pending(actor('ADMIN')),ForbiddenException);
  await assert.rejects(()=>controller(cloud).pending(actor('ADMIN')),ForbiddenException);
 });
 

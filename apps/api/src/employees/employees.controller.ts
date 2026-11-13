@@ -1,7 +1,7 @@
 import { Controller, Get, Req, Inject, ForbiddenException } from '@nestjs/common';
 import { Database } from '../database/database.service';
 import { ActorRequest } from '../auth/access.guard';
-import { localDemoAccess } from '../admin-access/demo-access';
+import { demoPeopleAccess } from '../admin-access/demo-access';
 import { bangkokWorkDate } from '../requests/swap-request-time';
 @Controller('api/employees')
 export class EmployeesController {
@@ -10,7 +10,7 @@ export class EmployeesController {
   if(!['EMPLOYEE','SUPERVISOR','HR'].includes(req.actor.role))throw new ForbiddenException({code:'ACTION_DENIED',message:'บัญชีนี้ไม่มีสิทธิ์อ่านรายชื่อพนักงานภายใน'});
   const {employeeId,teamId,role}=req.actor;
   const columns='e.employee_id,e.employee_code,e.first_name,e.last_name,e.position,t.team_id,t.team_code,t.team_name';
-  if(localDemoAccess(this.db)) {
+  if(demoPeopleAccess(this.db)) {
    const today=bangkokWorkDate(new Date());
    return (await this.db.query(`SELECT ${columns} FROM employees e
     JOIN teams t ON t.team_id=shiftflow_policy.employee_team_on(e.employee_id,e.team_id,$3::date)
