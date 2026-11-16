@@ -89,7 +89,7 @@ export function adminAccessHtml() {
       ${notice ? `<p class="notice" role="status">${esc(notice)}</p>` : ''}
       ${entries ? `<ul class="people-access-list">${entries}</ul>` : ''}
       ${!users && pending ? '<p class="muted small" role="status">กำลังโหลดรายชื่อ…</p>' : ''}
-      ${users?.length === 0 && !pending ? '<p class="muted">ไม่มีบัญชีรอกำหนดบทบาท</p>' : ''}
+      ${users?.length === 0 && !pending ? `<div class="access-empty"><b>ตอนนี้ไม่มีบัญชีรอกำหนดบทบาท</b>เมื่อมีคนเข้าสู่ระบบครั้งแรกด้วยบัญชีเดโม่ที่ผูกไว้แล้ว รายชื่อจะขึ้นที่นี่ให้เลือกบทบาท กด "โหลดรายการล่าสุด" เพื่อตรวจอีกครั้ง หรือดูบัญชีทั้งหมดที่ <button type="button" class="link" data-click="SF.nav('admin-accounts')">บัญชีผู้ใช้</button></div>` : ''}
     </section>
   </div>`;
 }

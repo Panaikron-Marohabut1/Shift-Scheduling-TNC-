@@ -1,97 +1,168 @@
-/* ==========================================================================
-   กะของฉัน: กะวันนี้ ปฏิทินรายเดือน สรุปตัวเลข คำขอล่าสุด
-   ========================================================================== */
+/* กะของฉัน: แถบกะด้านบน ปฏิทินหลัก และคิวคำขอด้านข้าง */
 
-.cal-d .off { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+/* ---------- ชิปรหัสกะ (คำขอ, ประวัติ, ภาพรวม, คำอธิบาย) ---------- */
+.chip { position: relative; display: inline-grid; font-style: normal; place-items: center; min-width: 30px; height: 26px; padding: 0 6px; border-radius: 5px; font-weight: 700; font-size: 0.9rem; font-variant-numeric: tabular-nums; line-height: 1; }
+.chip.is-long { font-size: 0.72rem; }
+.chip.c-O { background: #eceef1; color: var(--ink-2); }
+.chip.is-ot::after { top: -3px; right: -3px; box-shadow: 0 0 0 2px var(--surface); }
 
-/* ---------- กะของฉัน ---------- */
-.my { display: grid; grid-template-columns: minmax(320px, 26%) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: 'now cal' 'req cal'; gap: 18px; }
-.my > .panel { margin-block: 0; }
-.my-now { grid-area: now; display: grid; gap: 14px; }
-.my-cal { grid-area: cal; display: flex; flex-direction: column; }
-.my-cal .cal { display: flex; flex-direction: column; flex: 1; }
-.my-cal .cal-body { flex: 1; grid-auto-rows: 1fr; }
-.my-req { grid-area: req; display: flex; flex-direction: column; }
-.my-req .panel-h { flex-wrap: wrap; gap: 4px 12px; }
-.my-page-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
-.my-date { padding-inline-start: 16px; border-inline-start: 1px solid var(--line-2); color: var(--ink-2); font-size: 1.0625rem; }
-@media (max-width: 520px) {
-  .my-page-title { flex-direction: column; }
-  .my-date { padding-inline-start: 0; border-inline-start: 0; }
-}
-.my-shift { display: grid; gap: 8px; padding: 16px 18px; border-radius: 12px; }
-.my-shift.c-O { background: var(--soft); color: var(--ink); }
-.my-shift-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
-.my-shift-heading b { font-size: 1.3rem; font-weight: 700; line-height: 1.25; }
-.my-shift-code { padding: 1px 7px; border: 1px solid currentColor; border-radius: 6px; font-size: 0.85rem; font-weight: 600; }
-.my-shift-hours { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
-.my-shift-hours strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; line-height: 1.25; }
-.my-shift-details { display: flex; flex-wrap: wrap; gap: 3px 16px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent); }
-.my-shift-details, .my-shift-description { font-size: 0.92rem; }
-.my-cal .bar { margin-bottom: 12px; }
-.cal-head, .cal-body { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.cal-head { margin-bottom: 6px; }
-.cal-head span { text-align: center; font-size: 0.87rem; color: var(--muted); }
-.cal-d { display: grid; grid-template-rows: auto 1fr; min-height: clamp(66px, 9vh, 110px); padding: 6px 9px 8px; text-align: left; border-radius: 10px; }
-.cal-d.c-O { background: var(--soft); }
-.cal-d .n { font-size: 0.87rem; font-variant-numeric: tabular-nums; opacity: 0.8; }
-.cal-d b { align-self: center; justify-self: center; font-size: 1.15rem; font-weight: 700; }
+/* ---------- ปฏิทินทั้งเดือน: ระบายสีทั้งช่องตามกะ วันหยุดเป็นช่องเทาอ่อน ---------- */
+.my-cal .mnav-label { white-space: nowrap; }
+.cal { display: flex; flex-direction: column; }
+.cal-head, .cal-body { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-head { margin-bottom: 4px; }
+.cal-head span.we { color: var(--we-ink); font-weight: 600; }
+.cal-head span { text-align: center; font-size: 0.85rem; color: var(--muted); }
+.cal-body { grid-auto-rows: minmax(74px, auto); }
+.cal-d { position: relative; display: grid; grid-template-rows: auto 1fr auto; min-height: 74px; padding: 5px 8px 6px; border-radius: 8px; text-align: left; }
+.cal-d.c-O { background: #f3f4f6; }
+.cal-d.c-O.hol { background: var(--hol-bg); }
+.cal-d .n { font-size: 0.85rem; font-variant-numeric: tabular-nums; opacity: 0.85; }
 .cal-d.c-O .n { color: var(--ink-2); opacity: 1; }
-.cal-d.hol .n { color: var(--bad); font-weight: 700; opacity: 1; }
-.cal-d.past { opacity: 0.5; }
-.cal-d.tdy { box-shadow: 0 0 0 2px var(--primary); opacity: 1; }
-button.cal-d:hover { box-shadow: 0 0 0 2px var(--primary); }
+.cal-code { align-self: center; justify-self: center; font-size: 1.2rem; font-weight: 700; line-height: 1; }
+/* เวลาเข้า–ออกกะใต้รหัส */
+.cal-time { justify-self: center; font-size: 0.72rem; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.2; opacity: 0.85; white-space: nowrap; }
+.cal-d.is-long .cal-code { font-size: 0.85rem; }
+@media (hover: hover) and (pointer: fine) { .cal-d:hover { box-shadow: inset 0 0 0 2px var(--primary); } }
+.cal-d.hol .n { color: var(--hol-ink); font-weight: 700; opacity: 1; }
+.cal-d .hn { max-width: 100%; font-size: 0.68rem; line-height: 1.2; color: var(--hol-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* วันที่ผ่านแล้ว: สีอ่อนลงแต่ตัวรหัสยังเข้ม (คอนทราสต์อย่างน้อย 4.5:1) */
+.cal-d.past.c-M { background: #fff8e1; }
+.cal-d.past.c-N { background: #eef3fd; }
+.cal-d.past .n { color: var(--muted); }
+/* เดือนที่เป็นการคาดการณ์: เส้นประในช่อง */
+.cal-d.proj:not(.c-O) { outline: 1px dashed currentColor; outline-offset: -4px; }
+.cal-d.tdy { box-shadow: inset 0 0 0 2.5px var(--primary); }
+.cal-d.tdy .n { color: var(--primary); font-weight: 700; opacity: 1; }
+.cal-d.we .n { color: var(--we-ink); font-weight: 700; opacity: 1; }
+/* ช่องที่เปลี่ยนจากตารางเดิม: มุมแดงซ้ายบนแบบหมายเหตุใน Excel */
+.cal-d.chg::before { content: ''; position: absolute; top: 0; left: 0; pointer-events: none; border-style: solid; border-width: 12px 12px 0 0; border-color: #d62828 transparent transparent transparent; border-top-left-radius: 8px; }
+.cal-d.chg .n { padding-left: 6px; }
+/* สรุปเดือนเป็นข้อความแถวเดียว ไม่แข่งขันกับตัวเลขวันในปฏิทิน */
+.my-sum { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin-top: 16px; padding-top: 12px; }
+.my-sum-label { font-size: 0.87rem; color: var(--muted); font-weight: 500; }
+.my-stats { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; }
+.my-stats div { display: flex; align-items: baseline; gap: 6px; }
+.my-stats dt { font-size: 0.87rem; color: var(--ink-2); }
+.my-stats dd { margin: 0; font-size: 0.93rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.my-cal-hint { margin-top: 10px; font-size: 0.8rem; color: var(--muted); }
+
+/* ---------- ข้อมูลแบบ 2 คอลัมน์ (ใช้ร่วมกับหน้าต่างอื่น): แยกด้วยระยะ ไม่ใช้เส้น ---------- */
 .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
-.facts div { padding: 10px 14px; background: var(--soft); border-radius: 10px; min-width: 0; }
+.facts div { padding: 10px 14px; background: var(--soft); border-radius: 6px; min-width: 0; }
 .facts dt { font-size: 0.87rem; color: var(--muted); }
 .facts dd { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .facts.plain { grid-template-columns: 1fr; gap: 0; margin: 0; }
-.facts.plain div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 9px 0; background: none; border-radius: 0; border-bottom: 1px solid #f0f2f6; }
-.facts.plain dt { font-size: 0.95rem; }
+.facts.plain div { display: grid; grid-template-columns: 116px 1fr; gap: 12px; padding: 7px 0; background: none; border-radius: 0; }
+.facts.plain dt { font-size: 0.93rem; }
 .facts.plain dd { font-size: 1rem; font-weight: 400; }
-.rlist { display: grid; }
-.rline { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 0; border-bottom: 1px solid #f0f2f6; }
-.rline:hover .rl-main b { color: var(--primary); }
-.rl-main { display: grid; min-width: 0; }
-.rl-main b { font-weight: 600; }
-.rl-main span { font-size: 0.9rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rline .st { white-space: normal; text-align: right; flex: none; max-width: 46%; }
-.my-now-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 36px; }
-.my-now-actions .link, .my-req .my-req-all { min-height: 36px; text-align: center; }
-.my-req .my-req-all { align-self: center; padding-top: 8px; margin-top: auto; }
-@media (pointer: coarse) {
-  .my-now-actions .link, .my-req .my-req-all { min-height: 44px; }
-}
-@media (max-width: 1100px) {
-  .my { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'now' 'cal' 'req'; }
-}
-@media (max-width: 760px) {
-  .my-cal .mnav { flex: 1; }
-  .my-cal .mnav-label { flex: 1; min-width: 0; }
-  .cal-body, .cal-head { gap: 4px; }
-  .cal-d { min-height: 56px; padding: 4px 6px 6px; }
-  .facts dd { font-size: 1.15rem; }
-  .facts.plain div { grid-template-columns: 100px 1fr; }
-}
-.my-meta { margin: 0; }
-.my-quota-caption { display: block; color: var(--ink-2); font-size: 0.875rem; }
-.cal-d.proj b { opacity: 0.6; }
-@media (max-width: 760px) {
-  .cal-d { min-height: 60px; }
-}
 
-/* ปฏิทินกะของฉัน */
-.cal-head span.we { color: var(--we-ink); font-weight: 600; }
-.cal-d.we .n { color: var(--we-ink); font-weight: 700; opacity: 1; }
-.cal-d.we.c-O { background: var(--we-bg); }
-.cal-d.hol { box-shadow: inset 0 0 0 2px #ef9a9a; }
-.cal-d.hol.c-O { background: var(--hol-bg); }
-.cal-d.hol .n { color: var(--hol-ink); font-weight: 700; opacity: 1; }
-.cal-d .hn { display: block; font-size: 0.68rem; line-height: 1.2; color: var(--hol-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cal-d.tdy { box-shadow: 0 0 0 2px var(--primary); }
+/* ---------- คำขอล่าสุด: แถวกดได้ แยกด้วยระยะและพื้นตอนชี้ ---------- */
+.rlist { display: grid; gap: 2px; margin-inline: -10px; }
+.rline { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 10px; border-radius: 6px; }
+@media (hover: hover) and (pointer: fine) { .rline:hover { box-shadow: inset 0 0 0 1px var(--line-2); } .rline:hover .rl-main b { color: var(--primary); } }
+.rl-main { display: grid; min-width: 0; }
+.rl-main b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-main span { font-size: 0.88rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rline .st { white-space: normal; text-align: right; flex: none; max-width: 42%; font-size: 0.88rem; }
+.my-req .my-req-all { align-self: flex-start; min-height: 36px; padding-top: 6px; margin-top: auto; }
+
+
 @media (max-width: 760px) {
-  .cal-d .hn { display: none; }
+  .cal-head, .cal-body { gap: 3px; }
+  .cal-body { grid-auto-rows: minmax(52px, auto); }
+  .cal-d { min-height: 52px; padding: 3px 4px 5px; border-radius: 6px; grid-template-rows: auto 1fr; }
+  .cal-code { font-size: 1rem; }
+  .cal-time, .cal-d .hn { display: none; }
+  .facts dd { font-size: 1.15rem; }
+  .facts.plain div { grid-template-columns: 110px 1fr; }
 }
-.cal-d.chg { position: relative; }
-.cal-d.chg::before { content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none; border-style: solid; border-width: 9px 9px 0 0; border-color: #d62828 transparent transparent transparent; }
-.cal-d.chg::before { border-width: 14px 14px 0 0; border-top-left-radius: 10px; }
+/* Personal workspace only. Shared chip/facts/list styles above serve other pages. */
+.my-home { max-width: 1540px; margin-inline: auto; }
+.my-home .my-heading { align-items: start; margin-bottom: 22px; }
+.my-home .my-heading h1 { font-size: 1.65rem; }
+.my-home .my-date { color: var(--muted); font-size: .93rem; margin-top: 4px; }
+.my-home .my { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 34%); grid-template-areas: 'now now' 'cal req'; gap: 0; padding: 24px; background: var(--surface); border-radius: 8px; align-items: start; }
+.my-home .my-now { grid-area: now; display: flex; justify-content: space-between; align-items: start; gap: 20px 32px; padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+.my-home .my-duty-main { display: grid; gap: 18px; min-width: 0; }
+.my-home .my-duty-date { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.my-home .my-duty-date > span { font-size: .9rem; color: var(--muted); }
+.my-home .my-duty-date strong { font-size: 1.1rem; font-weight: 600; }
+.my-home .today-line { display: flex; align-items: center; gap: 12px; }
+.my-home .today-chip { width: 40px; min-width: 40px; height: 40px; font-size: 1.1rem; border-radius: 6px; }
+.my-home .today-text { display: grid; gap: 4px; min-width: 0; }
+.my-home .my-shift-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+.my-home .my-shift-title b { font-size: 1rem; font-weight: 500; }
+.my-home .today-hours { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.my-home .today-hours small { font-size: .85rem; font-weight: 400; color: var(--muted); }
+.my-home .today-details, .my-home .today-description { font-size: .9rem; color: var(--ink-2); }
+.my-home .my-duty-facts { display: flex; flex-wrap: wrap; gap: 8px 32px; }
+.my-home .my-duty-facts > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.my-home .my-duty-facts dt { color: var(--muted); font-size: .9rem; }
+.my-home .my-duty-facts dd { margin: 0; font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.my-home .my-now-actions { flex: none; }
+.my-home .today-act { padding-inline: 28px; min-height: 40px; }
+.my-home .my-cal { grid-area: cal; min-width: 0; padding-right: 28px; }
+.my-home .my-cal-bar { margin-bottom: 12px; gap: 8px; }
+.my-home .my-calendar-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin-bottom: 16px; }
+.my-home .my-calendar-meta .mstatus { margin: 0; gap: 8px 16px; font-size: .9rem; }
+.my-home .my-calendar-times { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; color: var(--ink-2); font-size: .9rem; }
+.my-home .my-calendar-times > span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.my-home .my-calendar-times .chip { min-width: 22px; height: 22px; font-size: .75rem; }
+.my-home .my-calendar-times > span > span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.my-home .cal-head, .my-home .cal-body { gap: 2px; }
+.my-home .cal-head { padding-bottom: 6px; }
+.my-home .cal-d { border-radius: 3px; min-height: 84px; padding: 7px 9px; }
+.my-home .cal-code { font-size: 1.05rem; }
+.my-home .cal-time { display: flex; justify-content: center; font-size: .75rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.my-home .cal-d.chg::before { border-top-left-radius: 3px; }
+.my-home .my-req { grid-area: req; display: grid; gap: 24px; padding-left: 24px; border-left: 1px solid var(--line); min-width: 0; }
+.my-home .my-req h2 { font-size: 1.05rem; font-weight: 700; }
+.my-home .my-section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+.my-home .my-section-heading > span { color: var(--muted); font-size: .85rem; }
+.my-home .my-req .rlist { margin: 0; }
+.my-home .my-req .rline { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, .85fr); align-items: start; gap: 12px; padding: 14px 8px; }
+.my-home .my-req .rl-main { gap: 3px; }
+.my-home .my-req .rl-main b { font-size: .95rem; font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
+.my-home .my-req .rl-main span { white-space: normal; font-size: .9rem; }
+.my-home .my-req .st { max-width: 100%; text-align: right; justify-self: end; justify-content: flex-end; font-size: .85rem; }
+.my-home .my-req-all { margin: 0; padding: 0; justify-self: start; font-size: .85rem; min-height: 36px; }
+.my-home .my-team-links { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .85rem; }
+.my-home .my-team-links .link { min-height: 36px; }
+.my-home .my-sum { gap: 8px 16px; margin-top: 12px; }
+.my-home .my-stats { gap: 6px 16px; }
+@media (max-width: 1100px) and (min-width: 761px) {
+  .my-home .my { grid-template-columns: minmax(0, 1fr) 280px; padding: 20px; }
+  .my-home .my-cal { padding-right: 20px; }
+  .my-home .my-req { padding-left: 20px; }
+  .my-home .cal-time { display: grid; text-align: center; }
+  .my-home .cal-time-sep { display: none; }
+}
+@media (max-width: 760px) {
+  .my-home .my-heading { margin-bottom: 16px; gap: 8px; }
+  .my-home .my-heading h1 { font-size: 1.45rem; }
+  .my-home .my { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'now' 'pending' 'cal' 'recent' 'all' 'links'; padding: 16px 12px; }
+  .my-home .my-now { flex-direction: column; gap: 20px; margin-bottom: 16px; padding-bottom: 20px; }
+  .my-home .my-duty-main { gap: 16px; }
+  .my-home .my-duty-date { display: grid; gap: 4px; }
+  .my-home .my-duty-facts { gap: 10px; }
+  .my-home .my-duty-facts > div { flex-basis: 100%; justify-content: space-between; }
+  .my-home .my-now-actions { width: 100%; }
+  .my-home .today-act { width: 100%; height: 44px; }
+  .my-home .my-req { display: contents; }
+  .my-home .my-pending { grid-area: pending; margin-bottom: 20px; }
+  .my-home .my-cal { padding: 0; }
+  .my-home .my-cal-bar .mnav { flex: 1; }
+  .my-home .my-cal .mnav-label { min-width: 0; flex: 1; }
+  .my-home .my-calendar-times { gap: 6px 12px; }
+  .my-home .cal-body { grid-auto-rows: minmax(84px, auto); }
+  .my-home .cal-d { min-height: 84px; padding: 4px; grid-template-rows: auto 1fr auto; }
+  .my-home .my-recent { grid-area: recent; margin-top: 24px; }
+  .my-home .my-req-all { grid-area: all; margin-block: 12px; min-height: 44px; }
+  .my-home .my-team-links { grid-area: links; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  .my-home .my-team-links .link { min-height: 44px; }
+  .my-home .my-sum-label { flex-basis: 100%; }
+  .my-home .my-cal-hint { font-size: .8rem; }
+  .my-home .cal-time { display: grid; font-size: .7rem; white-space: normal; text-align: center; }
+  .my-home .cal-time-sep { display: none; }
+}

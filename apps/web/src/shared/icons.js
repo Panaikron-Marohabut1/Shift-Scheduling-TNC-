@@ -19,7 +19,14 @@ const ICON = {
   driver: '<rect x="4" y="4" width="16" height="12" rx="2.5"/><path d="M4 10.5h16"/><circle cx="8" cy="19" r="1.6"/><circle cx="16" cy="19" r="1.6"/>',
   export: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>',
   bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
-  more: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>'
+  more: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  dot: '<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
+  ring: '<circle cx="12" cy="12" r="5.5"/>',
+  alert: '<path d="M12 5.5v8.5M12 18v.5"/>',
+  sidebar: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/>'
 };
 export const icon = name => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ICON.overview}</svg>`;
 // ไอคอนในข้อความแจ้ง

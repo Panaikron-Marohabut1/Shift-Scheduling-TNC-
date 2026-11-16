@@ -23,15 +23,15 @@
 .tbl.year td { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .yr { display: inline-flex; align-items: center; gap: 5px; margin-right: 12px; }
 .cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
-.rows li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f2f6; }
+.rows li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; }
 .rows-l { display: grid; line-height: 1.4; }
 .rows-l b { font-weight: 600; }
 .cols2 .panel > .muted { margin-top: 10px; }
 
 /* ---------- ภาพรวมกำลังพล ---------- */
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-.kpi { display: grid; gap: 2px; text-align: left; padding: 16px 18px; background: var(--surface); border-radius: 10px; box-shadow: var(--card-shadow); }
-.kpi:hover { box-shadow: 0 0 0 1px var(--line-2), var(--card-shadow); }
+.kpi { display: grid; gap: 2px; text-align: left; padding: 16px 18px; background: var(--surface); border-radius: 8px; }
+@media (hover: hover) and (pointer: fine) { .kpi:hover { border-color: var(--line-2); } }
 .kpi span { color: var(--ink-2); font-size: 0.93rem; }
 .kpi b { font-size: 1.9rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .kpi b.warn { color: var(--warn); }
@@ -50,10 +50,10 @@
 .quota-settings { display: grid; gap: 14px; max-width: 48rem; }
 .quota-settings-note, .quota-settings-months dt .small { color: var(--ink-2); }
 .quota-settings-months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.quota-settings-months > div { display: grid; gap: 6px; padding: 12px 16px; background: var(--soft); border-radius: 10px; }
+.quota-settings-months > div { display: grid; gap: 6px; padding: 12px 16px; background: var(--surface); border-radius: 6px; }
 .quota-settings-months dt { display: grid; gap: 2px; }
 .quota-settings-months dd strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
-.quota-settings form { padding-top: 14px; border-top: 1px solid var(--line); }
+.quota-settings form { padding-top: 6px; }
 .quota-settings .numfield { flex-wrap: wrap; }
 .quota-settings .numfield .btn { height: 40px; }
 @media (max-width: 480px) {
@@ -70,7 +70,7 @@
 .people-table-wrap:focus-visible { outline-offset: -2px; }
 .tbl.people-table { min-width: 44rem; table-layout: fixed; }
 .tbl.people-table th, .tbl.people-table td { padding: 10px 16px; }
-.tbl.people-table thead th { background: var(--soft); color: var(--ink-2); }
+.tbl.people-table thead th { background: var(--surface); color: var(--muted); }
 .tbl.people-table tbody th { font-weight: 600; }
 .tbl.people-table tbody th, .tbl.people-table tbody td { overflow-wrap: anywhere; }
 .people-table .people-team { width: 20%; }
@@ -80,7 +80,7 @@
 .people-table .act { width: 5.75rem; }
 .people-meta { display: block; margin-top: 2px; color: var(--ink-2); font-size: 0.87rem; font-weight: 400; line-height: 1.4; }
 .people-table .act .btn { color: var(--primary); }
-.people-table .act .btn:hover { background: var(--primary-tint); }
+@media (hover: hover) and (pointer: fine) { .people-table .act .btn:hover { box-shadow: inset 0 0 0 1px var(--primary); } }
 @media (min-width: 1360px) {
   .people-table .people-role { width: 20%; }
 }
@@ -89,7 +89,7 @@
 }
 
 .people-access-list { margin-top: 12px; }
-.people-access-row { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 14px 0; border-top: 1px solid var(--line-2); }
+.people-access-row { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 14px 0; }
 .people-access-form { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
 #admin-access .notice, #central-people > .notice { margin-bottom: 12px; }
 #admin-accounts .notice { margin-bottom: 12px; }
@@ -97,12 +97,12 @@
 .admin-accounts-table th, .admin-accounts-table td { white-space: normal; }
 .admin-account-meta { display: block; color: var(--ink-2); font-weight: 400; }
 .admin-account-meta:empty { display: none; }
-.employee-edit-person { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.employee-edit-person { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-bottom: 12px; }
 .employee-edit-person span, .employee-edit-hint { color: var(--ink-2); }
 .employee-edit-hint span { display: block; }
 .employee-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
 .employee-edit-grid .field, .employee-edit-grid .inp { min-width: 0; }
-.employee-edit-timing { padding-top: 12px; border-top: 1px solid var(--line); }
+.employee-edit-timing { padding-top: 8px; }
 #centralEmployeeError:empty { display: none; }
 #centralEmployeeError ul { margin-block-start: 6px; }
 @media (max-width: 480px) {
@@ -112,3 +112,85 @@
   .people-access-form { display: grid; width: 100%; }
   .people-access-form .btn { justify-self: start; }
 }
+
+/* ---------- ภาพรวมกำลังพล: ทีมที่อยู่กะขึ้นก่อน ตัวเลขสรุปเป็นบรรทัดเดียว ---------- */
+.ov-teams { display: grid; }
+.ov-head, .ov-teams li { display: grid; grid-template-columns: 110px minmax(180px, 1.2fr) minmax(160px, 1fr) 80px minmax(130px, auto); align-items: center; gap: 8px 20px; padding: 14px 20px; }
+.ov-head { padding: 4px 20px 8px; border-top: 0; font-size: 0.85rem; color: var(--muted); }
+.ov-teams li { background: var(--surface); }
+.ov-teams li.live { background: #eaf6ef; }
+.ov-name { font-weight: 700; }
+.ov-shift { display: inline-flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; }
+.ov-shift .chip { min-width: 28px; height: 24px; font-size: 0.85rem; }
+.ov-size { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.ov-size b { color: var(--ink); font-size: 1.05rem; }
+.ov-sum { margin-top: 14px; color: var(--ink-2); line-height: 1.9; }
+.ov-sum b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ov-sum .link { font-weight: 400; }
+@media (max-width: 900px) {
+  .ov-head { display: none; }
+  .ov-teams li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name status' 'shift size' 'sup sup'; padding: 14px 16px; }
+  .ov-name { grid-area: name; } .ov-shift { grid-area: shift; } .ov-sup { grid-area: sup; color: var(--ink-2); }
+  .ov-sup .sr { position: static; width: auto; height: auto; overflow: visible; clip: auto; color: var(--muted); }
+  .ov-size { grid-area: size; text-align: right; } .ov-status { grid-area: status; justify-self: end; }
+}
+
+/* ---------- พนักงานและทีม: มือถือเป็นรายการ ชื่อ / ทีม · บทบาท · ตำแหน่ง ---------- */
+@media (max-width: 760px) {
+  .tbl.people-table { min-width: 0; table-layout: auto; }
+  .people-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .people-table tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 12px 16px; }
+  .tbl.people-table tbody th, .tbl.people-table tbody td { display: block; padding: 0; border: 0; width: auto; }
+  .tbl.people-table tbody th { order: 0; flex: 1 0 calc(100% - 96px); }
+  .tbl.people-table tbody td.act { order: 1; flex: none; margin-left: auto; }
+  .tbl.people-table tbody td:nth-child(2) { order: 2; }
+  .tbl.people-table tbody td:nth-child(3) { order: 3; }
+  .tbl.people-table tbody td:nth-child(4) { order: 4; }
+  .tbl.people-table tbody td:not(.act) { font-size: 0.9rem; color: var(--ink-2); }
+  .tbl.people-table tbody td:nth-child(3)::before, .tbl.people-table tbody td:nth-child(4)::before { content: '·'; margin-right: 8px; color: var(--muted); }
+  .tbl.people-table tbody td[data-same-as-role] { display: none; }
+  .panel.flush.people-table-wrap { overflow-x: visible; }
+}
+
+/* ---------- Admin: ไม่มีบัญชีรอ ---------- */
+.access-empty { margin-top: 12px; padding: 20px; background: var(--surface); border-radius: 8px; color: var(--ink-2); }
+.access-empty b { display: block; color: var(--ink); margin-bottom: 4px; }
+
+/* ---------- ประวัติ: หนึ่งคำขอหนึ่งแผ่น หัวชัด เหตุการณ์เป็นเส้นเวลา ---------- */
+.hist { display: grid; gap: 14px; }
+.hist-group { background: var(--surface); border-radius: 8px; padding: 16px 20px 12px; transition: box-shadow 0.18s ease; }
+.hist-head { display: grid; gap: 4px; width: 100%; padding: 0 0 12px; text-align: left; }
+.hist-top { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.hist-type { font-size: 1.08rem; font-weight: 700; color: var(--ink); }
+.hist-status { white-space: normal; }
+.hist-status.open { padding: 3px 10px; border-radius: 6px; background: #fff1d6; color: #7a4a00; font-weight: 600; }
+.hist-status.open::before { background: #e39b17; }
+.hist-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--ink-2); font-size: 0.93rem; }
+.hist-people { color: var(--ink); }
+@media (hover: hover) and (pointer: fine) {
+  .hist-group:has(button.hist-head:hover) { box-shadow: inset 0 0 0 1px var(--hover-ring); }
+  button.hist-head:hover .hist-type { color: var(--primary); }
+}
+/* เหตุการณ์: เวลา │ จุดบนเส้นเวลา │ สิ่งที่เกิดขึ้น (ตัวเข้ม) + ใครทำ (ตัวจาง) */
+.hist-events { display: grid; }
+.hist-events li { position: relative; display: grid; grid-template-columns: 104px 20px minmax(0, 1fr); align-items: start; padding: 6px 0; }
+.hist-events li::before { content: ''; position: absolute; left: 113px; top: 0; bottom: 0; width: 2px; background: #e6e9ee; }
+.hist-events li:first-child::before { top: 14px; }
+.hist-events li:last-child::before { bottom: calc(100% - 14px); }
+.hist-time { padding-top: 1px; color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.hist-dot { position: relative; z-index: 1; justify-self: center; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px #9aa4b2; }
+.hist-events li:first-child .hist-dot { background: #9aa4b2; }
+.hist-group.open .hist-events li:first-child .hist-dot { background: #e39b17; box-shadow: none; }
+.hist-body { display: grid; gap: 1px; padding-left: 6px; min-width: 0; }
+.hist-body b { font-weight: 600; color: var(--ink); }
+.hist-meta { font-size: 0.87rem; color: var(--muted); }
+.hist-time-inline { display: none; }
+.hist-body small { display: block; color: var(--ink-2); font-size: 0.87rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .hist-group { padding: 14px 14px 10px; }
+  .hist-events li { grid-template-columns: 16px minmax(0, 1fr); }
+  .hist-events li::before { left: 7px; }
+  .hist-time { display: none; }
+  .hist-time-inline { display: inline; }
+}
+.req.closed .chip.c-O { background: var(--surface); }

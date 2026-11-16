@@ -69,7 +69,7 @@ export function centralPeopleHtml() {
           <th scope="row">${esc(person.name)}<span class="people-meta">${esc(person.employeeCode)}</span></th>
           <td>Shift ${esc(person.teamCode)}${person.scheduledTransfer ? `<span class="people-meta">ย้ายไป Shift ${esc(person.scheduledTransfer.teamCode)}<br><time datetime="${esc(person.scheduledTransfer.effectiveOn)}">${esc(dateText(person.scheduledTransfer.effectiveOn))}</time></span>` : ''}</td>
           <td>${person.hasAccount ? esc(roles[person.role] || '—') : '<span class="st wait">ยังไม่เปิดสิทธิ์</span>'}</td>
-          <td>${esc(positions[person.position] || person.position || '—')}</td>
+          <td ${person.hasAccount && roles[person.role] === (positions[person.position] || person.position) ? 'data-same-as-role' : ''}>${esc(positions[person.position] || person.position || '—')}</td>
           <td class="act"><button type="button" class="btn sm" data-click="editCentralEmployee(${js(person.employeeId)})">แก้ไข</button></td>
         </tr>`).join('')}</tbody>
       </table>

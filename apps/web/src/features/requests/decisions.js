@@ -141,7 +141,7 @@ export async function approveRequest(reqId) {
       applyApprovedRequestToSchedule(req);
       logLocalDecision(req, `อนุมัติคำขอ ${req.type} ของ ${req.person} ครบ ${req.approvers.length} ฝ่ายแล้ว (วันที่ ${req.date})`, 'คำขอได้รับการอนุมัติแล้ว', 'กะของคุณเปลี่ยนแล้ว');
       notifyApproved(req);
-      showToast(`อนุมัติคำขอของ ${req.person} ครบ ${req.approvers.length} ฝ่ายเรียบร้อยแล้ว ✓`);
+      showToast(`อนุมัติคำขอของ ${req.person} ครบ ${req.approvers.length} ฝ่ายเรียบร้อยแล้ว`);
     } else {
       const nextPending = req.approvers.find(a => a.status !== 'approved');
       req.status = `รออนุมัติครบ ${req.approvers.length} ฝ่าย (${nextPending ? nextPending.role : ''})`.trim();

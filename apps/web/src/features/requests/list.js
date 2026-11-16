@@ -4,8 +4,10 @@
 
 import { state, view } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
+import { icon } from '../../shared/icons.js';
 import { currentEmp, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
 import { pageHead } from '../../shared/ui.js';
+import { codeClass, shownCode } from '../schedule/codes.js';
 import { localLeaveClosureStatus } from './leave-time.js';
 import { canCancelApproved, canUserReviewRequest, canWithdrawRequest, getVisibleRequests, hasOtherParticipants, isRequestOwner, managerCanAct, visibleRequestReason } from './permissions.js';
 
@@ -27,7 +29,8 @@ export function statusCls(req) {
 function reqActions(req) {
   const pending = req.status.includes('รอ');
   const next = req.approvers ? req.approvers.find(a => a.status !== 'approved') : null;
-  const detail = `<button class="btn sm" data-click="openRequestDetails(${js(req.id)})">ดูรายละเอียด</button>`;
+  // ทั้งแถวเปิดรายละเอียดได้อยู่แล้ว จึงไม่มีปุ่ม "ดูรายละเอียด" ซ้ำทุกแถว
+  const detail = '';
   const approve = req.approvalBlockReason ? '' : `<button class="btn sm primary" data-click="approveRequest(${js(req.id)})">อนุมัติ</button>`;
   const decide = `<button class="btn sm danger" data-click="promptRejectRequest(${js(req.id)})">ไม่อนุมัติ</button>${approve}`;
   const me = currentEmp();
@@ -39,17 +42,30 @@ function reqActions(req) {
   if (state.activeRole === 'Manager') return (managerCanAct(req) ? decide : '') + detail + undo;
   if (mine) return detail + withdraw() + undo;
   if (canUserReviewRequest(req) && pending) return decide + detail;
-  if (isSupervisorRoleName(state.activeRole) && pending) return `<span class="muted small wait-for">รอ ${esc(next ? next.role : 'หัวหน้ากะอีกฝ่าย')}</span>${detail}`;
+  if (isSupervisorRoleName(state.activeRole) && pending) return `<span class="muted small wait-for">รอ ${esc(String(next ? next.role : 'หัวหน้ากะอีกฝ่าย').replace(/\s*\([^)]*\)\s*$/, ''))}</span>${detail}`;
   return detail;
 }
-function stepsInline(req) {
-  if (!req.approvers || req.approvers.length < 2) return '';
-  return `<div class="steps-inline">${req.approvers.map((a, i) => {
+// ขั้นอนุมัติแบบสั้น: ไอคอนถูก = อนุมัติแล้ว · จุดทึบ = ถึงคิว · วงกลม = ยังไม่ถึง (ตัดชื่อในวงเล็บที่ซ้ำกับบทบาทออก)
+function stepsHtml(req) {
+  if (!req.approvers || !req.approvers.length) return '';
+  const pending = req.status.includes('รอ');
+  return `<ol class="req-steps" aria-label="ขั้นอนุมัติ">${req.approvers.map((a, i) => {
     const prior = req.approvers.slice(0, i).every(p => p.status === 'approved');
-    const cls = a.status === 'approved' ? 'done' : (req.parallelApproval || prior) && req.status.includes('รอ') ? 'now' : '';
-    return `<span class="${cls}">${esc(a.role)}${a.status === 'approved' ? ` ✓${a.at ? ` ${esc(a.at)}` : ''}` : ''}</span>`;
-  }).join(req.parallelApproval ? '<i>·</i>' : '<i>›</i>')}</div>`;
+    const step = a.status === 'approved' ? 'done' : pending && (req.parallelApproval || prior) ? 'now' : 'todo';
+    const mark = icon({ done: 'check', now: 'dot', todo: 'ring' }[step]);
+    const word = { done: 'อนุมัติแล้ว', now: 'รอตรวจ', todo: 'ยังไม่ถึงคิว' }[step];
+    return `<li class="${step}"><i aria-hidden="true">${mark}</i><span>${esc(String(a.role).replace(/\s*\([^)]*\)\s*$/, ''))}<span class="sr"> ${word}</span></span>${step === 'done' && a.at ? `<small>${esc(a.at)}</small>` : ''}</li>`;
+  }).join('')}</ol>`;
 }
+const shiftChip = code => `<span class="chip ${codeClass(code)}">${esc(shownCode(code))}</span>`;
+// ผู้ตรวจสอบทำอะไรกับคำขอนี้ได้ตอนนี้ → ใช้แยกแท็บ "รอฉัน"
+function waitsForMe(req) {
+  if (!req.status || !req.status.includes('รอ')) return false;
+  if (state.activeRole === 'Manager') return managerCanAct(req);
+  return canUserReviewRequest(req);
+}
+export function selectRequestTab(tab) { if (['mine', 'all'].includes(tab)) view.requestTab = tab; }
+
 export function requestsHtml(title) {
   const isEmp = state.activeRole === 'Shift Employee';
   const visible = getVisibleRequests().map(request => {
@@ -57,45 +73,54 @@ export function requestsHtml(title) {
     return status ? { ...request, status } : request;
   });
   const group = view.employeeRequestGroup;
-  const list = isEmp ? visible.filter(request => hasOtherParticipants(request) === (group === 'shared')) : visible;
-  const pendingN = list.filter(r => r.status && r.status.includes('รอ')).length;
-  const right = [`<span class="st ${pendingN ? 'wait' : ''}">${isEmp ? `ทั้งหมด ${list.length} รายการ` : `รอดำเนินการ ${pendingN} รายการ`}</span>`];
-  const personLine = request => isEmp
-    ? `ผู้ยื่น ${isRequestOwner(request, currentEmp()) ? 'คุณ' : request.person}`
-    : `${request.person} · ${request.roleCategory}`;
-  const relatedPerson = request => request.kind === 'leave' ? 'คนที่มาทำแทน' : 'คู่สลับ/ผู้เกี่ยวข้อง';
+  const me = currentEmp();
+  const reviewer = !isEmp && (state.activeRole === 'Manager' || isSupervisorRoleName(state.activeRole));
+  const forMe = reviewer ? visible.filter(waitsForMe) : [];
+  const tab = reviewer ? (view.requestTab || (forMe.length ? 'mine' : 'all')) : 'all';
+  const list = isEmp ? visible.filter(request => hasOtherParticipants(request) === (group === 'shared'))
+    : tab === 'mine' ? forMe : visible;
+  const pendingN = visible.filter(r => r.status && r.status.includes('รอ')).length;
+  const right = [];
   if (!state.actor?.remotePilot && state.localRequests.length) right.push('<button class="btn" data-click="resetTestcases()" title="ล้างรายการคำขอทดลองในเครื่องนี้ เพื่อเริ่มทดสอบใหม่">ล้างคิวคำขอ</button>');
   if (isEmp) right.push('<button class="btn primary" data-click="SF.newRequest()">ยื่นคำขอ</button>');
+  const nameOf = name => (me && name === me.name ? 'คุณ' : name);
+  const tabs = isEmp
+    ? Object.entries(employeeRequestGroups).map(([key, label]) => [key, label, `SF.employeeRequestGroup(${js(key)})`, group === key, `employee-requests-${key}`])
+    : reviewer ? [['mine', `รอฉัน ${forMe.length}`, "SF.requestTab('mine')", tab === 'mine'], ['all', `ทั้งหมด ${visible.length}`, "SF.requestTab('all')", tab === 'all']] : [];
+  // คำขอที่ยังเดินอยู่ (สถานะขึ้นต้นด้วย "รอ") แยกไว้บนสุด ที่จบแล้วอยู่ล่างและจางลง
+  const isOpen = r => !!r.status && r.status.includes('รอ');
+  const openList = list.filter(isOpen), closedList = list.filter(r => !isOpen(r));
+  const row = r => {
+    const swap = r.currentShift && r.currentShift !== '-';
+    const reason = visibleRequestReason(r);
+    const people = r.targetPerson ? `<span>${esc(nameOf(r.person))}</span> <span class="req-pair"><span class="req-arrow">${r.kind === 'leave' ? 'ให้' : '↔'}</span> ${esc(nameOf(r.targetPerson))}${r.kind === 'leave' ? ' ทำแทน' : ''}</span>` : esc(nameOf(r.person));
+    const meta = [`ยื่น ${r.submittedAt}`, !isEmp && r.roleCategory, r.quotaUsed && r.quotaUsed !== '-' && `โควตาเดือนนี้ ${r.quotaUsed}`].filter(Boolean).map(esc).join(' · ');
+    const acts = reqActions(r);
+    return `
+      <li class="req ${isOpen(r) ? 'open' : 'closed'}" data-click="openRequestDetails(${js(r.id)})">
+        <div class="req-main">
+          <button type="button" class="req-open" data-click="openRequestDetails(${js(r.id)})"><b>${esc(r.type)}</b><span class="req-date">${esc(r.date)}</span></button>
+          <p class="req-people">${people}${swap ? `<span class="req-shift">${shiftChip(r.currentShift)}<span aria-label="เป็น">→</span>${shiftChip(r.targetShift)}</span>` : ''}</p>
+          ${reason && !(swap && r.targetPerson) ? `<p class="req-reason">${esc(reason)}</p>` : ''}
+          <p class="req-meta">${meta}</p>
+          ${r.rejectReason ? `<p class="req-note err">ไม่อนุมัติเพราะ: ${esc(r.rejectReason)}</p>` : ''}
+          ${r.approvalBlockReason ? `<p class="req-note err">${esc(r.approvalBlockReason)}</p>` : ''}
+          ${r.cancelBlockReason ? `<p class="req-note">${esc(r.cancelBlockReason)}</p>` : ''}
+        </div>
+        ${stepsHtml(r)}
+        <span class="req-status st ${statusCls(r)}">${esc(r.status)}</span>
+        ${acts ? `<div class="req-acts">${acts}</div>` : ''}
+      </li>`;
+  };
+  const empty = isEmp ? `ยังไม่มี${employeeRequestGroups[group]}`
+    : tab === 'mine' ? `ไม่มีคำขอที่รอคุณตรวจ · ดูคำขอทั้งหมด ${visible.length} รายการได้ที่แท็บ "ทั้งหมด"` : 'ยังไม่มีคำขอ';
   return `
     ${pageHead(esc(title), right.join(''))}
-    ${isEmp ? `<div class="bar"><div class="seg" role="group" aria-label="กลุ่มคำขอ">
-      ${Object.entries(employeeRequestGroups).map(([key, label]) => `<button id="employee-requests-${key}" type="button" class="${group === key ? 'on' : ''}" aria-pressed="${group === key}" data-click="SF.employeeRequestGroup(${js(key)})">${label}</button>`).join('')}
-    </div></div>` : ''}
+    ${tabs.length ? `<div class="bar req-bar"><div class="seg" role="group" aria-label="${isEmp ? 'กลุ่มคำขอ' : 'แสดงคำขอ'}">
+      ${tabs.map(([key, label, click, on, id]) => `<button ${id ? `id="${id}"` : ''} type="button" class="${on ? 'on' : ''}" aria-pressed="${on}" data-click="${click}">${esc(label)}</button>`).join('')}
+    </div>${reviewer ? `<span class="muted small">รอดำเนินการทั้งหมด ${pendingN} รายการ</span>` : ''}</div>` : ''}
     ${list.length ? `
-      <div class="panel flush tbl-wrap only-wide">
-        <table class="tbl reqs">
-          <thead><tr><th>คำขอ</th><th>วันที่</th><th>รายละเอียด</th><th>สถานะ</th><th><span class="sr">ดำเนินการ</span></th></tr></thead>
-          <tbody>
-            ${list.map(r => `
-              <tr>
-                <td><b class="rq-type">${esc(r.type)}</b><small>${esc(personLine(r))}</small></td>
-                <td class="nowrap">${esc(r.date)}<small>ยื่นเมื่อ ${esc(r.submittedAt)}</small></td>
-                <td>${esc(visibleRequestReason(r))}${r.currentShift && r.currentShift !== '-' ? `<small>${esc(r.type.includes('OT') ? 'กะเดิม → OT ที่ขอ' : 'กะเดิม → กะใหม่')}: ${esc(r.currentShift)} → ${esc(r.targetShift)}</small>` : ''}${r.targetPerson ? `<small>${relatedPerson(r)}: ${esc(r.targetPerson)}</small>` : ''}${r.quotaUsed && r.quotaUsed !== '-' ? `<small>โควตาเดือนนี้ ${esc(r.quotaUsed)}</small>` : ''}${stepsInline(r)}${r.rejectReason ? `<small class="err">เหตุผลที่ไม่อนุมัติ: ${esc(r.rejectReason)}</small>` : ''}</td>
-                <td><span class="st ${statusCls(r)}">${esc(r.status)}</span>${r.approvalBlockReason ? '<small>ต้องยื่นใหม่</small>' : ''}${r.cancelBlockReason ? `<small>${esc(r.cancelBlockReason)}</small>` : ''}</td>
-                <td class="act"><div class="acts">${reqActions(r)}</div></td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      <ul class="rcards only-narrow">
-        ${list.map(r => `
-          <li class="panel">
-            <div class="rc-top"><b>${esc(r.type)} · ${esc(r.date)}</b><span class="st ${statusCls(r)}">${esc(r.status)}</span></div>
-            <p class="muted small">${[isEmp ? personLine(r) : r.person, visibleRequestReason(r)].filter(Boolean).map(esc).join(' · ')}</p>
-            ${r.approvalBlockReason ? `<p class="small err">${esc(r.approvalBlockReason)}</p>` : ''}
-            ${r.cancelBlockReason ? `<p class="muted small">${esc(r.cancelBlockReason)}</p>` : ''}
-            ${r.rejectReason ? `<p class="small err">เหตุผลที่ไม่อนุมัติ: ${esc(r.rejectReason)}</p>` : ''}
-            <div class="rc-act">${reqActions(r)}</div>
-          </li>`).join('')}
-      </ul>` : `<p class="empty">${isEmp ? `ยังไม่มี${employeeRequestGroups[group]}` : 'ไม่มีคำขอที่ต้องตรวจสอบ'}</p>`}`;
+      ${openList.length ? `<h2 class="req-group">กำลังดำเนินการ <span>${openList.length}</span></h2><ul class="req-list req-open-list">${openList.map(row).join('')}</ul>` : ''}
+      ${closedList.length ? `<h2 class="req-group closed">ปิดแล้ว <span>${closedList.length}</span><small>อนุมัติแล้ว · ไม่อนุมัติ · ยกเลิก · หมดอายุ</small></h2><ul class="req-list req-closed-list">${closedList.map(row).join('')}</ul>` : ''}`
+    : `<p class="empty">${esc(empty)}</p>`}`;
 }

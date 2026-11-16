@@ -8,7 +8,7 @@ import { icon } from '../../shared/icons.js';
 import { TH_DW } from '../../shared/scheduling/dates.js';
 import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
 import { telOf } from '../../shared/ui.js';
-import { famOf } from './codes.js';
+import { codeClass, famOf } from './codes.js';
 import { dayClass, isToday } from './days.js';
 import { matchQ, teamSections } from './page.js';
 
@@ -48,7 +48,7 @@ export function dayViewHtml(S) {
         <li class="${S.viewer && S.viewer.id === x.e.id ? 'me' : ''}">
           <button class="prow" data-click="SF.cell(${js(x.e.id)}, ${d})">
             <span class="pname">${esc(x.e.name)}${S.viewer && S.viewer.id === x.e.id ? ' <span class="you">คุณ</span>' : ''}${x.e.roleCategory === 'Shift Supervisor' ? ' <span class="tag" title="หัวหน้ากะ">S</span>' : ''}</span>
-            <span class="pmeta">${esc(x.e.teamForDisplay)}${x.note && key !== 'c-O' ? `<em>${esc(x.note)}</em>` : ''}</span>
+            <span class="pmeta">${esc(x.e.teamForDisplay)}${x.note && key !== 'c-O' ? `<span class="chip ${codeClass(x.c)}">${esc(x.note)}</span>` : ''}</span>
           </button>
           ${telOf(x.e.phone)}
         </li>`).join('')}</ul>` : '<p class="none">ไม่มี</p>'}

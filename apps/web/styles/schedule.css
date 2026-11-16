@@ -5,36 +5,34 @@
 .mstatus { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; font-size: 0.93rem; color: var(--ink-2); margin-bottom: 12px; }
 
 /* ---------- ตารางกะรายเดือน ---------- */
-.grid-wrap { overflow: auto; max-height: calc(100vh - 226px); min-height: 280px; background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); }
+.grid-wrap { overflow: auto; max-height: calc(100vh - 226px); min-height: 280px; background: var(--surface); border-radius: 8px; }
 .roster { border-collapse: separate; border-spacing: 0; font-size: 0.93rem; min-width: 100%; }
-.roster th, .roster td { padding: 0; height: var(--row); border-right: 1px solid #eef1f5; border-bottom: 1px solid #eef1f5; text-align: center; white-space: nowrap; }
-.roster thead th { position: sticky; top: 0; z-index: 4; height: 48px; background: var(--surface); border-bottom: 1px solid var(--line-2); font-weight: 500; line-height: 1.2; min-width: 31px; }
+.roster th, .roster td { padding: 0; height: var(--row); text-align: center; white-space: nowrap; }
+.roster thead th { position: sticky; top: 0; z-index: 4; height: 48px; background: var(--soft); font-weight: 500; line-height: 1.2; min-width: 31px; }
 .roster thead th span { display: block; font-size: 0.78rem; color: var(--muted); }
 .roster thead th b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.roster thead th.we { background: var(--soft); }
-.roster thead th.hol b, .roster thead th.hol span { color: var(--bad); }
 .roster thead th.tdy { background: var(--primary); }
 .roster thead th.tdy b, .roster thead th.tdy span { color: #fff; }
-.roster .nm { position: sticky; left: 0; z-index: 3; width: 190px; min-width: 190px; max-width: 190px; background: var(--surface); border-right: 1px solid var(--line-2); text-align: left; font-weight: 400; }
+.roster .nm { position: sticky; left: 0; z-index: 3; width: 216px; min-width: 216px; max-width: 216px; background: var(--surface); box-shadow: inset -1px 0 0 #e3e6ea; text-align: left; font-weight: 400; }
 .roster thead .nm { z-index: 6; padding: 0 16px; font-weight: 600; color: var(--ink-2); }
 .roster .nm button { display: flex; align-items: center; gap: 8px; width: 100%; height: var(--row); padding: 0 16px; text-align: left; }
-.roster .nm button:hover .name { color: var(--primary); }
-.roster .name { overflow: hidden; text-overflow: ellipsis; }
-.roster .tag { margin-left: auto; flex: none; }
-.roster tr.team th, .roster tr.team td { background: var(--soft); height: 30px; border-right-color: transparent; }
-.roster tr.team .nm { padding: 0 16px; font-weight: 700; font-size: 0.87rem; color: var(--ink-2); border-right-color: var(--line-2); }
-.roster tbody tr:not(.team):hover .nm { background: var(--soft); }
+@media (hover: hover) and (pointer: fine) { .roster .nm button:hover .name { color: var(--primary); } }
+.roster .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.roster .tag { display: inline-grid; place-items: center; flex: 0 0 18px; width: 18px; height: 18px; color: var(--muted); font-size: 0.75rem; font-weight: 600; line-height: 1; }
+.roster tr.team th, .roster tr.team td { background: #eef0f3; height: 30px; }
+.roster tr.team .nm { padding: 0 16px; font-weight: 700; font-size: 0.87rem; color: var(--ink-2); }
+@media (hover: hover) and (pointer: fine) { .roster tbody tr:not(.team):not(.me):hover .nm { box-shadow: inset -1px 0 0 #e3e6ea, inset 0 0 0 1px #b9c1cc; } }
 .roster tr.me .nm { background: var(--primary-tint); }
 .roster tr.me .name { font-weight: 700; color: var(--primary-dark); }
 .roster td button { display: block; width: 100%; min-width: 31px; height: calc(var(--row) - 1px); font-weight: 600; font-size: 0.87rem; line-height: 1; color: inherit; }
-.roster td .off { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+.roster td .off { font-size: 1rem; font-weight: 400; line-height: 1; color: #c3cad3; }
 .roster td.is-long button { font-size: 0.72rem; letter-spacing: -0.02em; }
-.roster td button:hover { box-shadow: inset 0 0 0 2px var(--primary); }
+@media (hover: hover) and (pointer: fine) { .roster td button:hover { box-shadow: inset 0 0 0 2px var(--primary); } }
 .roster .sm { width: 40px; min-width: 40px; background: var(--surface); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .roster thead .sm { font-size: 0.82rem; font-weight: 600; }
-.roster tbody td.sm:nth-last-child(3), .roster thead th.sm:nth-last-child(3) { border-left: 1px solid var(--line-2); font-weight: 700; color: var(--ink); }
+.roster tbody td.sm:nth-last-child(3), .roster thead th.sm:nth-last-child(3) { font-weight: 700; color: var(--ink); }
 .roster tfoot th, .roster tfoot td { position: sticky; z-index: 2; height: 30px; background: var(--soft); font-variant-numeric: tabular-nums; font-size: 0.87rem; color: var(--ink-2); }
-.roster tfoot .r1 th, .roster tfoot .r1 td { bottom: 30px; border-top: 1px solid var(--line-2); }
+.roster tfoot .r1 th, .roster tfoot .r1 td { bottom: 30px; }
 .roster tfoot .r2 th, .roster tfoot .r2 td { bottom: 0; border-bottom: 0; }
 .roster tfoot .nm { z-index: 5; padding: 0 16px; font-weight: 500; background: var(--soft); }
 .roster tfoot td.low { color: var(--bad); font-weight: 700; }
@@ -48,8 +46,8 @@
 /* ---------- มุมมองรายวัน ---------- */
 .dnav { display: inline-flex; align-items: center; gap: 4px; }
 .dnav-days { display: inline-flex; gap: 4px; }
-.dnav-days button { width: 44px; height: 46px; border-radius: 10px; line-height: 1.2; }
-.dnav-days button:hover { background: var(--line); }
+.dnav-days button { width: 44px; height: 46px; border-radius: 6px; line-height: 1.2; }
+@media (hover: hover) and (pointer: fine) { .dnav-days button:not(.on):hover { box-shadow: inset 0 0 0 1px #b9c1cc; } }
 .dnav-days button span { display: block; font-size: 0.78rem; color: var(--muted); }
 .dnav-days button b { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 1.05rem; }
 .dnav-days button.tdy b { color: var(--primary); }
@@ -57,20 +55,20 @@
 .dnav-days button.on span, .dnav-days button.on b { color: #fff; }
 .daytitle { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 4px 0 16px; }
 .daycols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; }
-.daycol { background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); min-width: 0; overflow: hidden; }
+.daycol { background: var(--surface); border-radius: 8px; min-width: 0; overflow: hidden; }
 .daycol header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; }
 .daycol header .t { color: var(--muted); font-size: 0.93rem; }
 .daycol header b { margin-left: auto; font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .daycol header b.low { color: var(--bad); }
 .daycol .none { padding: 0 18px 16px; }
-.plist li { display: flex; align-items: center; border-top: 1px solid #f0f2f6; }
+.plist li { display: flex; align-items: center; }
 .prow { flex: 1; min-width: 0; display: grid; text-align: left; padding: 10px 18px; line-height: 1.4; }
-.prow:hover { background: var(--soft); }
+@media (hover: hover) and (pointer: fine) { .prow:hover { box-shadow: inset 0 0 0 1px #b9c1cc; } }
 .pname { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pmeta { font-size: 0.87rem; color: var(--muted); }
-.pmeta em { font-style: normal; margin-left: 8px; color: #c2410c; font-weight: 600; }
+.pmeta .chip { margin-left: 8px; height: 22px; font-size: 0.8rem; vertical-align: middle; }
 .tel { font-variant-numeric: tabular-nums; white-space: nowrap; text-decoration: none; color: var(--primary); }
-.tel:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .tel:hover { text-decoration: underline; } }
 .plist .tel { padding: 10px 18px; font-size: 0.95rem; }
 .tbl.codes th, .tbl.codes td { padding: 9px 10px; }
 .tbl.codes td .sw + span { margin-left: 6px; color: var(--ink-2); }
@@ -78,7 +76,6 @@
   .grid-wrap { max-height: calc(100vh - 330px); min-height: 320px; }
   .roster .nm { width: 128px; min-width: 128px; max-width: 128px; }
   .roster .nm button, .roster thead .nm, .roster tr.team .nm, .roster tfoot .nm { padding: 0 12px; }
-  .roster .tag { display: none; }
   .roster thead th { min-width: 38px; }
   .roster td button { min-width: 38px; }
   .dnav { width: 100%; }
@@ -94,7 +91,6 @@
   .roster { font-size: 0.85rem; }
   .roster .nm { width: 150px; min-width: 150px; max-width: 150px; }
   .roster .nm button, .roster thead .nm, .roster tr.team .nm, .roster tfoot .nm { padding: 0 10px; }
-  .roster .tag { display: none; }
   .roster thead th, .roster td button { min-width: 28px; }
   .roster td button { font-size: 0.8rem; }
   .roster td.is-long button { font-size: 0.62rem; }
@@ -104,8 +100,8 @@
 .roster .nm .nm-in { display: flex; align-items: center; gap: 8px; height: var(--row); padding: 0 16px; }
 .roster .you { font-size: 0.75rem; font-weight: 600; color: var(--primary); background: var(--primary-tint); padding: 0 6px; border-radius: 6px; flex: none; }
 .roster td > span { display: grid; place-items: center; height: calc(var(--row) - 1px); font-weight: 600; font-size: 0.87rem; }
-.roster td.proj > * { opacity: 0.6; }
-.roster tbody tr:hover .nm { background: var(--soft); }
+/* เดือนคาดการณ์: เส้นประในช่องแทนการทำให้จาง รหัสยังอ่านชัด */
+.roster td.proj > * { outline: 1px dashed currentColor; outline-offset: -5px; }
 .roster tr.me .nm { background: var(--primary-tint); }
 .proj-note { margin: -4px 0 12px; }
 .roster .sm { width: 44px; min-width: 44px; }
@@ -122,29 +118,42 @@
 .roster thead th.hol span, .roster thead th.hol b { color: var(--hol-ink); }
 .roster thead th.tdy { background: var(--primary); }
 .roster thead th.tdy span, .roster thead th.tdy b { color: #fff; }
-.roster td.c-O.we, .roster td.c-L.we { background: var(--we-bg); }
-.roster td.c-O.hol, .roster td.c-L.hol { background: var(--hol-bg); }
-.roster td.we:where(:not(.c-O, .c-L)) { --day-accent: inset 0 -3px 0 #f6c58e; box-shadow: var(--day-accent); }
-.roster td.hol:where(:not(.c-O, .c-L)) { --day-accent: inset 0 -3px 0 #ef9a9a; box-shadow: var(--day-accent); }
+/* ตารางรวมไฮไลต์เสาร์–อาทิตย์และนักขัตฤกษ์ในช่องว่าง; คงสีรหัสกะ */
+.roster td.c-O.we, .roster td.we:empty { background: var(--we-bg); }
+.roster tfoot td.we { background: #f8d6d4; }
+.roster td.c-O.hol, .roster td.hol:empty { background: var(--hol-bg); }
+.roster tfoot td.hol { background: #efcbe0; }
+/* Day-kind underline overlays shift fills without replacing them or the
+   existing today/own-row strokes. It also avoids OT/comment pseudo-elements. */
+.roster { --weekend-marker: #e6a09a; --holiday-marker: #d48cb7; }
+.roster tbody tr:not(.team) td:is(.we, .hol):not(.c-O):has(button, span):not(:empty) {
+  background-image: linear-gradient(var(--day-kind-marker), var(--day-kind-marker));
+  background-size: 100% 3px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+}
+.roster td.we { --day-kind-marker: var(--weekend-marker); }
+.roster td.hol { --day-kind-marker: var(--holiday-marker); }
+.roster tr.team td { background-image: none; }
+
 .roster td.tdy {
   --today-line: color-mix(in srgb, var(--primary) 35%, transparent);
   --today-guide: inset 1px 0 0 var(--today-line), inset -1px 0 0 var(--today-line);
   box-shadow: var(--today-guide), var(--day-accent, inset 0 0 0 transparent);
 }
-.roster tfoot td.we { background: #fbe5cc; }
-.roster tfoot td.hol { background: #f8cfcf; }
-.roster th.wk, .roster td.wk { border-left: 2px solid var(--wk-line); }
+/* เส้นเดียวที่เหลือในตาราง: แบ่งสัปดาห์ (ช่วยไล่สายตาในตารางที่แน่น) */
+.roster th.wk, .roster td.wk { box-shadow: inset 1px 0 0 var(--wk-line); }
 .lg-day { display: inline-block; width: 14px; height: 14px; border-radius: 4px; }
-.lg-day.we { background: var(--we-bg); box-shadow: inset 0 0 0 1px #f6c58e; }
+.lg-day.we { background: var(--we-bg); box-shadow: inset 0 0 0 1px var(--we-ink); }
 .lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px #ef9a9a; }
 
 /* รายวัน */
 .dnav-days button.we:not(.on) b, .dnav-days button.we:not(.on) span { color: var(--we-ink); }
-.dnav-days button.hol:not(.on) b, .dnav-days button.hol:not(.on) span { color: var(--hol-ink); }
 .dnav-days button.we:not(.on) { background: var(--we-bg); }
+.dnav-days button.hol:not(.on) b, .dnav-days button.hol:not(.on) span { color: var(--hol-ink); }
 .dnav-days button.hol:not(.on) { background: var(--hol-bg); }
 .prow:disabled { cursor: default; }
-.prow:disabled:hover { background: none; }
+@media (hover: hover) and (pointer: fine) { .prow:disabled:hover { box-shadow: none; } }
 
 /* ช่องที่เปลี่ยนจากตารางเดิม: มุมแดงซ้ายบน (แบบช่องที่มีหมายเหตุใน Excel) */
 .roster td.chg { position: relative; }
@@ -153,9 +162,9 @@
 .mk-corner { display: inline-block; width: 0; height: 0; border-style: solid; border-width: 10px 10px 0 0; border-color: #d62828 transparent transparent transparent; }
 
 /* แถวของคนที่ล็อกอินอยู่: เห็นชัดทันทีว่าแถวไหนเป็นของตัวเอง */
-.roster tr.me .nm, .roster tbody tr.me:hover .nm { background: var(--primary); box-shadow: inset 6px 0 0 #f2b705; }
+.roster tr.me .nm, .roster tbody tr.me:hover .nm { background: var(--primary); box-shadow: inset 4px 0 0 #f2c94c, inset -1px 0 0 #e3e6ea; }
 .roster tr.me .name { color: #fff; font-weight: 700; }
-.roster tr.me .you { background: #f2b705; color: #1b2433; font-weight: 700; }
+.roster tr.me .you { background: #fff; color: var(--primary-dark); font-weight: 700; }
 .roster tr.me .tag { color: #dfe7f5; }
 .roster tr.me td {
   --my-row-line: color-mix(in srgb, var(--primary) 52%, transparent);
@@ -169,6 +178,112 @@
 }
 .roster tr.me td.tdy.c-O > button { color: var(--ink-2); }
 .roster tr.me td.sm { background: var(--primary-tint); color: var(--primary-dark); font-weight: 700; }
-.plist li.me { background: var(--primary-tint); box-shadow: inset 6px 0 0 var(--primary); }
+.plist li.me { background: var(--primary-tint); }
 .plist li.me .pname { color: var(--primary-dark); font-weight: 700; }
-.plist .you { font-size: 0.75rem; font-weight: 700; background: #f2b705; color: #1b2433; padding: 0 6px; border-radius: 6px; margin-left: 4px; }
+.plist .you { font-size: 0.75rem; font-weight: 700; background: var(--primary); color: #fff; padding: 0 6px; border-radius: 5px; margin-left: 4px; }
+
+/* ---------- แถบควบคุม: มือถือซ่อนทีม/ค้นหาไว้หลังปุ่ม "ตัวกรอง" ---------- */
+.sched-filters { display: contents; }
+.filter-toggle { display: none; }
+.filter-toggle .badge { min-width: 18px; height: 18px; font-size: 0.7rem; }
+.roster .name-short { display: none; }
+.codes-note { margin-top: 12px; font-size: 0.9rem; color: var(--ink-2); line-height: 1.8; }
+.codes-note .lg-day { vertical-align: -2px; }
+.lg-day.we { background: var(--we-bg); box-shadow: inset 0 0 0 1px var(--we-ink); }
+.lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px #ef9a9a; }
+@media (max-width: 760px) {
+  .sched-bar { gap: 8px; }
+  .sched-bar .mnav { flex: 1; }
+  .sched-bar .mnav-label { flex: 1; min-width: 0; }
+  .filter-toggle { display: inline-flex; margin-left: auto; }
+  .filter-toggle.has { color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+  .sched-filters { display: none; }
+  .sched-filters.open { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; padding-top: 4px; }
+  .sched-filters .seg { width: 100%; }
+  .sched-filters .seg button { flex: 1; padding: 0 8px; }
+  /* คอลัมน์ชื่อแคบลง: แสดงชื่อสั้น ชื่อเต็มยังอยู่ให้โปรแกรมอ่านหน้าจอ */
+  .roster .nm { width: 76px; min-width: 76px; max-width: 76px; }
+  .roster .nm .nm-in, .roster thead .nm, .roster tr.team .nm, .roster tfoot .nm { padding: 0 8px; }
+  .roster .name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .roster .name-short { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .roster tr.me .name-short { color: #fff; font-weight: 700; }
+  .roster .you { display: none; }
+  .roster thead .nm { font-size: 0.8rem; }
+  .roster tr.team td.team-note { font-size: 0.78rem; }
+  .grid-wrap { max-height: calc(100svh - 270px); }
+  .legend { gap: 6px 14px; font-size: 0.87rem; }
+}
+.roster .lbl-short { display: none; }
+@media (max-width: 760px) {
+  .roster .lbl-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .roster .lbl-short { display: inline; }
+}
+
+/* ---------- แถบเครื่องมือตารางกะ: กลุ่มช่วงเวลา มุมมอง ทีม และค้นหา ---------- */
+.sched-bar { padding: 8px 10px; gap: 6px 8px; background: var(--surface); border-radius: 8px; }
+.sched-bar .mnav-label { min-width: 170px; }
+.sched-period { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.sched-bar .sched-view, .sched-bar .sched-team { margin-left: 0; }
+.sched-bar .search { margin-left: auto; }
+.sched-bar .search .inp { width: 200px; height: 38px; background: var(--soft); border-color: transparent; }
+.sched-bar .search .inp:focus { background: var(--surface); border-color: var(--primary); }
+/* Reflow entire control groups at fixed breakpoints; never strand search alone
+   on the right of an otherwise empty second row. */
+@media (min-width: 761px) {
+  .sched-bar { display: grid; grid-template-columns: max-content max-content max-content minmax(160px, 1fr); grid-template-areas: 'period view team search'; gap: 12px 16px; }
+  .sched-period { grid-area: period; flex-wrap: nowrap; }
+  .sched-bar .sched-view { grid-area: view; justify-self: start; }
+  .sched-bar .sched-team { grid-area: team; justify-self: start; }
+  .sched-bar .search { grid-area: search; width: 100%; min-width: 0; margin-left: 0; }
+  .sched-bar .search .inp { width: 100%; min-width: 0; }
+}
+@media (min-width: 1000px) and (max-width: 1399px) {
+  .sched-bar { grid-template-columns: max-content minmax(0, 1fr); grid-template-areas: 'period search' 'view team'; }
+}
+@media (min-width: 761px) and (max-width: 999px) {
+  .sched-bar { grid-template-columns: max-content minmax(0, 1fr); grid-template-areas: 'period period' 'view search' 'team team'; }
+}
+@media (max-width: 760px) {
+  .sched-bar { padding: 8px; }
+  .sched-period { width: 100%; }
+  .sched-period .mnav { min-width: 0; }
+  .sched-bar .sched-view, .sched-bar .sched-team { margin-left: 0; }
+  .sched-bar .sched-team button { min-width: 0; padding-inline: 4px; font-size: .85rem; }
+  .sched-bar .search { width: 100%; margin-left: 0; }
+  .sched-bar .search .inp { width: 100%; height: 44px; }
+  .sched-bar .mnav-label { min-width: 0; }
+}
+
+/* แถวรายชื่อและช่องว่างใช้พื้นขาวสม่ำเสมอ; คงแถบทีมและแถวของผู้ใช้ */
+/* คำอธิบาย: แสดงอักษรเฉพาะรหัสจริง; กลุ่มสีใช้ช่องสีคู่ข้อความ */
+.legend .chip { min-width: 26px; height: 22px; font-size: 0.8rem; }
+.chip.lg-we { background: var(--we-bg); color: var(--we-ink); }
+.chip.lg-hol { background: var(--hol-bg); color: var(--hol-ink); }
+
+/* Monthly roster: one white working sheet around controls, status, grid and legend.
+   Grid cell sizes, sticky columns, semantic fills and scrolling stay unchanged. */
+.roster-sheet { min-width: 0; background: var(--surface); padding: 24px; border-radius: 8px; }
+.roster-sheet .sched-bar { padding: 0; border-radius: 0; margin-bottom: 16px; }
+.roster-sheet .grid-wrap { border: 1px solid var(--line-2); }
+@media (max-width: 760px) {
+  .roster-sheet { padding: 16px 12px; }
+}
+@media print {
+  .roster-sheet { padding: 0; border-radius: 0; }
+}
+
+.legend .day-line-key.lg-we { border-bottom: 3px solid #e6a09a; }
+.legend .day-line-key.lg-hol { border-bottom: 3px solid #d48cb7; }
+
+/* Keep related legend entries together when the footer wraps. */
+.legend-grouped { align-items: start; gap: 16px 28px; }
+.legend-group { display: grid; gap: 8px; }
+.legend-group h3 { font-size: .85rem; font-weight: 600; color: var(--muted); }
+.legend-group-items { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.legend-grouped .link { align-self: end; }
+.tbl.codes .codes-group th { padding: 20px 10px 8px; color: var(--ink); font-size: .9rem; font-weight: 700; }
+@media (max-width: 760px) {
+  .legend-grouped { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .legend-group-items { gap: 8px 14px; }
+  .legend-grouped .link { justify-self: start; margin-left: 0; }
+}

@@ -5,6 +5,7 @@
 
 import { state, view } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
+import { icon } from '../../shared/icons.js';
 import { isoOf } from '../../shared/scheduling/dates.js';
 import { currentEmp, getEmployeeFacingShiftLabel } from '../../shared/scheduling/employees.js';
 import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
@@ -15,9 +16,9 @@ const codeLabel = c => `${swatch(c)}<span>${esc(getEmployeeFacingShiftLabel(c))}
 export const opt = (v, text, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(text)}</option>`;
 export function checksList(title, results) {
   if (!results || !results.length) return '';
-  const mark = { pass: '✓', warn: '!', fail: '✕', pending: '…' };
+  const mark = { pass: icon('check'), warn: icon('alert'), fail: icon('x'), pending: icon('more') };
   return `<div class="checks">${title ? `<p class="checks-t">${esc(title)}</p>` : ''}<ul>${results.map(c => `
-    <li class="${esc(c.status)}"><i class="mk"${c.statusText ? ' aria-hidden="true"' : ''}>${mark[c.status] || '•'}</i>
+    <li class="${esc(c.status)}"><i class="mk" aria-hidden="true">${mark[c.status] || icon('dot')}</i>
       <span>${c.statusText ? `<small class="check-status">${esc(c.statusText)}</small>` : ''}${c.rule ? `<b>${esc(c.rule)}</b>` : ''} ${esc(c.msg)}</span>
     </li>`).join('')}</ul></div>`;
 }

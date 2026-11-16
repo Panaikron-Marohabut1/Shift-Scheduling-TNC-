@@ -10,6 +10,7 @@ import { api } from '../api/client.js';
 import { toggleMonthPicker } from './actions.js';
 import { markReady, renderApp } from './render.js';
 import { afterApi, enter, leave, refreshNotificationsOnly } from './session.js';
+import { bindSideHover, HOVER_SIDE } from './shell.js';
 import { loadLocal, saveLocal, state, view } from './state.js';
 import { $ } from '../shared/dom.js';
 import { closeModal, modalOpen } from '../shared/modal.js';
@@ -38,7 +39,20 @@ document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
   if (modalOpen()) closeModal();
   else if (state.monthPickerOpen) toggleMonthPicker(false);
+  else if (view.sideOpen) {
+    view.sideOpen = false;
+    renderApp();
+    [...document.querySelectorAll('.mtop-menu, .side-toggle')].find(b => b.offsetParent)?.focus();
+  }
 });
+// เปลี่ยนเป็นจอที่ใช้เมาส์ (เช่นขยายหน้าต่าง): ปิดเมนูซ้อนทับ เพราะเมนูขยายด้วยการชี้แทน
+bindSideHover();
+if (typeof matchMedia === 'function') {
+  matchMedia(HOVER_SIDE).addEventListener('change', () => {
+    view.sideOpen = false;
+    if (view.signed) renderApp();
+  });
+}
 // session ของระบบกลางหมดอายุระหว่างใช้งาน → กลับไปหน้าเข้าสู่ระบบ (กลับมาที่หน้านี้หลังเข้าสู่ระบบ)
 window.addEventListener('session-expired', ev => {
   if (!view.signed && !view.accessPending) return;
@@ -51,7 +65,7 @@ window.addEventListener('session-expired', ev => {
 // รีเฟรชข้อมูลจากฐานข้อมูลทุก 30 วินาที (ข้ามระหว่างเปิดหน้าต่างย่อยหรือกำลังพิมพ์)
 setInterval(() => {
   const tag = document.activeElement && document.activeElement.tagName;
-  if (!view.signed || view.loading || modalOpen() || ['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;
+  if (!view.signed || view.loading || view.sideOpen || modalOpen() || ['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;
   if (state.actor.role === 'ADMIN') void loadAdminAccess(renderApp);
   else if (state.actor.role === 'EXTERNAL') void refreshNotificationsOnly();
   else void afterApi();

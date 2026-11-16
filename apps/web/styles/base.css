@@ -10,7 +10,7 @@
 @font-face { font-family: 'Sarabun'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-500.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: 'Sarabun'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-600.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: 'Sarabun'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-700.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
-:root { color-scheme: light; /* แถบเมนู */ --navy: #16294a; --navy-hover: #1f3560; --navy-on: #2b4a7e; --side-ink: #b9c6da; --side-dim: #8095b4; /* พื้นและตัวอักษร */ --bg: #f3f5f8; --surface: #ffffff; --soft: #f6f7fa; --ink: #1c2633; --ink-2: #485466; --muted: #7b8798; --line: #e7ebf0; --line-2: #d3dae3; /* สีหลัก */ --primary: #1f4f99; --primary-dark: #173d78; --primary-tint: #e9effa; /* สถานะ */ --ok: #1d7a4c; --warn: #b16a00; --bad: #c0392b; --bad-tint: #fdecea; /* ชนิดกะ */ --m-bg: #fff1c4;  --m-ink: #775300; --n-bg: #dde8fb;  --n-ink: #1e3e7a; --d-bg: #daf0e6;  --d-ink: #16604a; --l-bg: #eceff4;  --l-ink: #4b5768; --h-bg: #fbe1e7;  --h-ink: #8b1f3e; --x-bg: #fde4d2;  --x-ink: #8a3b0a; --ot: #e8590c; --font: 'Sarabun', 'Leelawadee UI', 'Noto Sans Thai', Tahoma, sans-serif; --side-w: 236px; --row: 34px; --card-shadow: 0 1px 2px rgba(22, 41, 74, 0.05), 0 2px 8px rgba(22, 41, 74, 0.04); }
+:root { color-scheme: light; /* เมนูซ้าย: ชั้นพื้นที่สองสีเทาอ่อน */ --side-bg: #f3f4f6; --side-hover: #e7e9ed; --navy: #1b2533; --side-ink: #b9c6da; --side-dim: #8095b4; /* พื้นและตัวอักษร (สมุดเวร: กระดาษขาว หมึกเข้ม เส้นบาง) */ --bg: #f3f4f6; --surface: #ffffff; --soft: #f5f6f8; --ink: #141b24; --ink-2: #3b4553; --muted: #677181; --line: #e4e7eb; --line-2: #cbd1d8; /* สีหลัก: ใช้กับปุ่มหลักและสิ่งที่เลือกอยู่เท่านั้น */ --primary: #1f4f99; --primary-dark: #173d78; --primary-tint: #eaf0f9; /* สถานะ */ --ok: #1d7a4c; --warn: #a35f00; --bad: #c0392b; --bad-tint: #fdecea; /* ชนิดกะ (สีมีไว้ให้รหัสกะ) */ --m-bg: #fff1c4;  --m-ink: #775300; --n-bg: #dde8fb;  --n-ink: #1e3e7a; --d-bg: #daf0e6;  --d-ink: #16604a; --l-bg: #eceff4;  --l-ink: #4b5768; --h-bg: #fbe1e7;  --h-ink: #8b1f3e; --x-bg: #fde4d2;  --x-ink: #8a3b0a; --ot: #e8590c; --font: 'Sarabun', 'Leelawadee UI', 'Noto Sans Thai', Tahoma, sans-serif; --row: 34px; --card-shadow: none; --hover-ring: #b9c1cc; }
 *, *::before, *::after { box-sizing: border-box; }
 html { font-family: var(--font); font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); min-height: 100vh; }
@@ -26,7 +26,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 button:disabled { cursor: not-allowed; }
 table { border-collapse: collapse; }
-a { color: var(--primary); }
+a { color: var(--primary); text-underline-offset: 3px; }
+::selection { background: #cfdcf2; color: var(--ink); }
+html { scrollbar-color: #c3c9d1 transparent; accent-color: var(--primary); caret-color: var(--primary); }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -40,33 +42,34 @@ a { color: var(--primary); }
 .boot { padding: 64px 20px; text-align: center; color: var(--muted); }
 
 /* ---------- ปุ่มและช่องกรอก ---------- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: 8px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); font-weight: 500; white-space: nowrap; transition: background-color 0.12s; }
-.btn:hover { background: var(--soft); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: 6px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); font-weight: 500; white-space: nowrap; transition: box-shadow 0.16s ease, background-color 0.12s; }
+@media (hover: hover) and (pointer: fine) { .btn:hover { box-shadow: inset 0 0 0 1px var(--hover-ring); } }
 .btn.primary { background: var(--primary); color: #fff; box-shadow: none; }
-.btn.primary:hover { background: var(--primary-dark); }
+@media (hover: hover) and (pointer: fine) { .btn.primary:hover { box-shadow: inset 0 0 0 2px var(--primary-dark); } }
 .btn.ghost { background: transparent; box-shadow: none; color: var(--primary); }
-.btn.ghost:hover { background: var(--primary-tint); }
+@media (hover: hover) and (pointer: fine) { .btn.ghost:hover { box-shadow: inset 0 0 0 1px #b9c1cc; } }
 .btn.danger { color: var(--bad); box-shadow: inset 0 0 0 1px #f0c3bd; }
-.btn.danger:hover { background: var(--bad-tint); }
+@media (hover: hover) and (pointer: fine) { .btn.danger:hover { box-shadow: inset 0 0 0 1px var(--bad); } }
 .btn.sm { height: 32px; padding: 0 12px; font-size: 0.93rem; }
 .btn.block { width: 100%; height: 46px; font-size: 1.05rem; }
 .btn:disabled { opacity: 0.45; }
-.btn.primary:disabled:hover { background: var(--primary); }
-.sq { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; color: var(--ink-2); flex: none; }
-.sq:hover { background: var(--line); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .btn.primary:disabled:hover { box-shadow: none; } }
+.sq { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 6px; color: var(--ink-2); flex: none; }
+@media (hover: hover) and (pointer: fine) { .sq:hover { box-shadow: inset 0 0 0 1px #b9c1cc; color: var(--ink); } }
 .link { color: var(--primary); font-weight: 500; text-align: left; }
-.link:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .link:hover { text-decoration: underline; } }
 .link.danger { color: var(--bad); }
-.inp { height: 40px; width: 100%; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 12px; background: var(--surface); }
+.inp { height: 40px; width: 100%; border: 1px solid var(--line-2); border-radius: 6px; padding: 0 12px; background: var(--surface); }
 .inp:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-tint); }
 .inp:disabled { background: var(--soft); color: var(--muted); }
 textarea.inp { height: auto; padding: 9px 12px; line-height: 1.5; resize: vertical; }
 textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85rem; white-space: pre; overflow: auto; }
 .q { width: 200px; }
-.seg { display: inline-flex; gap: 2px; padding: 3px; background: #e7ebf1; border-radius: 10px; }
-.seg button { height: 32px; padding: 0 14px; border-radius: 7px; color: var(--ink-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
-.seg button:hover { color: var(--ink); }
-.seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(22, 41, 74, 0.12); }
+/* ปุ่มสลับ: รางสีเทาอ่อน ตัวที่เลือกเป็นสีน้ำเงินกรมท่าเดียวกับเมนู */
+.seg { display: inline-flex; gap: 2px; padding: 3px; background: #eceef1; border-radius: 6px; }
+.seg button { height: 32px; padding: 0 13px; border-radius: 4px; color: var(--ink-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+@media (hover: hover) and (pointer: fine) { .seg button:not(.on):hover { color: var(--ink); background: var(--surface); box-shadow: inset 0 0 0 1px var(--hover-ring); } }
+.seg button.on { background: #16294a; color: #fff; font-weight: 600; }
 .field { display: grid; gap: 6px; align-content: start; }
 .field label { font-size: 0.93rem; font-weight: 500; color: var(--ink-2); }
 .field small { font-size: 0.87rem; color: var(--muted); }
@@ -85,11 +88,11 @@ textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85
 .st.warn { color: var(--warn); }
 .st.bad::before { background: var(--bad); }
 .st.bad { color: var(--bad); }
-.badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #e5484d; color: #fff; font-size: 0.75rem; font-weight: 700; font-style: normal; line-height: 1; }
+.badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #d63a40; color: #fff; font-size: 0.75rem; font-weight: 700; font-style: normal; line-height: 1; }
 .new { font-style: normal; font-size: 0.8rem; font-weight: 600; color: var(--primary); background: var(--primary-tint); padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
 .note { font-size: 0.95rem; color: var(--ink-2); text-wrap: balance; }
 .note.warn { color: var(--warn); }
-.empty { padding: 48px 16px; text-align: center; color: var(--muted); background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); }
+.empty { padding: 48px 16px; text-align: center; color: var(--muted); background: var(--surface); border-radius: 6px; }
 .none { padding: 14px 0; color: var(--muted); }
 
 /* ---------- รหัสกะ ---------- */
@@ -120,11 +123,13 @@ textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85
 /* ---------- ตารางข้อมูล ---------- */
 .tbl-wrap { overflow-x: auto; }
 .tbl { width: 100%; }
-.tbl th, .tbl td { padding: 12px 18px; text-align: left; border-bottom: 1px solid #f0f2f6; vertical-align: middle; }
-.tbl thead th { font-weight: 600; font-size: 0.87rem; color: var(--muted); white-space: nowrap; border-bottom: 1px solid var(--line); }
+/* ตาราง: พื้นขาวสม่ำเสมอ ใช้ระยะและแนวคอลัมน์ช่วยไล่สายตา */
+.tbl th, .tbl td { padding: 12px 18px; text-align: left; vertical-align: middle; }
+.tbl tbody tr > * { background: var(--surface); }
+.tbl thead th { font-weight: 600; font-size: 0.87rem; color: var(--muted); white-space: nowrap; }
 .tbl tbody th { font-weight: 500; }
 .tbl tbody tr:last-child > * { border-bottom: 0; }
-.tbl tbody tr:hover > td, .tbl tbody tr:hover > th { background: #fafbfd; }
+@media (hover: hover) and (pointer: fine) { .tbl tbody tr:hover { outline: 1px solid #b9c1cc; outline-offset: -1px; } }
 .tbl td small { display: block; font-size: 0.87rem; color: var(--muted); }
 .tbl .num { text-align: right; }
 .tbl .act { text-align: right; white-space: nowrap; width: 1%; }
@@ -133,12 +138,9 @@ textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85
 
 /* ---------- ข้อความแจ้งผล ---------- */
 #toastRoot { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 80; display: grid; gap: 8px; justify-items: center; width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
-.toast { padding: 11px 18px; background: var(--ink); color: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(16, 26, 44, 0.25); max-width: 100%; }
+.toast { padding: 11px 18px; background: var(--ink); color: #fff; border-radius: 6px; box-shadow: 0 8px 24px rgba(16, 26, 44, 0.25); max-width: 100%; }
 .toast.bad { background: var(--bad); }
 .toast.warn { background: #8a5300; }
-@media (max-width: 1100px) {
-  :root { --side-w: 76px; }
-}
 @media (max-width: 760px) {
   html { font-size: 16px; }
   :root { --row: 38px; }
@@ -166,10 +168,10 @@ textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85
 
 /* ปุ่มชื่อตามต้นแบบ (btn-primary ฯลฯ) ที่ใช้ในแบบฟอร์มคำขอ */
 .btn-primary { background: var(--primary); color: #fff; box-shadow: none; }
-.btn-primary:hover { background: var(--primary-dark); }
+@media (hover: hover) and (pointer: fine) { .btn-primary:hover { box-shadow: inset 0 0 0 2px var(--primary-dark); } }
 .btn-secondary { background: var(--surface); }
 .btn-danger { color: var(--bad); box-shadow: inset 0 0 0 1px #f0c3bd; }
-.btn-danger:hover { background: var(--bad-tint); }
+@media (hover: hover) and (pointer: fine) { .btn-danger:hover { box-shadow: inset 0 0 0 1px var(--bad); } }
 .btn-mint { background: var(--primary); color: #fff; box-shadow: none; }
 .btn-sm { height: 32px; padding: 0 12px; font-size: 0.93rem; }
 .btn-primary:disabled, .btn:disabled { opacity: 0.45; }
@@ -183,11 +185,16 @@ html { font-size: 16px; }
   .btn.sm, .btn-sm { height: 42px; }
   .seg button { height: 42px; padding: 0 12px; }
 }
-:root { --side-w: 248px; }
-@media (max-width: 1100px) {
-  :root { --side-w: 76px; }
-}
 #toastRoot .toast:nth-last-child(n+4) { display: none; }
-:root { --we-bg: #fff0e0; --we-ink: #b45309; --hol-bg: #fddcdc; --hol-ink: #c0392b; --wk-line: #8a97aa; }
+:root { /* ตารางรวมไฮไลต์เสาร์–อาทิตย์แดงอ่อน; นักขัตฤกษ์ชมพู */ --we-bg: #fde8e7; --we-ink: #c0352b; --hol-bg: #f6dcec; --hol-ink: #9c1f5e; --wk-line: #c9cfd7; }
 .formrow.tight { margin-top: 0; }
 .seg button:disabled { opacity: .5; }
+/* ข้อความแจ้งผลบนจอกว้าง: มุมขวาล่าง ไม่ทับแถบคำอธิบายหรือปุ่มกลางหน้า */
+@media (min-width: 761px) {
+  #toastRoot { left: auto; right: 24px; bottom: 24px; transform: none; justify-items: end; }
+}
+
+/* ช่องค้นหาที่มีไอคอนแว่นขยาย */
+.search { position: relative; display: inline-flex; align-items: center; }
+.search > .ic { position: absolute; left: 11px; width: 17px; height: 17px; color: var(--muted); pointer-events: none; }
+.search .inp { padding-left: 36px; }

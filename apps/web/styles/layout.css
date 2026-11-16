@@ -1,29 +1,87 @@
 /* ==========================================================================
    โครงหน้าจอ: เมนูซ้าย แถบบน/ล่างบนมือถือ หัวหน้า กล่อง (panel) ตัวเลือกเดือน
+   --------------------------------------------------------------------------
+   เมนูซ้ายเป็นแถบไอคอนกว้าง --rail-w เสมอ (เนื้อหาไม่ขยับ) แล้วขยายซ้อนทับเป็น --side-open-w เมื่อ
+   - จอที่ใช้เมาส์: ชี้เมาส์ (.side-hover จาก shell.js) หรือกด Tab เข้าเมนู · เปิดเร็ว หุบช้า
+   - จอสัมผัส/มือถือ: กดปุ่ม "เปิดเมนู" (.side-open)
    ========================================================================== */
 
-/* ---------- โครงหน้าจอ ---------- */
-.side { position: fixed; top: 0; bottom: 0; left: 0; z-index: 20; width: var(--side-w); display: flex; flex-direction: column; padding: 22px 14px 16px; background: var(--navy); color: var(--side-ink); }
-.side-brand { padding: 0 10px 22px; display: grid; }
-.side-brand b { font-size: 1.45rem; font-weight: 700; color: #fff; letter-spacing: 0.01em; }
-.side-brand span { font-size: 0.9rem; color: var(--side-dim); }
-.brand-short { display: none; font-style: normal; font-weight: 700; font-size: 1.1rem; color: #fff; }
+/* ---------- เมนูซ้าย (สีน้ำเงินกรมท่า) ---------- */
+:root {
+  --rail-w: 64px; --side-open-w: 244px;
+  --nav-bg: #16294a; --nav-hover: #22396a; --nav-on: #2f5089; --nav-ink: #c3cfe2; --nav-dim: #8ea2c1;
+  /* จังหวะเมนู: เปิดหลังชี้ค้าง 0.15 วินาทีแล้วกางนุ่ม ๆ 0.34 วินาที (expo-out) ·
+     หุบหลังเอาเมาส์ออก 0.2 วินาทีแล้วเก็บเร็ว 0.2 วินาที — ขาเปิดช้ากว่าขาปิดเพื่อให้รู้สึกลื่นแต่ไม่ค้าง */
+  --side-ease: cubic-bezier(0.16, 1, 0.3, 1); --side-ease-close: cubic-bezier(0.4, 0, 0.6, 1);
+  --side-dur: 0.34s; --side-close-dur: 0.2s; --side-open-delay: 0.15s; --side-close-delay: 0.2s;
+  --rail-clip: inset(0 calc(var(--side-open-w) - var(--rail-w)) 0 0);
+  --open-clip: inset(0 -48px 0 0);
+}
+/* เมนูกว้างเต็มเสมอ แล้วใช้ clip-path ตัดให้เหลือแค่แถบไอคอน (ไม่ต้องคำนวณ layout ระหว่างขยาย และส่วนที่ถูกตัดไม่รับเมาส์) */
+.side { position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: var(--side-open-w); display: flex; flex-direction: column; gap: 4px; padding: 14px 8px 12px; overflow: hidden; background: var(--nav-bg); color: var(--nav-ink); clip-path: var(--rail-clip); }
+.side-fade, .side-nav button > span, .side-toggle > span { opacity: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.side-brand { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 0 0 8px; margin-bottom: 8px; }
+.brand-mark { flex: none; display: block; width: 32px; height: 32px; object-fit: contain; }
+.side-brand-text { display: grid; line-height: 1.25; }
+.side-brand b { font-size: 1.12rem; font-weight: 700; color: #fff; }
+.side-brand span { font-size: 0.82rem; color: var(--nav-dim); }
 .side-nav { display: grid; gap: 2px; }
-.side-nav button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 8px; color: var(--side-ink); text-align: left; font-size: 1rem; }
-.side-nav button:hover { background: var(--navy-hover); color: #fff; }
-.side-nav button.on { background: var(--navy-on); color: #fff; font-weight: 600; }
-.side-nav .ic { width: 20px; height: 20px; }
-.side-nav .badge { margin-left: auto; }
-.side-foot { margin-top: auto; display: grid; gap: 8px; padding: 14px 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-.side-user { display: grid; text-align: left; line-height: 1.35; padding: 8px 10px; margin: 0 -10px; border-radius: 8px; }
-.side-user:hover { background: var(--navy-hover); }
-.side-user b { color: #fff; font-weight: 600; }
-.side-user span { font-size: 0.87rem; color: var(--side-dim); }
-.sync { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--side-dim); }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--side-dim); }
-.dot.ok { background: #4fc08d; }
-.dot.bad { background: #ff6b5e; }
-.main { margin-left: var(--side-w); min-width: 0; }
+.side-nav button, .side-toggle { position: relative; isolation: isolate; display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 12px 0 14px; color: var(--nav-ink); text-align: left; font-size: 1rem; }
+/* พื้นหลังไฮไลต์เป็นชั้นแยก: ตอนหุบกว้างแค่ 48px (อยู่ในแถบพอดี) ตอนขยายยืดเต็มแถว */
+.side-nav button::before, .side-toggle::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 6px; background: transparent; clip-path: inset(0 calc(100% - 48px) 0 0 round 6px); transition: background-color 0.15s ease; }
+@media (hover: hover) and (pointer: fine) { .side-nav button:hover, .side-toggle:hover { color: #fff; } }
+@media (hover: hover) and (pointer: fine) { .side-nav button:hover::before, .side-toggle:hover::before { background: var(--nav-hover); } }
+.side-nav button.on { color: #fff; font-weight: 600; }
+.side-nav button.on::before { background: var(--nav-on); }
+.side-nav .ic, .side-toggle .ic { width: 20px; height: 20px; }
+.side-nav .nb-dot { position: absolute; top: 5px; left: 27px; min-width: 17px; height: 17px; padding: 0 4px; font-size: 0.66rem; box-shadow: 0 0 0 2px var(--nav-bg); }
+.side-nav .nb-end { margin-left: auto; opacity: 0; }
+.side-toggle { display: none; }
+.side-foot { margin-top: auto; padding-top: 10px; }
+.side-user { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; padding: 0 8px; border-radius: 6px; text-align: left; }
+@media (hover: hover) and (pointer: fine) { .side-user:hover { background: var(--nav-hover); } }
+.side-user .side-fade { display: grid; line-height: 1.3; }
+.side-user b { color: #fff; font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; }
+.side-user small { font-size: 0.8rem; color: var(--nav-dim); overflow: hidden; text-overflow: ellipsis; }
+.avatar { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); color: #fff; font-style: normal; font-weight: 600; font-size: 0.82rem; }
+.side-scrim { position: fixed; inset: 0; z-index: 25; background: rgba(20, 27, 36, 0.36); }
+.mtop-menu { display: none; }
+.more-sheet .nb-dot { display: none; }
+.more-sheet .nb-end { margin-left: auto; }
+
+/* สถานะขยาย: กดเปิด (.side-open) · ชี้เมาส์ (.side-hover) · กด Tab เข้าเมนู */
+.shell.side-open .side { clip-path: var(--open-clip); box-shadow: 14px 0 36px -14px rgba(10, 20, 40, 0.45); animation: side-reveal var(--side-dur) var(--side-ease); }
+.shell.side-open :is(.side-fade, .side-nav button > span, .side-toggle > span, .nb-end) { opacity: 1; }
+.shell.side-open .nb-dot { opacity: 0; }
+.shell.side-open :is(.side-nav button, .side-toggle)::before { clip-path: inset(0 0 0 0 round 6px); }
+@keyframes side-reveal { from { clip-path: var(--rail-clip); } to { clip-path: var(--open-clip); } }
+
+/* จอที่ใช้เมาส์: ค่าเริ่มต้นคือ "ขาหุบ" (รอ --side-close-delay) · ตอนชี้ใช้ "ขาเปิด" (รอ --side-open-delay) */
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
+  /* ขาหุบ (ค่าเริ่มต้น): ข้อความจางหายก่อน แล้วแถบค่อยเก็บเร็ว ๆ */
+  .side { will-change: clip-path; transition: clip-path var(--side-close-dur) var(--side-ease-close) var(--side-close-delay), box-shadow var(--side-close-dur) ease var(--side-close-delay); }
+  .side-fade, .side-nav button > span, .nb-end { transform: translateX(0); transition: opacity 0.1s ease var(--side-close-delay), transform 0.1s ease var(--side-close-delay); }
+  .nb-dot { transition: opacity 0.12s ease calc(var(--side-close-delay) + var(--side-close-dur)); }
+  .side-nav button::before { transition: clip-path var(--side-close-dur) var(--side-ease-close) var(--side-close-delay), background-color 0.15s ease; }
+  /* ขาเปิด: แถบกางนุ่ม ๆ แล้วข้อความเลื่อนเข้าตามมาเล็กน้อย */
+  :is(.shell.side-hover .side, .side:has(:focus-visible)) { clip-path: var(--open-clip); box-shadow: 14px 0 36px -14px rgba(10, 20, 40, 0.45); transition: clip-path var(--side-dur) var(--side-ease) var(--side-open-delay), box-shadow var(--side-dur) ease var(--side-open-delay); }
+  :is(.shell.side-hover, .side:has(:focus-visible)) :is(.side-fade, .side-nav button > span, .nb-end) { opacity: 1; transition: opacity 0.22s ease calc(var(--side-open-delay) + 0.08s), transform 0.3s var(--side-ease) calc(var(--side-open-delay) + 0.04s); }
+  :is(.side-fade, .side-nav button > span, .nb-end) { transform: translateX(-6px); }
+  :is(.shell.side-hover, .side:has(:focus-visible)) :is(.side-fade, .side-nav button > span, .nb-end) { transform: none; }
+  :is(.shell.side-hover, .side:has(:focus-visible)) .nb-dot { opacity: 0; transition: opacity 0.1s ease var(--side-open-delay); }
+  :is(.shell.side-hover, .side:has(:focus-visible)) .side-nav button::before { clip-path: inset(0 0 0 0 round 6px); transition: clip-path var(--side-dur) var(--side-ease) var(--side-open-delay), background-color 0.15s ease; }
+}
+/* จอสัมผัสที่กว้างกว่ามือถือ: มีปุ่มเปิดเมนูเป็นแถวแรก */
+@media (min-width: 761px) and (hover: none), (min-width: 761px) and (pointer: coarse) {
+  .side-toggle { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .side, .side-fade, .side-nav button > span, .nb-end, .nb-dot, .side-nav button::before { transition: none !important; }
+  .shell.side-open .side { animation: none !important; }
+}
+
+/* ---------- พื้นที่เนื้อหา ---------- */
+.main { margin-left: var(--rail-w); min-width: 0; }
 .mtop, .bottom, .more-sheet { display: none; }
 .page { padding: 28px 32px 56px; }
 .phead { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 18px; min-height: 40px; }
@@ -31,79 +89,82 @@
 .phead .count { font-size: 1.1rem; font-weight: 500; color: var(--muted); }
 .phead-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bar { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.panel { background: var(--surface); border-radius: 12px; box-shadow: var(--card-shadow); padding: 20px; min-width: 0; }
+/* กล่อง: กระดาษขาวบนพื้นเทาอ่อน แยกกันด้วยสีพื้นและระยะห่าง ไม่ใช้เส้นขอบ */
+.panel { background: var(--surface); border-radius: 8px; padding: 20px; min-width: 0; }
 .panel.flush { padding: 0; overflow: hidden; }
 .panel + .panel { margin-bottom: 16px; }
 .panel-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
 .panel-h.pad { padding: 18px 20px 6px; margin: 0; }
 .mnav { position: relative; display: inline-flex; align-items: center; }
-.mnav-label { height: 38px; min-width: 150px; padding: 0 10px; border-radius: 8px; font-weight: 600; font-size: 1.1rem; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
-button.mnav-label:hover { background: var(--line); }
-.mpick { position: absolute; top: 44px; left: 0; z-index: 30; width: 270px; padding: 14px; background: var(--surface); border-radius: 12px; box-shadow: 0 10px 30px rgba(22, 41, 74, 0.18); }
+.mnav-label { height: 38px; min-width: 150px; padding: 0 10px; border-radius: 6px; font-weight: 600; font-size: 1.1rem; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+@media (hover: hover) and (pointer: fine) { button.mnav-label:hover { box-shadow: inset 0 0 0 1px #b9c1cc; } }
+.mpick { position: absolute; top: 44px; left: 0; z-index: 30; width: 270px; padding: 14px; background: var(--surface); border-radius: 8px; box-shadow: 0 12px 28px -8px rgba(20, 27, 36, 0.22); }
 .mpick-year { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .mpick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.mpick-grid button { position: relative; height: 36px; border-radius: 8px; }
-.mpick-grid button:hover { background: var(--soft); }
+.mpick-grid button { position: relative; height: 36px; border-radius: 6px; }
+@media (hover: hover) and (pointer: fine) { .mpick-grid button:not(.on):hover { box-shadow: inset 0 0 0 1px #b9c1cc; } }
 .mpick-grid button.on { background: var(--primary); color: #fff; font-weight: 600; }
 .mpick-grid button.has::after { content: ''; position: absolute; top: 5px; right: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
+.mpick-bg { position: fixed; inset: 0; z-index: 29; }
+.mpick-go { display: block; margin-top: 10px; font-size: 0.93rem; }
 .only-narrow { display: none !important; }
-
-/* ---------- เมนูแบบย่อ: หน้าตารางรายเดือนบนจอกว้าง และจอเล็กกว่าโน้ตบุ๊ก ---------- */
+.phead-r .btn .ico { margin-right: 4px; }
 @media (min-width: 761px) {
-  .shell.rail { --side-w: 76px; }
-  .shell.rail .side { padding: 18px 10px; }
-  .shell.rail .side-brand span, .shell.rail .side-nav button span, .shell.rail .side-foot { display: none; }
-  .shell.rail .side-brand { padding: 0 0 18px; text-align: center; }
-  .shell.rail .side-brand b { display: none; }
-  .shell.rail .brand-short { display: block; }
-  .shell.rail .side-nav button { justify-content: center; padding: 12px 0; position: relative; }
-  .shell.rail .side-nav .badge { position: absolute; top: 4px; right: 6px; }
   .shell.rail .page { padding: 24px 24px 40px; }
 }
-@media (max-width: 1100px) {
-  .side { padding: 18px 10px; }
-  .side-brand span, .side-nav button span, .side-foot { display: none; }
-  .side-brand { padding: 0 0 18px; text-align: center; }
-  .side-brand b { display: none; }
-  .brand-short { display: block; }
-  .side-nav button { justify-content: center; padding: 12px 0; position: relative; }
-  .side-nav .badge { position: absolute; top: 4px; right: 6px; }
+@media (min-width: 761px) and (max-width: 1100px) {
   .page { padding: 24px 24px 48px; }
+}
+@media (min-width: 761px) and (max-width: 1399px) {
+  .shell.rail .page { padding: 20px 16px 32px; }
 }
 
 /* ---------- โทรศัพท์ ---------- */
 @media (max-width: 760px) {
   .side { display: none; }
+  .shell.side-open .side { display: flex; width: min(300px, 86vw); clip-path: none; padding-top: calc(10px + env(safe-area-inset-top, 0px)); overflow-y: auto; animation: side-in 0.3s var(--side-ease); }
+  .shell.side-open .side-toggle { display: flex; }
+  .side-scrim { z-index: 28; }
   .main { margin-left: 0; }
-  .mtop { display: flex; position: sticky; top: 0; z-index: 20; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px; background: var(--navy); color: #fff; }
-  .mtop-brand { font-size: 1.15rem; font-weight: 700; }
-  .mtop-user { color: var(--side-ink); max-width: 55vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mtop { display: flex; position: sticky; top: 0; z-index: 20; align-items: center; gap: 4px; height: 56px; padding: 0 12px 0 16px; background: var(--surface); color: var(--ink); }
+  /* มือถือใช้เมนูล่างแทนเมนูซ้าย จึงไม่มีปุ่ม ☰ */
+  .mtop-menu { display: none; }
+  .mtop-menu .ic { width: 22px; height: 22px; }
+  .mtop-brand { font-size: 1.1rem; font-weight: 700; margin-right: auto; }
+  .mtop-r { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .mtop-user { color: var(--ink-2); font-size: 0.9rem; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
   .page { padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0px)); }
   .only-wide { display: none !important; }
   .only-narrow { display: grid !important; }
-  .bottom { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); box-shadow: 0 -1px 0 var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
-  .bottom button { position: relative; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 0.75rem; color: var(--muted); }
+  .bottom { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); box-shadow: 0 -8px 20px -12px rgba(20, 27, 36, 0.18); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .bottom button { position: relative; height: 62px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 0 2px; font-size: 0.78rem; color: var(--muted); }
+  .bottom button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bottom button .ic { width: 22px; height: 22px; }
   .bottom button.on { color: var(--primary); font-weight: 600; }
   .bottom .badge { position: absolute; top: 6px; left: calc(50% + 6px); }
-  .more-sheet { display: grid; position: fixed; right: 10px; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); z-index: 21; min-width: 210px; padding: 6px; background: var(--surface); border-radius: 12px; box-shadow: 0 10px 30px rgba(16, 26, 44, 0.2); }
-  .more-sheet button { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; text-align: left; }
+  .more-sheet { display: grid; position: fixed; right: 10px; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); z-index: 21; min-width: 210px; padding: 6px; background: var(--surface); border-radius: 8px; box-shadow: 0 12px 28px -8px rgba(20, 27, 36, 0.24); }
+  .more-sheet button { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 14px; border-radius: 6px; text-align: left; }
   .more-sheet button.on { color: var(--primary); font-weight: 600; background: var(--primary-tint); }
-  .mnav-label { height: 44px; }
+  .mnav-label { height: 48px; }
   .phead-r { width: 100%; }
   .phead-r .btn { flex: 1; }
   .mpick-grid button { height: 42px; }
   .panel { padding: 16px; }
 }
-@media (min-width: 761px) and (max-width: 1399px) {
-  .shell.rail .page { padding: 20px 16px 32px; }
+@keyframes side-in { from { transform: translateX(-20px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .shell.side-open .side { animation: none !important; }
 }
-.mpick-bg { position: fixed; inset: 0; z-index: 29; }
-.mpick-go { display: block; margin-top: 10px; font-size: 0.93rem; }
-.side-nav button { font-size: 1.02rem; }
-@media (max-width: 760px) {
-  .mnav-label { height: 48px; }
-  .bottom button { height: 66px; font-size: 0.8rem; }
+
+/* ---------- พิมพ์: ตารางกะเป็นสมุดเวรติดบอร์ด (แนวนอน ไม่มีเมนูและปุ่ม) ---------- */
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff; }
+  .side, .side-scrim, .mtop, .bottom, .more-sheet, #toastRoot, .sched-bar, .filter-toggle, .phead-r, .legend .link, .my-now-actions, .today-act { display: none !important; }
+  .main { margin-left: 0; }
+  .page { padding: 0; }
+  .grid-wrap { max-height: none; overflow: visible; border: 0; }
+  .roster thead th, .roster .nm, .roster tfoot th, .roster tfoot td { position: static; }
+  .roster { font-size: 9pt; }
+  .roster td, .roster th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
-.side-nav button span:not(.badge) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.phead-r .btn .ico { margin-right: 4px; }

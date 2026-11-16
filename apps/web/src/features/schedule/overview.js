@@ -37,24 +37,29 @@ export function overviewHtml() {
     const now = teamToday(team);
     const night = now.fam === 'c-N';
     const status = !now.working ? 'พักตามรอบ' : night ? `เริ่ม ${time('N').split('–')[0]} น.` : 'กำลังเข้ากะ';
-    return [team.name, night ? 'กะดึก' : 'กะเช้า', night ? time('N') : time('M'), sup ? sup.name : '-', sizes[i], status, now.fam];
+    return { name: String(team.name).replace(/"/g, ''), shift: night ? 'กะดึก' : 'กะเช้า', hours: night ? time('N') : time('M'), sup: sup ? sup.name : '-', size: sizes[i], status, fam: now.fam, live: now.working && !night };
   });
+  // ทีมที่กำลังเข้ากะอยู่ขึ้นก่อน แล้วตามด้วยทีมที่จะเริ่มกะดึก
+  const order = r => (r.live ? 0 : r.fam === 'c-N' && r.status.startsWith('เริ่ม') ? 1 : 2);
+  const rows = [...teams].sort((a, b) => order(a) - order(b));
   return `
-    ${pageHead('ภาพรวมกำลังพล', `<span class="muted">วันที่ ${esc(DEMO_TODAY.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }))}</span>`)}
-    <div class="kpis kpis3">
-      <button class="kpi" data-click="switchView('schedule')"><span>กำลังพลรวมทั้งระบบ</span><b>${all.length} คน</b><small>Shift A (${sizes[0]}) · B (${sizes[1]}) · C (${sizes[2]}) · D (${sizes[3]})</small></button>
-      <button class="kpi" data-click="switchView('requests')"><span>คำขอรอดำเนินการ</span><b class="${pending ? 'warn' : ''}">${String(pending).padStart(2, '0')} รายการ</b><small>สลับกะ / ขอลา / เปลี่ยนวันหยุด</small></button>
-      <button class="kpi" data-click="switchView('requests')"><span>คำขอสลับข้ามชุดกะ</span><b>${String(cross).padStart(2, '0')} รายการ</b><small>รอการยืนยันจากหัวหน้ากะทั้ง 2 ฝ่าย</small></button>
-    </div>
-    <section class="panel flush">
-      <div class="panel-h pad"><h2>สถานะกะการทำงานวันนี้</h2><button class="link" data-click="switchView('schedule')">ดูตารางเต็มเดือน</button></div>
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead><tr><th>ชุดกะ</th><th>กะ</th><th>หัวหน้ากะ</th><th class="num">กำลังพล</th><th>สถานะ</th></tr></thead>
-          <tbody>
-            ${teams.map(r => `<tr><th scope="row">${esc(r[0])}</th><td><span class="sw"><i class="cd ${r[6]}"></i>${r[1]} ${esc(r[2])}</span></td><td>${esc(r[3])}</td><td class="num">${r[4]} คน <small>หัวหน้ากะ 1 + พนักงานกะ ${Math.max(0, r[4] - 1)}</small></td><td><span class="st ${r[5] === 'กำลังเข้ากะ' ? 'ok' : ''}">${r[5]}</span></td></tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </section>`;
+    ${pageHead('ภาพรวมกำลังพล', `<span class="muted">${esc(DEMO_TODAY.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</span>`)}
+    <section class="panel flush ov-now">
+      <div class="panel-h pad"><h2>วันนี้ใครอยู่กะ</h2><button class="link" data-click="switchView('schedule')">ตารางเต็มเดือน</button></div>
+      <div class="ov-head" aria-hidden="true"><span>ทีม</span><span>กะวันนี้</span><span>หัวหน้ากะ</span><span>กำลังพล</span><span>สถานะ</span></div>
+      <ul class="ov-teams">
+        ${rows.map(r => `<li class="${r.live ? 'live' : ''}">
+          <b class="ov-name">${esc(r.name)}</b>
+          <span class="ov-shift"><span class="chip ${r.fam}">${r.fam === 'c-N' ? 'N' : 'M'}</span>${esc(r.shift)} ${esc(r.hours)}</span>
+          <span class="ov-sup"><span class="sr">หัวหน้ากะ </span>${esc(r.sup)}</span>
+          <span class="ov-size"><b>${r.size}</b> คน</span>
+          <span class="ov-status st ${r.live ? 'ok' : ''}">${esc(r.status)}</span>
+        </li>`).join('')}
+      </ul>
+    </section>
+    <p class="ov-sum">
+      กำลังพลทั้งระบบ <b>${all.length}</b> คน (A ${sizes[0]} · B ${sizes[1]} · C ${sizes[2]} · D ${sizes[3]})
+      <span aria-hidden="true">·</span> <button class="link" data-click="switchView('requests')">คำขอรอดำเนินการ <b>${pending}</b> รายการ</button>
+      ${cross ? `<span aria-hidden="true">·</span> ข้ามชุดกะรอยืนยัน <b>${cross}</b> รายการ` : ''}
+    </p>`;
 }

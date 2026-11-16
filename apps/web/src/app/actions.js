@@ -37,7 +37,7 @@ import { openForm, renderForm } from '../features/requests/form.js';
 import { LOCKED_NOTE, newRequestModal } from '../features/requests/new-request.js';
 import { submitDayOffChangeRequest } from '../features/requests/types/dayoff.js';
 import { submitLeaveRequest } from '../features/requests/types/leave.js';
-import { selectEmployeeRequestGroup } from '../features/requests/list.js';
+import { selectEmployeeRequestGroup, selectRequestTab } from '../features/requests/list.js';
 import { submitOTRequest } from '../features/requests/types/ot.js';
 import { submitColleagueSwapRequest } from '../features/requests/types/swap.js';
 import { submitCentralSwap } from '../features/requests/types/central-swap.js';
@@ -76,8 +76,10 @@ function filterScheduleShiftType(t) { state.selectedShiftFilter = t; renderApp()
 /* ---------- คำสั่งของปุ่ม ---------- */
 const SF = {
   employeeRequestGroup(group) { selectEmployeeRequestGroup(group); renderApp(); },
+  requestTab(tab) { selectRequestTab(tab); renderApp(); },
   nav(id) {
     view.moreNav = false;
+    view.sideOpen = false;
     if (id === 'driver') { switchView('driver'); return; }
     if (id === 'team-schedule') state.operatorShowFullGrid = false;
     state.monthPickerOpen = false;
@@ -85,6 +87,13 @@ const SF = {
     window.scrollTo(0, 0);
   },
   more() { view.moreNav = !view.moreNav; renderApp(); },
+  // เมนูซ้ายแบบกด (จอสัมผัสและมือถือ) — จอที่ใช้เมาส์ขยายด้วยการชี้ (CSS)
+  side(force) {
+    view.sideOpen = typeof force === 'boolean' ? force : !view.sideOpen;
+    view.moreNav = false;
+    renderApp();
+    if (view.sideOpen) document.querySelector('.side-nav button.on, .side-nav button')?.focus();
+  },
   codes: codesModal,
   newRequest: newRequestModal,
   form: openForm,
@@ -139,6 +148,7 @@ const SF = {
   mode(v) { view.mode = v; if (v === 'day' && !(state.currentYear === DEMO_TODAY.getFullYear() && state.currentMonth === DEMO_TODAY.getMonth())) view.day = 1; renderApp(); },
   today() { view.day = DEMO_TODAY.getDate(); jumpToScheduleMonth(DEMO_TODAY.getFullYear(), DEMO_TODAY.getMonth()); },
   search(v) { view.q = v; renderApp(); },
+  filters() { view.filtersOpen = !view.filtersOpen; renderApp(); if (view.filtersOpen) document.querySelector('#schedFilters .seg button')?.focus(); },
   pickDay(d) { view.day = d; renderApp(); },
   dayStep(k) {
     const n = daysIn(state.currentYear, state.currentMonth);

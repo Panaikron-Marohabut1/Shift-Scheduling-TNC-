@@ -114,7 +114,7 @@ export const state = {
 
 // หน้าจอที่ยังไม่เกี่ยวกับข้อมูล (มุมมอง ช่องค้นหา ฟอร์มที่กำลังกรอก)
 // authMsg/loginUrl/unlinked ใช้ในหน้าเข้าสู่ระบบ (features/session/view.js)
-export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false, accessPending: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false, employeeRequestGroup: 'shared' };
+export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false, accessPending: false, moreNav: false, sideOpen: false, filtersOpen: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false, employeeRequestGroup: 'shared' };
 
 /* ---------- เก็บข้อมูลเดโมในเบราว์เซอร์ ---------- */
 let lastSaved = '';

@@ -70,7 +70,7 @@ export function adminAccountsHtml() {
         <tbody>${rows.map(row => `<tr>
           <th scope="row">${esc(row.name || 'บัญชีเดโม่')}<span class="admin-account-meta small">${esc([row.employeeCode, row.teamCode && `Shift ${row.teamCode}`].filter(Boolean).join(' · '))}</span></th>
           <td>${esc(roleLabels[row.role] || '—')}</td>
-          ${history ? `<td>${esc(row.grantedBy || '—')}</td><td>${esc(dateTime.format(new Date(row.grantedAt)))}</td>` : `<td>${esc(statusLabels[row.status] || '—')}</td>`}
+          ${history ? `<td>${esc(row.grantedBy || '—')}</td><td>${esc(dateTime.format(new Date(row.grantedAt)))}</td>` : `<td><span class="st ${{ ACTIVE: 'ok', PENDING: 'wait', WAITING_LOGIN: 'wait', UNLINKED: 'warn' }[row.status] || ''}">${esc(statusLabels[row.status] || '—')}</span></td>`}
         </tr>`).join('')}</tbody>
       </table>
     </div>` : rows ? `<p class="empty">${term ? 'ไม่พบรายการตามคำค้น' : history ? 'ยังไม่มีประวัติการให้สิทธิ์ครั้งแรก' : 'ยังไม่มีบัญชีเดโม่ในระบบ'}</p>` : ''}

@@ -11,6 +11,13 @@ import { cellText, changeNote, codeClass, famOf } from './codes.js';
 import { dayClass } from './days.js';
 import { matchQ, teamSections } from './page.js';
 
+// ชื่อสั้นสำหรับคอลัมน์ชื่อบนมือถือ: รหัสท้ายชื่อ (A1, B0) ถ้ามี ไม่งั้นใช้ชื่อต้น
+const shortName = name => {
+  const parts = String(name).trim().split(/\s+/);
+  const last = parts[parts.length - 1];
+  return /^[A-Z]\d{1,2}$/.test(last) ? last : parts[0];
+};
+
 export function gridHtml(S) {
   const { y, m, n, hol } = S;
   const days = Array.from({ length: n }, (_, i) => i + 1);
@@ -31,7 +38,7 @@ export function gridHtml(S) {
       const me = S.viewer && S.viewer.id === emp.id;
       return `
         <tr class="${me ? 'me' : ''}">
-          <th class="nm" scope="row"><div class="nm-in"><span class="name">${esc(emp.name)}</span>${me ? '<span class="you">คุณ</span>' : ''}${isSup ? '<span class="tag" title="หัวหน้ากะ">S</span>' : ''}</div></th>
+          <th class="nm" scope="row"><div class="nm-in"><span class="name">${esc(emp.name)}</span><span class="name-short" aria-hidden="true">${esc(shortName(emp.name))}</span>${me ? '<span class="sr">แถวของคุณ</span>' : ''}${isSup ? '<span class="tag" title="หัวหน้ากะ">S</span>' : ''}</div></th>
           ${codes.map((code, i) => {
             if (code === null) return `<td class="${cls[i]}" aria-label="อยู่ทีมอื่นในวันนี้"></td>`;
             const d = i + 1, def = state.shiftDefs[code] || state.shiftDefs.O;
@@ -53,8 +60,8 @@ export function gridHtml(S) {
         <thead><tr><th class="nm" scope="col">พนักงาน</th>${head}<th class="sm" scope="col" title="วันเข้างาน">ทำงาน</th><th class="sm" scope="col">OT</th><th class="sm" scope="col">ลา</th></tr></thead>
         <tbody>${body}</tbody>
         <tfoot>
-          <tr class="cnt r1"><th class="nm" scope="row">คนเข้ากะเช้า</th>${cm.map((v, i) => `<td class="${cls[i]}">${v}</td>`).join('')}<td colspan="3"></td></tr>
-          <tr class="cnt r2"><th class="nm" scope="row">คนเข้ากะดึก</th>${cn.map((v, i) => `<td class="${cls[i]}">${v}</td>`).join('')}<td colspan="3"></td></tr>
+          <tr class="cnt r1"><th class="nm" scope="row"><span class="lbl-full">คนเข้ากะเช้า</span><span class="lbl-short" aria-hidden="true">เช้า</span></th>${cm.map((v, i) => `<td class="${cls[i]}">${v}</td>`).join('')}<td colspan="3"></td></tr>
+          <tr class="cnt r2"><th class="nm" scope="row"><span class="lbl-full">คนเข้ากะดึก</span><span class="lbl-short" aria-hidden="true">ดึก</span></th>${cn.map((v, i) => `<td class="${cls[i]}">${v}</td>`).join('')}<td colspan="3"></td></tr>
         </tfoot>
       </table>
     </div>`;

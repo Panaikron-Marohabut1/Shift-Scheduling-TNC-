@@ -2,11 +2,11 @@
    แจ้งเตือน: รายการแจ้งเตือน และกระดิ่งบนแถบบนของมือถือ
    ========================================================================== */
 
-.nt-list li + li { border-top: 1px solid #f0f2f6; }
+.nt-list li + li { margin-top: 2px; }
 .nt-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px 20px; text-align: left; }
-.nt-row:hover { background: var(--soft); }
-.nt-row.unread { background: var(--primary-tint); }
-.nt-row.unread:hover { background: #dfe8f8; }
+@media (hover: hover) and (pointer: fine) { .nt-row:hover { box-shadow: inset 0 0 0 1px #b9c1cc; } }
+.nt-row.unread { background: var(--surface); }
+.nt-row:not(.unread) .nt-main, .nt-row:not(.unread) .nt-time { color: var(--muted); }
 .nt-dot { flex: none; width: 9px; height: 9px; margin-top: 8px; border-radius: 50%; background: var(--primary); }
 .nt-row:not(.unread) .nt-dot { visibility: hidden; }
 .nt-main { flex: 1; min-width: 0; display: grid; gap: 2px; line-height: 1.45; }
@@ -16,8 +16,9 @@
 .nt-time { flex: none; color: var(--muted); font-size: 0.87rem; white-space: nowrap; }
 
 .mtop-r { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.mtop-bell { position: relative; display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; color: var(--side-ink); }
-.mtop-bell.on, .mtop-bell:hover { background: var(--navy-hover); color: #fff; }
+.mtop-bell { position: relative; display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 6px; color: var(--ink-2); }
+.mtop-bell.on { background: var(--side-hover); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .mtop-bell:hover { box-shadow: inset 0 0 0 1px #b9c1cc; color: var(--ink); } }
 .mtop-bell .ic { width: 22px; height: 22px; }
 .mtop-bell .badge { position: absolute; top: 3px; right: 1px; }
 
