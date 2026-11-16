@@ -106,27 +106,35 @@ export async function saveSwapQuota() {
 function swapQuotaHtml() {
   const form = getQuotaForm();
   const { settings, busy, draft, error, notice } = form;
+  const nextMonth = settings ? esc(quotaMonthLabel(settings.nextMonth)) : '';
   const feedback = `${error ? `<p class="err small" role="alert">${esc(error)}</p>` : ''}
     ${notice ? `<p class="muted small" role="status">${esc(notice)}</p>` : ''}`;
-  return `<section class="panel" aria-busy="${Boolean(busy)}">
-    <div class="panel-h"><h2>โควตาสลับกะส่วนกลาง</h2></div>
-    <p class="muted small">กำหนดจำนวนครั้งต่อคนสำหรับทุกทีม ค่าที่บันทึกจะเริ่มใช้เดือนถัดไป
+  return `<section class="panel quota-settings" aria-busy="${Boolean(busy)}">
+    ${state.actor?.remotePilot ? '' : '<h2>โควตาสลับกะส่วนกลาง</h2>'}
+    <p class="small quota-settings-note">ใช้โควตาต่อคนเท่ากันทุกทีม
       ${state.actor?.swapPolicy ? 'ระบบหัก 1 สิทธิ์จากผู้ยื่นเมื่ออนุมัติครบ' : 'สภาพแวดล้อมนี้ยังไม่ได้ใช้โควตากลางตอนอนุมัติคำขอ'}</p>
     ${feedback}
     ${!settings ? (busy ? '<p class="muted small" role="status">กำลังโหลดโควตา…</p>' :
       '<button type="button" class="btn sm" data-click="loadSwapQuota()">โหลดโควตาอีกครั้ง</button>') : `
-      <ul class="rows">
-        <li><span>เดือนนี้ · ${esc(quotaMonthLabel(settings.currentMonth))}</span><b>${esc(settings.currentLimit)} ครั้ง/คน</b></li>
-        <li><span>เดือนถัดไป · ${esc(quotaMonthLabel(settings.nextMonth))}</span><b>${esc(settings.nextLimit)} ครั้ง/คน</b></li>
-      </ul>
-      <form class="fields" data-submit="saveSwapQuota()">
+      <dl class="quota-settings-months">
+        <div>
+          <dt><span class="small">เดือนนี้</span><b>${esc(quotaMonthLabel(settings.currentMonth))}</b></dt>
+          <dd><strong>${esc(settings.currentLimit)}</strong> ครั้ง/คน</dd>
+        </div>
+        <div>
+          <dt><span class="small">เดือนถัดไป</span><b>${nextMonth}</b></dt>
+          <dd><strong>${esc(settings.nextLimit)}</strong> ครั้ง/คน</dd>
+        </div>
+      </dl>
+      <form data-submit="saveSwapQuota()">
         <div class="field">
-          <label for="set-central-swap">จำนวนครั้งต่อคนสำหรับเดือนถัดไป</label>
-          <span class="numfield">
+          <label for="set-central-swap">จำนวนครั้งต่อคนสำหรับ${nextMonth}</label>
+          <div class="numfield">
             <input class="inp" id="set-central-swap" type="number" required min="1" max="${maxQuota}" step="1"
-              value="${esc(draft ?? settings.nextLimit)}" data-input="updateSwapQuotaDraft(this.value)" ${busy ? 'disabled' : ''}>
-            <button type="submit" class="btn sm" ${busy ? 'disabled' : ''}>${busy === 'saving' ? 'กำลังบันทึก…' : 'บันทึกสำหรับเดือนถัดไป'}</button>
-          </span>
+              aria-describedby="quota-effective-date" value="${esc(draft ?? settings.nextLimit)}" data-input="updateSwapQuotaDraft(this.value)" ${busy ? 'disabled' : ''}>
+            <button type="submit" class="btn primary" ${busy ? 'disabled' : ''}>${busy === 'saving' ? 'กำลังบันทึก…' : 'บันทึกโควตา'}</button>
+          </div>
+          <p class="small quota-settings-note" id="quota-effective-date">เริ่มใช้ 1 ${nextMonth} ตามเวลาไทย</p>
         </div>
       </form>
       ${error ? '<button type="button" class="btn sm" data-click="loadSwapQuota()">โหลดค่าล่าสุด</button>' : ''}

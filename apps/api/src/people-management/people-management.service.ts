@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { PoolClient } from 'pg';
 import { demoPeopleAccess } from '../admin-access/demo-access';
 import { Database } from '../database/database.service';
-import { bangkokWorkDate, pendingSwapClosure } from '../requests/swap-request-time';
+import { bangkokWorkDate, pendingRequestClosure } from '../requests/request-time';
 import { id } from '../shared/input';
 import { Actor } from '../shared/types';
 
@@ -120,8 +120,19 @@ export class PeopleManagementService {
       AND ($3 OR d.work_date>=$2::date))))
     OR (r.status='APPROVED' AND $2::date IS NOT NULL AND d.work_date>=$2::date AND $1 IN (r.requester_id,ch.target_employee_id)))
    ORDER BY "workDate","requestId"`,[person.employeeId,transferDate,changesAccess,`${today.slice(0,7)}-01`,person.userId]);
-  return rows.filter(row=>row.status==='APPROVED'||!row.quotaMonth||!pendingSwapClosure(row.quotaMonth,row.submittedAt,now))
+  const swaps=rows.filter(row=>row.status==='APPROVED'||!row.quotaMonth||!pendingRequestClosure(row.quotaMonth,row.submittedAt,now))
    .map(({requestId,status,workDate})=>({requestId,status,workDate}));
+  const available=(await c.query("SELECT to_regclass('shiftflow_policy.leave_requests') IS NOT NULL AS installed")).rows[0].installed;
+  if(!available)return swaps;
+  const leaves=await c.query<Pick<RelatedRequest,'requestId'|'status'|'workDate'>>(`SELECT r.request_id AS "requestId",r.status,a.work_date AS "workDate"
+   FROM requests r JOIN shiftflow_policy.leave_requests l USING(request_id)
+   JOIN shift_assignments a ON a.assignment_id=l.assignment_id
+   WHERE (r.status='PENDING' AND l.expires_at>$4 AND ($3 OR a.work_date>=$2::date)
+       AND ($1 IN (r.requester_id,l.cover_employee_id) OR EXISTS(SELECT 1 FROM approvals ap
+        WHERE ap.request_id=r.request_id AND ap.approver_id=$5 AND ap.status='PENDING')))
+    OR (r.status='APPROVED' AND a.work_date>=$2::date AND $1 IN (r.requester_id,l.cover_employee_id))`,
+   [person.employeeId,transferDate,changesAccess,now,person.userId]);
+  return [...swaps,...leaves.rows].sort((a,b)=>a.workDate.localeCompare(b.workDate)||a.requestId-b.requestId);
  }
 
  private requireDemoManager(actor:Actor) {

@@ -22,6 +22,33 @@ export const nowText = () => fmtTime(new Date().toISOString());
 
 /* ---------- ตารางกะ ---------- */
 const yearsLoaded = {};
+let quotaRequest;
+
+function myQuotaMonth() {
+  return `${state.currentYear}-${pad2(state.currentMonth + 1)}`;
+}
+
+function showsMyQuota() {
+  return state.actor?.centralSwap && (state.activeView === 'my-shift'
+    || (state.activeView === 'team-schedule' && !state.operatorShowFullGrid));
+}
+
+export function getMySwapQuota() {
+  if (quotaRequest && quotaRequest.actor === state.actor && quotaRequest.month === myQuotaMonth()) return quotaRequest;
+  return null;
+}
+
+export function loadMySwapQuota(refresh = false) {
+  if (!showsMyQuota()) {
+    if (refresh) quotaRequest = null;
+    return;
+  }
+  if (!refresh && getMySwapQuota()) return;
+  const request = quotaRequest = { actor: state.actor, month: myQuotaMonth() };
+  return api(`/settings/swap-quota/mine?month=${encodeURIComponent(request.month)}`)
+    .then(result => { request.result = result; })
+    .catch(() => { request.error = true; });
+}
 export async function loadYear(y, force = false) {
   if (yearsLoaded[y] && !force) return;
   const months = await Promise.all(Array.from({ length: 12 }, (_, m) => api(`/schedules?month=${y}-${pad2(m + 1)}`).catch(() => ({ assignments: [] }))));
@@ -39,7 +66,7 @@ export async function reloadMonths(keys) {
 export async function reloadLoadedYears() {
   await Promise.all(Object.keys(yearsLoaded).map(y => loadYear(Number(y), true)));
 }
-export function resetData() { Object.keys(yearsLoaded).forEach(k => { delete yearsLoaded[k]; }); state.apiMonths = {}; }
+export function resetData() { Object.keys(yearsLoaded).forEach(k => { delete yearsLoaded[k]; }); state.apiMonths = {}; quotaRequest = null; }
 
 // พนักงานและรหัสกะจากตารางในฐานข้อมูล + การแก้ข้อมูลพนักงานในเดโม
 export function rebuildSchedule() {
@@ -77,6 +104,9 @@ export function rebuildSchedule() {
 function teamOfApproval(s) { return String(s.team_name || '').replace('ทีม ', '').trim(); }
 function mapRequest(r) {
   const a = r.snapshot.source, b = r.snapshot.target;
+  const leave = r.request_type === 'LEAVE';
+  const ot = r.request_type === 'OT';
+  const requestedCode = ot ? r.ot_code : leave ? 'L' : b.shift_code;
   const second = r.snapshot.secondSwap;
   const managerApproval = r.snapshot.approvalRoute === 'MANAGER';
   const y = Number(a.work_date.slice(0, 4)), m = Number(a.work_date.slice(5, 7)) - 1, d = Number(a.work_date.slice(8, 10));
@@ -92,23 +122,27 @@ function mapRequest(r) {
     : r.status === 'EXPIRED' ? 'หมดอายุ' : r.status === 'MONTH_CLOSED' ? 'ตารางเดือนปิดแล้ว'
     : r.status === 'POLICY_REPLACED' ? 'ปิดเพราะเปลี่ยนกฎ กรุณายื่นใหม่'
     : managerApproval ? 'รอผู้จัดการอนุมัติ'
+    : (leave || ot) && approvers.length === 1 ? 'รอหัวหน้ากะอนุมัติ'
     : approvers.some(s => s.status === 'approved') && next ? `รออนุมัติครบ 2 ฝ่าย (${next.role})` : 'รออนุมัติครบ 2 ฝ่าย';
   const rejected = approvals.find(s => s.status === 'REJECTED');
   const requester = getAllEmployees().find(e => e.eid === a.employee_id);
-  const target = getAllEmployees().find(e => e.eid === b.employee_id);
+  const target = b && getAllEmployees().find(e => e.eid === b.employee_id);
   return {
     id: r.request_id, api: true, ts: Date.parse(r.submitted_at) || 0, version: r.version, canDecide: !!r.canDecide, canCancel: !!r.canCancel, hasConflict: !!r.hasConflict,
     approvalBlockReason: r.approvalBlockReason,
     cancelBlockReason: state.actor?.employeeId === a.employee_id ? r.cancelBlockReason : null,
     cancelledAfterApproval: r.status === 'CANCELLED' && approvals.length > 0 && approvals.every(s => s.status === 'APPROVED'),
-    type: 'สลับกะข้ามทีม', person: a.name, requesterId: requester ? requester.id : a.employee_code, targetPerson: b.name, targetId: target ? target.id : b.employee_code,
-    day: d, y, m, aNewCode: b.shift_code, bNewCode: a.shift_code, initials: a.name.slice(0, 2),
+    kind: ot ? 'ot' : leave ? 'leave' : 'swap',
+    type: ot ? 'ขอทำ OT' : leave ? (r.leave_code ? `ขอลา (${r.leave_code})` : 'ขอลา') : 'สลับกะข้ามทีม',
+    person: a.name, requesterId: requester ? requester.id : a.employee_code, targetPerson: b?.name, targetId: target?.id || b?.employee_code,
+    day: d, y, m, aNewCode: requestedCode, bNewCode: leave ? r.coverOtCode : a.shift_code, initials: a.name.slice(0, 2),
     roleCategory: requester ? requester.roleCategory : 'Shift Employee', targetRole: target ? target.roleCategory : 'Shift Employee',
     date: `${second ? `${d} และ ${Number(second.source.work_date.slice(-2))}` : d} ${thaiMonthName(m, 'long')} ${y + 543}`,
-    currentShift: second ? '-' : a.shift_code, targetShift: second ? '-' : b.shift_code,
-    reason: `สลับกะกับ ${b.name} (${a.shift_code} ↔ ${b.shift_code})${second ? ` · วันที่ ${Number(second.source.work_date.slice(-2))} (${second.source.shift_code} ↔ ${second.target.shift_code})` : ''}`,
+    currentShift: second ? '-' : a.shift_code, targetShift: second ? '-' : requestedCode,
+    coverOtCode: r.coverOtCode,
+    reason: ot ? '' : leave ? r.reason : `สลับกะกับ ${b.name} (${a.shift_code} ↔ ${b.shift_code})${second ? ` · วันที่ ${Number(second.source.work_date.slice(-2))} (${second.source.shift_code} ↔ ${second.target.shift_code})` : ''}`,
     isCrossShift: true, approvers, status, parallelApproval: r.snapshot.approvalRoute === 'TWO_SUPERVISORS',
-    submittedAt: fmtTime(r.submitted_at), quotaUsed: '-', rejectReason: rejected ? rejected.comment || '' : ''
+    submittedAt: fmtTime(r.submitted_at), quotaUsed: '-', rejectReason: leave ? r.rejection_reason : rejected ? rejected.comment || '' : ''
   };
 }
 export async function loadRequests() {
@@ -116,18 +150,29 @@ export async function loadRequests() {
   try { state.apiRequests = (await api('/requests')).map(mapRequest); } catch { state.apiRequests = []; }
 }
 
+export function submitLeaveApi(input, key) {
+  return api('/leave-requests', { method: 'POST', key, body: input });
+}
+
 /* ---------- ประวัติ ---------- */
 const ACTION_LABEL = {
   REQUEST_SUBMITTED: 'ยื่นคำขอสลับกะ', REQUEST_APPROVED: 'อนุมัติคำขอสลับกะ', REQUEST_REJECTED: 'ไม่อนุมัติคำขอสลับกะ',
+  SCHEDULE_OT_APPLIED: 'บันทึกกะ OT ลงตาราง', SCHEDULE_OT_REVERSED: 'คืนวันหยุดเดิมหลังยกเลิก OT',
   REQUEST_CANCELLED: 'ยกเลิกคำขอสลับกะ', SWAP_CUTOVER_CLOSED: 'ปิดคำขอสลับกะเมื่อเปลี่ยนกฎ', SCHEDULE_SWAP_APPLIED: 'บันทึกการสลับกะลงตาราง', SCHEDULE_VIEWED: 'เปิดดูตารางกะ'
 };
 function mapLog(l) {
   const v = l.new_value || {};
-  const label = ACTION_LABEL[l.action] || l.action;
+  const requestId = l.entity_type === 'REQUEST' ? l.entity_id : null;
+  const requestLabel = l.request_type === 'LEAVE' ? 'คำขอลา' : l.request_type === 'OT' ? 'คำขอ OT' : '';
+  const actionVerbs = { REQUEST_SUBMITTED: 'ยื่น', REQUEST_APPROVED: 'อนุมัติ', REQUEST_REJECTED: 'ไม่อนุมัติ', REQUEST_CANCELLED: 'ยกเลิก' };
+  const label = Array.isArray(v.changes)
+    ? (l.action.endsWith('_REVERSED') ? 'คืนกะเดิมของคุณแล้ว' : 'กะของคุณเปลี่ยนแล้ว')
+    : (requestLabel && actionVerbs[l.action] ? actionVerbs[l.action] + requestLabel : ACTION_LABEL[l.action]) || l.action;
   const detail = v.workDate ? ` วันที่ ${new Date(`${v.workDate}T12:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}` : '';
   const reason = v.reason ? ` (เหตุผล: ${v.reason})` : '';
   const level = l.action === 'REQUEST_APPROVED' && v.level ? ` ขั้นที่ ${v.level}` : '';
-  return { id: `api-${l.audit_id || l.id || l.created_at}`, at: l.created_at, actor: l.actor_name || 'ระบบ', userId: l.user_id, action: `${label}${l.entity_type === 'REQUEST' ? ` #${l.entity_id}` : ''}${level}${detail}${reason}`, time: fmtTime(l.created_at) };
+  return { id: `api-${l.audit_id || l.id || l.created_at}`, api: true, requestId, changes: v.changes,
+    at: l.created_at, actor: l.actor_name || 'ระบบ', userId: l.user_id, action: `${label}${level}${detail}${reason}`, time: fmtTime(l.created_at) };
 }
 export async function loadLogs() {
   const role = state.actor.role;
@@ -147,7 +192,7 @@ export async function loadNotifications() {
   try { state.apiNotifications = await api('/notifications'); } catch { state.apiNotifications = []; }
 }
 export async function refreshAll() {
-  await Promise.all([loadRequests(), loadLogs(), loadNotifications()]);
+  await Promise.all([loadRequests(), loadLogs(), loadNotifications(), loadMySwapQuota(true)]);
   merge();
 }
 

@@ -5,7 +5,9 @@
 import { state } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { openModal } from '../../shared/modal.js';
-import { canCancelApproved, canWithdrawRequest } from './permissions.js';
+import { localLeaveClosureStatus } from './leave-time.js';
+import { canCancelApproved, canWithdrawRequest, visibleRequestReason } from './permissions.js';
+import { localCancellationConflict } from './request-conflict.js';
 
 /* ---------- รายละเอียด ---------- */
 export const findReq = id => state.requests.find(r => r.id === Number(id) || r.id === id);
@@ -13,9 +15,13 @@ const approvalLabel = { approved: 'อนุมัติ', rejected: 'ไม่�
 export function openRequestDetails(reqId) {
   const req = findReq(reqId);
   if (!req) return;
-  const closed = ['ยกเลิกแล้ว', 'หมดอายุ', 'ตารางเดือนปิดแล้ว', 'ปิดเพราะเปลี่ยนกฎ กรุณายื่นใหม่'].includes(req.status);
-  const statusLabel = closed || ['อนุมัติแล้ว', 'ไม่อนุมัติ'].includes(req.status) ? req.status : 'รอตรวจสอบ';
+  const reason = visibleRequestReason(req);
+  const relatedRole = req.coverOtCode ? ` · ${req.coverOtCode}` : req.targetRole ? ` (${req.targetRole})` : '';
+  const status = localLeaveClosureStatus(req) || req.status;
+  const closed = ['ยกเลิกแล้ว', 'หมดอายุ', 'ตารางเดือนปิดแล้ว', 'ปิดเพราะเปลี่ยนกฎ กรุณายื่นใหม่'].includes(status);
+  const statusLabel = closed || ['อนุมัติแล้ว', 'ไม่อนุมัติ'].includes(status) ? status : 'รอตรวจสอบ';
   const statusClass = req.status === 'อนุมัติแล้ว' ? 'pill-approved' : req.status === 'ไม่อนุมัติ' ? 'pill-rejected' : closed ? '' : 'pill-pending';
+  const cancelBlockReason = req.cancelBlockReason || (!req.api && status === 'อนุมัติแล้ว' && localCancellationConflict(req));
   const body = `
     <div class="request-detail-view">
       <div class="request-detail-status">
@@ -23,14 +29,16 @@ export function openRequestDetails(reqId) {
         <span class="pill ${statusClass}">${esc(statusLabel)}</span>
       </div>
       ${req.approvalBlockReason ? `<p class="notice">${esc(req.approvalBlockReason)}</p>` : ''}
-      ${req.cancelBlockReason ? `<p class="notice">${esc(req.cancelBlockReason)}</p>` : ''}
-      ${req.api && req.cancelledAfterApproval ? '<p class="notice">คืนตารางและโควตาแล้ว</p>' : ''}
+      ${cancelBlockReason ? `<p class="notice">${esc(cancelBlockReason)}</p>` : ''}
+      ${req.api && req.cancelledAfterApproval ? `<p class="notice">${req.kind === 'swap' ? 'คืนตารางและโควตาแล้ว' : 'คืนตารางกะเดิมแล้ว'}</p>` : ''}
       <dl class="request-detail-list">
+        ${req.api ? `<div class="request-detail-row"><dt>เลขคำขอ</dt><dd>#${esc(req.id)}</dd></div>` : ''}
         <div class="request-detail-row"><dt>ประเภทคำขอ</dt><dd>${esc(req.type)}</dd></div>
+        <div class="request-detail-row"><dt>ผู้ยื่น</dt><dd>${esc(req.person)}</dd></div>
         <div class="request-detail-row"><dt>วันที่เกี่ยวข้อง</dt><dd>${esc(req.date)}</dd></div>
-        ${req.targetPerson ? `<div class="request-detail-row"><dt>คู่สลับ/ผู้เกี่ยวข้อง</dt><dd>${esc(req.targetPerson)}${req.targetRole ? ` (${esc(req.targetRole)})` : ''}</dd></div>` : ''}
+        ${req.targetPerson ? `<div class="request-detail-row"><dt>${req.kind === 'leave' ? 'คนที่มาทำแทน' : 'คู่สลับ/ผู้เกี่ยวข้อง'}</dt><dd>${esc(req.targetPerson + relatedRole)}</dd></div>` : ''}
         ${req.currentShift && req.currentShift !== '-' ? `<div class="request-detail-row"><dt>กะเดิม → กะใหม่</dt><dd>${esc(req.currentShift)} → ${esc(req.targetShift)}</dd></div>` : ''}
-        <div class="request-detail-row request-detail-row-long"><dt>รายละเอียด</dt><dd>${esc(req.reason)}</dd></div>
+        ${reason ? `<div class="request-detail-row request-detail-row-long"><dt>รายละเอียด</dt><dd>${esc(reason)}</dd></div>` : ''}
         <div class="request-detail-row"><dt>ส่งคำขอเมื่อ</dt><dd>${esc(req.submittedAt)}</dd></div>
         <div class="request-detail-row"><dt>ผู้ตรวจสอบ</dt><dd>${req.approvers.map(a =>
           esc(`${a.role} · ${approvalLabel[a.status] || approvalLabel.pending}${a.decidedAt || a.at ? ` · ${a.decidedAt || a.at}` : ''}`)

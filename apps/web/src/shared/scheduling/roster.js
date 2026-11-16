@@ -9,6 +9,18 @@ import { DEMO_TODAY, state } from '../../app/state.js';
 import { getTeamFamilyForYear, isYearPublished } from './annual.js';
 import { isoOf, monthKey } from './dates.js';
 import { getTeamKeyByLabel } from './employees.js';
+import rotation from './rotation.json' with { type: 'json' };
+
+const dayMs = 86_400_000;
+const rotationAnchor = Date.parse(rotation.anchor);
+const offsetOf = team => rotation.offsets[team?.replace('Shift ', '')];
+function rotationShift(team, workDate) {
+  const offset = offsetOf(team);
+  if (!Number.isInteger(offset)) return null;
+  const index = (Date.parse(workDate) - rotationAnchor) / dayMs + offset;
+  const length = rotation.cycle.length;
+  return rotation.cycle[((index % length) + length) % length];
+}
 
 /* ---------- ตารางกะจริงจากฐานข้อมูล ---------- */
 export function hasScheduleDataForMonth(year, month) {
@@ -17,9 +29,8 @@ export function hasScheduleDataForMonth(year, month) {
 }
 export function isSchedulePublished(year, month) {
   const schedule = state.apiMonths[monthKey(year, month)]?.schedule;
-  if (state.actor?.remotePilot) return schedule?.status === 'PUBLISHED';
-  return (state.actor?.swapPolicy || state.actor?.monthClose) && schedule
-    ? schedule.status === 'PUBLISHED' : isYearPublished(year);
+  if (state.actor?.remotePilot || state.actor?.swapPolicy || state.actor?.monthClose) return schedule?.status === 'PUBLISHED';
+  return isYearPublished(year);
 }
 // เดือนแรกที่มีข้อมูลจริง ใช้เป็นฐานคาดการณ์รอบกะของเดือนอื่น
 export function dataMonth() {
@@ -31,7 +42,7 @@ export function hasAnyScheduleData() { return Object.values(state.apiMonths).som
 
 /* ---------- ค่าคาดการณ์ (รอบ 8 วัน: เช้า 2 หยุด 2 ดึก 2 หยุด 2) ---------- */
 const ROTATION_CYCLE_DAYS = 8;
-export const LEAVE = new Set(['V', 'B', 'S', 'H', 'VG', 'VGh']);
+export const LEAVE = new Set(['L', 'V', 'B', 'S', 'H', 'VG', 'VGh']);
 const patternCache = {};
 export function clearPatternCache() { Object.keys(patternCache).forEach(k => { delete patternCache[k]; }); }
 function familyOf(code) {
@@ -69,6 +80,11 @@ function basePattern(emp) {
 }
 // ทิศทางกะตามธรรมชาติของทีม (เริ่มเช้าก่อน หรือดึกก่อน) อ่านจากตารางจริง
 export function naturalFamily(team) {
+  const offset = offsetOf(team);
+  if (Number.isInteger(offset)) {
+    const arranged = rotation.cycle.slice(offset).concat(rotation.cycle.slice(0, offset));
+    return arranged.find(code => code !== 'O');
+  }
   const t = state.shiftsData[getTeamKeyByLabel(team)];
   const sup = t && (t.employees.find(e => e.id === t.supervisorId) || t.employees[0]);
   if (!sup) return 'M';
@@ -92,10 +108,12 @@ export function getShiftCodeForDate(emp, year, month, day) {
   const real = state.apiCodes[emp.id] && state.apiCodes[emp.id][isoOf(year, month, day)];
   if (real) return real;
   if (hasScheduleDataForMonth(year, month)) return 'O';
+  const scheduled = rotationShift(getTeamForDate(emp, year, month, day), isoOf(year, month, day));
+  if (scheduled && (state.actor?.remotePilot || state.actor?.swapPolicy || state.actor?.monthClose)) return scheduled;
   const base = dataMonth();
   const diff = Math.round((new Date(year, month, day) - new Date(base.y, base.m, 1)) / 86400000);
   const pos = ((diff % ROTATION_CYCLE_DAYS) + ROTATION_CYCLE_DAYS) % ROTATION_CYCLE_DAYS;
-  let code = basePattern(emp)[pos];
+  let code = scheduled || basePattern(emp)[pos];
   const nat = naturalFamily(emp.shiftType), yr = getTeamFamilyForYear(emp.shiftType, year);
   if (nat && yr && nat !== yr) code = code === 'M' ? 'N' : code === 'N' ? 'M' : code;
   return code;

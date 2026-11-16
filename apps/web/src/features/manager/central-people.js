@@ -62,14 +62,15 @@ export function centralPeopleHtml() {
       <label class="sr" for="peopleQ">ค้นหาชื่อหรือรหัสพนักงาน</label>
       <input class="inp q" id="peopleQ" type="search" placeholder="ค้นหาชื่อหรือรหัส" value="${esc(state.employeeSearch)}" data-input="filterEmployeeSearch(this.value)" autocomplete="off">
     </div>
-    ${filtered.length ? `<div class="panel flush tbl-wrap" data-scroll="central-people">
-      <table class="tbl">
-        <thead><tr><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ทีม</th><th>ตำแหน่ง</th><th>บทบาท</th><th><span class="sr">แก้ไข</span></th></tr></thead>
+    ${filtered.length ? `<div class="panel flush tbl-wrap people-table-wrap" data-scroll="central-people" role="region" aria-label="รายชื่อพนักงาน" tabindex="0">
+      <table class="tbl people-table">
+        <thead><tr><th scope="col">พนักงาน</th><th scope="col" class="people-team">ทีม</th><th scope="col" class="people-role">บทบาท</th><th scope="col" class="people-position">ตำแหน่ง</th><th scope="col" class="act"><span class="sr">แก้ไข</span></th></tr></thead>
         <tbody>${filtered.map(person => `<tr data-employee-code="${esc(person.employeeCode)}">
-          <td class="num muted">${esc(person.employeeCode)}</td><th scope="row">${esc(person.name)}</th>
-          <td>Shift ${esc(person.teamCode)}${person.scheduledTransfer ? `<br><span class="small muted">ย้ายไป Shift ${esc(person.scheduledTransfer.teamCode)} ${esc(dateText(person.scheduledTransfer.effectiveOn))}</span>` : ''}</td>
-          <td>${esc(positions[person.position] || person.position || '—')}</td><td>${esc(person.hasAccount ? roles[person.role] || '—' : 'ยังไม่เปิดสิทธิ์')}</td>
-          <td class="act"><button type="button" class="btn ghost sm" data-click="editCentralEmployee(${js(person.employeeId)})">แก้ไข</button></td>
+          <th scope="row">${esc(person.name)}<span class="people-meta">${esc(person.employeeCode)}</span></th>
+          <td>Shift ${esc(person.teamCode)}${person.scheduledTransfer ? `<span class="people-meta">ย้ายไป Shift ${esc(person.scheduledTransfer.teamCode)}<br><time datetime="${esc(person.scheduledTransfer.effectiveOn)}">${esc(dateText(person.scheduledTransfer.effectiveOn))}</time></span>` : ''}</td>
+          <td>${person.hasAccount ? esc(roles[person.role] || '—') : '<span class="st wait">ยังไม่เปิดสิทธิ์</span>'}</td>
+          <td>${esc(positions[person.position] || person.position || '—')}</td>
+          <td class="act"><button type="button" class="btn sm" data-click="editCentralEmployee(${js(person.employeeId)})">แก้ไข</button></td>
         </tr>`).join('')}</tbody>
       </table>
     </div>` : '<p class="empty">ไม่พบพนักงานตามตัวกรอง</p>'}` : ''}
@@ -102,15 +103,17 @@ export function editCentralEmployee(employeeId) {
       <div class="field"><label for="centralEmployeeEffectiveOn">วันที่มีผลย้ายทีม</label>
         <input class="inp" id="centralEmployeeEffectiveOn" name="effectiveOn" type="date" min="${esc(result.today)}" value="${esc(result.today)}" aria-describedby="centralEmployeeHint" disabled></div>
       <div class="field"><label for="centralEmployeeRole">บทบาท</label>
-        <select class="inp" id="centralEmployeeRole" name="role" ${person.hasAccount ? '' : 'disabled'}>${Object.entries(roles).map(([value, label]) => option(value, label, role)).join('')}</select></div>
+        <select class="inp" id="centralEmployeeRole" name="role" aria-describedby="centralEmployeeRoleHint" ${person.hasAccount ? '' : 'disabled'}>${Object.entries(roles).map(([value, label]) => option(value, label, role)).join('')}</select>
+        <p class="employee-edit-hint small" id="centralEmployeeRoleHint">กำหนดสิทธิ์การเข้าถึงและสิ่งที่ทำได้ในระบบ</p></div>
       <div class="field"><label for="centralEmployeePosition">ตำแหน่ง</label>
-        <select class="inp" id="centralEmployeePosition" name="position">${Object.entries(positions).map(([value, label]) => option(value, label, person.position)).join('')}</select></div>
+        <select class="inp" id="centralEmployeePosition" name="position" aria-describedby="centralEmployeePositionHint">${Object.entries(positions).map(([value, label]) => option(value, label, person.position)).join('')}</select>
+        <p class="employee-edit-hint small" id="centralEmployeePositionHint">ระบุตำแหน่งหน้างาน</p></div>
     </div>
     ${person.scheduledTransfer ? `<p class="notice">กำหนดย้ายไป Shift ${esc(person.scheduledTransfer.teamCode)} วันที่ ${esc(dateText(person.scheduledTransfer.effectiveOn))} แล้ว</p>` : ''}
     ${person.hasAccount ? '' : '<p class="employee-edit-hint small">Admin กำหนดบทบาทครั้งแรกเมื่อพนักงานมีบัญชีเข้าใช้ระบบ</p>'}
-    <p class="employee-edit-hint small" id="centralEmployeeHint">
-      <span>วันที่มีผลใช้เฉพาะการย้ายทีม ตำแหน่งและบทบาทมีผลทันที</span>
-      <span>จัดการตารางกะที่ประกาศแล้วแยกต่างหาก</span>
+    <p class="employee-edit-hint employee-edit-timing small" id="centralEmployeeHint">
+      <span>วันที่เลือกใช้กับการย้ายทีม บทบาทและตำแหน่งมีผลทันทีเมื่อบันทึก</span>
+      <span>ตารางกะที่ประกาศแล้วต้องปรับแยกต่างหาก</span>
     </p>
     <div id="centralEmployeeError" aria-live="polite"></div>
   </form>`;

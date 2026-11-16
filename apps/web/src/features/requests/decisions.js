@@ -9,13 +9,14 @@ import { addLog, cancelApi, decideApi, merge } from '../../app/data.js';
 import { saveLocal, state } from '../../app/state.js';
 import { $, esc, js } from '../../shared/dom.js';
 import { closeModal, openModal } from '../../shared/modal.js';
-import { monthKey, parseThaiDate, shortDate } from '../../shared/scheduling/dates.js';
+import { isoOf, monthKey, parseThaiDate, shortDate } from '../../shared/scheduling/dates.js';
 import { findEmployeeById } from '../../shared/scheduling/employees.js';
 import { clearPatternCache, getShiftCodeForDate, isMonthLocked, setShiftOverride } from '../../shared/scheduling/roster.js';
 import { showToast } from '../../shared/toast.js';
 import { notify, partiesOf, stepKey } from '../notifications/store.js';
 import { findReq } from './detail.js';
-import { canCancelApproved, canWithdrawRequest, empOf } from './permissions.js';
+import { canCancelApproved, canUserReviewRequest, canWithdrawRequest, empOf, managerCanAct, pendingReviewStep } from './permissions.js';
+import { localCancellationConflict, localRequestSlots, requestConflictForSlots, requestConflictText } from './request-conflict.js';
 
 let afterChange = async () => {};
 export function onRequestChanged(fn) { afterChange = fn; }
@@ -97,6 +98,14 @@ function notifyApproved(req) {
 }
 const roleNow = () => state.roles[state.activeRole] || { name: state.activeRole, initials: '--' };
 const timeNow = () => new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+const canReviewLocalLeave = req => req.kind !== 'leave' || canUserReviewRequest(req) || managerCanAct(req);
+function logLocalDecision(req, action, employeeAction, rosterAction) {
+  const changes = rosterAction ? (req.applied || []).filter(row => row.from && row.from !== row.code).map(row => {
+    const [from, to] = req.cancelledAfterApproval ? [row.code, row.from] : [row.from, row.code];
+    return { empId: row.empId, workDate: isoOf(row.y, row.m, row.d), from, to };
+  }) : [];
+  addLog(action, { requestId: req.id, employeeAction, rosterAction, changes });
+}
 async function viaApi(work, message, kind) {
   try { const result = await work(); closeModal(); showToast(typeof message === 'function' ? message(result) : message, kind); await afterChange(true); }
   catch (error) { showToast(error.message || 'ดำเนินการไม่สำเร็จ', 'alert'); await afterChange(true); }
@@ -110,6 +119,9 @@ export async function approveRequest(reqId) {
       : 'บันทึกการอนุมัติแล้ว รอหัวหน้ากะอีกทีม');
     return;
   }
+  if (!canReviewLocalLeave(req)) return;
+  const conflict = requestConflictForSlots(localRequestSlots(req), req);
+  if (conflict) { showToast(requestConflictText(conflict), 'alert'); return; }
   if (state.actor?.monthClose) {
     const parsed = parseThaiDate(req.date);
     const periods = req.changes?.length ? req.changes
@@ -121,19 +133,20 @@ export async function approveRequest(reqId) {
   }
   const me = roleNow();
   if (req.approvers && req.approvers.length > 1) {
-    const step = req.approvers.find(a => a.status !== 'approved');
+    const step = pendingReviewStep(req, state.activeRole);
+    if (req.parallelApproval && !step) return;
     if (step) { step.status = 'approved'; step.at = timeNow(); }
     if (req.approvers.every(a => a.status === 'approved')) {
       req.status = 'อนุมัติแล้ว';
       applyApprovedRequestToSchedule(req);
-      addLog(`อนุมัติคำขอ ${req.type} ของ ${req.person} ครบ ${req.approvers.length} ฝ่ายแล้ว (วันที่ ${req.date})`);
+      logLocalDecision(req, `อนุมัติคำขอ ${req.type} ของ ${req.person} ครบ ${req.approvers.length} ฝ่ายแล้ว (วันที่ ${req.date})`, 'คำขอได้รับการอนุมัติแล้ว', 'กะของคุณเปลี่ยนแล้ว');
       notifyApproved(req);
       showToast(`อนุมัติคำขอของ ${req.person} ครบ ${req.approvers.length} ฝ่ายเรียบร้อยแล้ว ✓`);
     } else {
       const nextPending = req.approvers.find(a => a.status !== 'approved');
       req.status = `รออนุมัติครบ ${req.approvers.length} ฝ่าย (${nextPending ? nextPending.role : ''})`.trim();
-      addLog(`ผ่านการยืนยันโดย "${step ? step.role : me.name}" สำหรับคำขอ ${req.type} ของ ${req.person} — รอหัวหน้ากะอีกฝ่ายยืนยัน`);
-      notify(stepKey(nextPending && nextPending.role), 'คำขอรอการอนุมัติของคุณ', `${req.person} · ${req.type} · ${req.date} (ผ่านขั้นก่อนหน้าแล้ว)`, req.id);
+      logLocalDecision(req, `ผ่านการยืนยันโดย "${step ? step.role : me.name}" สำหรับคำขอ ${req.type} ของ ${req.person} — รอหัวหน้ากะอีกฝ่ายยืนยัน`, 'ผ่านการตรวจแล้วหนึ่งฝ่าย');
+      if (!req.parallelApproval) notify(stepKey(nextPending && nextPending.role), 'คำขอรอการอนุมัติของคุณ', `${req.person} · ${req.type} · ${req.date} (ผ่านขั้นก่อนหน้าแล้ว)`, req.id);
       notify(partiesOf(req), 'คำขอผ่านการอนุมัติขั้นแรก', `${req.type} · ${req.date} · รอ ${nextPending ? nextPending.role : 'ขั้นถัดไป'}`, req.id);
       showToast(`กดยืนยันแล้ว — รอ ${nextPending ? nextPending.role : 'หัวหน้ากะอีกฝ่าย'}`);
     }
@@ -141,7 +154,7 @@ export async function approveRequest(reqId) {
     if (req.approvers && req.approvers.length === 1) { req.approvers[0].status = 'approved'; req.approvers[0].at = timeNow(); }
     req.status = 'อนุมัติแล้ว';
     applyApprovedRequestToSchedule(req);
-    addLog(`อนุมัติคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date})`);
+    logLocalDecision(req, `อนุมัติคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date})`, 'คำขอได้รับการอนุมัติแล้ว', 'กะของคุณเปลี่ยนแล้ว');
     notifyApproved(req);
     showToast(`อนุมัติคำขอของ ${req.person} เรียบร้อยแล้ว`);
   }
@@ -169,9 +182,10 @@ export async function confirmRejectRequest(reqId) {
   const req = findReq(reqId);
   if (!req) return;
   if (req.api) { await viaApi(() => decideApi(req, 'REJECT', reason), 'บันทึกการไม่อนุมัติคำขอเรียบร้อยแล้ว', 'alert'); return; }
+  if (!canReviewLocalLeave(req)) return;
   req.status = 'ไม่อนุมัติ';
   req.rejectReason = reason;
-  addLog(`ไม่อนุมัติคำขอ ${req.type} ของ ${req.person} (เหตุผล: ${reason})`);
+  logLocalDecision(req, `ไม่อนุมัติคำขอ ${req.type} ของ ${req.person} (เหตุผล: ${reason})`, 'คำขอไม่ได้รับการอนุมัติ');
   notify(partiesOf(req), 'คำขอไม่ได้รับการอนุมัติ', `${req.type} · ${req.date} · เหตุผล: ${reason}`, req.id);
   saveLocal();
   closeModal();
@@ -183,9 +197,10 @@ export async function withdrawRequest(reqId) {
   if (!req || !canWithdrawRequest(req)) { showToast('ไม่สามารถยกเลิกคำขอนี้ได้ — คำขอผ่านการตรวจสอบแล้ว', 'alert'); return; }
   if (req.api) { await viaApi(() => cancelApi(req), 'ยกเลิกคำขอเรียบร้อยแล้ว'); return; }
   req.status = 'ยกเลิกแล้ว';
-  addLog(`ถอนคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date}) — ถอนก่อนการตรวจสอบ`);
+  logLocalDecision(req, `ถอนคำขอ ${req.type} ของ ${req.person} (วันที่ ${req.date}) — ถอนก่อนการตรวจสอบ`, 'คำขอถูกยกเลิก');
   const waiting = (req.approvers || []).find(a => a.status !== 'approved');
-  notify([stepKey(waiting && waiting.role), ...partiesOf(req)], 'คำขอถูกยกเลิก', `${req.person} ยกเลิก${req.type} · ${req.date} ตารางกะยังคงเดิม`, req.id);
+  const approverKeys = req.parallelApproval ? req.approvers.map(step => stepKey(step.role)) : [stepKey(waiting?.role)];
+  notify([...approverKeys, ...partiesOf(req)], 'คำขอถูกยกเลิก', `${req.person} ยกเลิก${req.type} · ${req.date} ตารางกะยังคงเดิม`, req.id);
   saveLocal();
   closeModal();
   showToast('ยกเลิกคำขอเรียบร้อยแล้ว');
@@ -202,11 +217,20 @@ function revertSteps(req) {
 }
 export function promptCancelApproved(reqId) {
   const req = findReq(reqId);
-  if (!canCancelApproved(req)) { showToast(req?.cancelBlockReason || 'ยกเลิกคำขอนี้ไม่ได้', 'alert'); return; }
+  if (!canCancelApproved(req)) {
+    showToast(req?.cancelBlockReason || (req && !req.api && localCancellationConflict(req)) || 'ยกเลิกคำขอนี้ไม่ได้', 'alert');
+    return;
+  }
   if (req.api) {
-    openModal('ยกเลิกการสลับกะที่อนุมัติแล้ว', `
-      <p>ระบบจะคืนกะเดิมของคุณและคู่สลับครบทุกวันที่เกี่ยวข้อง พร้อมคืนโควตา 1 สิทธิ์ให้คุณในเดือนเดิม</p>
-      <p class="muted small">วันที่สลับกะ ${esc(req.date)}</p>
+    const copy = {
+      leave: ['ยกเลิกคำลาที่อนุมัติแล้ว', 'ระบบจะคืนกะเดิมของคุณและคนที่มาทำแทนตามคำขอ', 'วันที่ลา'],
+      ot: ['ยกเลิกคำขอ OT ที่อนุมัติแล้ว', 'ระบบจะคืนวันหยุดเดิมในตารางของคุณ', 'วันที่ทำ OT'],
+      swap: ['ยกเลิกการสลับกะที่อนุมัติแล้ว', 'ระบบจะคืนกะเดิมของคุณและคู่สลับครบทุกวันที่เกี่ยวข้อง พร้อมคืนโควตา 1 สิทธิ์ให้คุณในเดือนเดิม', 'วันที่สลับกะ']
+    };
+    const [title, message, dateLabel] = copy[req.kind] || copy.swap;
+    openModal(title, `
+      <p>${esc(message)}</p>
+      <p class="muted small">${esc(dateLabel)} ${esc(req.date)}</p>
       <p id="approvedSwapCancelError" class="notice bad" role="alert" hidden></p>`, `
       <button type="button" class="btn btn-secondary" data-click="closeModal()">เก็บคำขอไว้</button>
       <button id="approvedSwapCancelConfirm" type="button" class="btn btn-danger" data-click="confirmCancelApproved(${js(req.id)})">ยืนยันยกเลิกและคืนตาราง</button>`);
@@ -234,7 +258,7 @@ export async function confirmCancelApproved(reqId) {
   req.status = 'ยกเลิกแล้ว';
   req.cancelReason = reason;
   req.cancelledAfterApproval = true;
-  addLog(`ยกเลิก${req.type} ของ ${req.person} (วันที่ ${req.date}) หลังอนุมัติแล้ว และคืนตารางกะเดิม — เหตุผล: ${reason}`);
+  logLocalDecision(req, `ยกเลิก${req.type} ของ ${req.person} (วันที่ ${req.date}) หลังอนุมัติแล้ว และคืนตารางกะเดิม — เหตุผล: ${reason}`, 'คำขอถูกยกเลิก', 'คืนกะเดิมของคุณแล้ว');
   const approverKeys = (req.approvers || []).map(a => stepKey(a.role));
   notify([...partiesOf(req), ...approverKeys], 'ยกเลิกคำขอที่อนุมัติแล้ว ตารางกะกลับเป็นแบบเดิม', `${req.type} ของ ${req.person} · ${req.date} · เหตุผล: ${reason}`, req.id);
   if (st.leave.length) notify('hr', 'ยกเลิกวันลาในระบบใบลา', `${req.person} · ${req.type} · ${req.date} — กรุณายกเลิกวันลานี้ในระบบใบลา`, req.id);
@@ -263,7 +287,8 @@ async function cancelApprovedSwap(req) {
     await cancelApi(req, attempt.key);
     if (button?.isConnected) closeModal();
     approvedCancelAttempts.delete(req.id);
-    showToast('ยกเลิกการสลับกะและคืนโควตา 1 สิทธิ์แล้ว');
+    showToast(req.kind === 'ot' ? 'ยกเลิก OT และคืนวันหยุดเดิมแล้ว'
+      : req.kind === 'leave' ? 'ยกเลิกคำลาและคืนกะเดิมแล้ว' : 'ยกเลิกการสลับกะและคืนโควตา 1 สิทธิ์แล้ว');
   } catch (error) {
     if (error.code !== 'NETWORK_ERROR') approvedCancelAttempts.delete(req.id);
     const message = error.message || 'ยกเลิกคำขอไม่สำเร็จ';

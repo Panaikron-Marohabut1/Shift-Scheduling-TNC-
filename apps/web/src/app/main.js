@@ -78,7 +78,8 @@ async function boot() {
     loadLocal(me.capabilities?.swapPolicy === true || me.capabilities?.monthClose === true);
     seedYearData();
   }
-  await enter({ ...me.actor, centralSwap: me.capabilities?.centralSwap === true,
+  await enter({ ...me.actor, centralSwap: me.capabilities?.centralSwap === true, centralLeave: me.capabilities?.centralLeave === true,
+    centralOT: me.capabilities?.centralOT === true,
     swapPolicy: me.capabilities?.swapPolicy === true,
     hrClosedRoster: me.capabilities?.hrClosedRoster === true, monthClose: me.capabilities?.monthClose === true,
     remotePilot: me.capabilities?.remotePilot === true,

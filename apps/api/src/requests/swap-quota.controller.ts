@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Put, Req } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Put, Query, Req } from '@nestjs/common';
 import { ActorRequest } from '../auth/access.guard';
 import { SwapQuotaService } from './swap-quota.service';
 
@@ -9,6 +9,11 @@ export class SwapQuotaController {
   @Get()
   read(@Req() request: ActorRequest) {
     return this.quota.read(request.actor);
+  }
+
+  @Get('mine')
+  readMine(@Req() request: ActorRequest, @Query('month') month: string) {
+    return this.quota.readMine(request.actor, month);
   }
 
   @Put()

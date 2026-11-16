@@ -20,6 +20,7 @@ import {
 import { showToast } from '../../../shared/toast.js';
 import { checksList, dateField, opt, ownSup } from '../form-parts.js';
 import { done, monthText, saveLocalRequest } from '../submit.js';
+import { requestConflictAt, requestConflictText } from '../request-conflict.js';
 
 
 // ช่องกรอกในแบบฟอร์ม และผลตรวจกฎ (form.js เป็นคนวาดหน้าต่าง)
@@ -101,6 +102,10 @@ export function swapForm({ f, emp, y, m, n, myCode }) {
       submit = `submitColleagueSwapRequest(${js(emp.id)}, ${js(b.id)}, ${f.day})`;
     }
   }
+  const conflictOn = day => requestConflictAt(emp.id, y, m, day) || requestConflictAt(b?.id, y, m, day);
+  const conflict = conflictOn(f.day) || (f.mode === 'mutual' && conflictOn(f.payDay));
+  if (conflict) return { fields, rows: [], checks: '', approvers: [], ready: false, submit,
+    note: `<p class="notice">${esc(requestConflictText(conflict))}</p>` };
   return { fields, rows, checks, approvers, ready, submit, note };
 }
 
@@ -120,7 +125,7 @@ export function submitColleagueSwapRequest(aId, bId, day) {
     if (!sw.valid || !sp.valid) { showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบไม่ผ่านเงื่อนไข', 'alert'); return; }
     const chain = buildApprovalChain(aEmp, bEmp).chain;
     const dateLabel = `${day} ${monthText()} (คืนกะวันที่ ${pay})`;
-    saveLocalRequest({
+    if (!saveLocalRequest({
       kind: 'swap', type: 'สลับกะข้ามทีม', person: aEmp.name, requesterId: aEmp.id, targetPerson: bEmp.name, targetId: bEmp.id, day, payDay: pay,
       aNewCode: sw.aNewCode, bNewCode: sw.bNewCode, initials: aEmp.initials, roleCategory: aEmp.roleCategory, targetRole: bEmp.roleCategory,
       date: dateLabel, currentShift: sw.aOldCode, targetShift: sw.aNewCode,
@@ -130,7 +135,7 @@ export function submitColleagueSwapRequest(aId, bId, day) {
         { empId: aEmp.id, y, m, d: pay, to: sp.aNewCode }, { empId: bEmp.id, y, m, d: pay, to: sp.bNewCode }
       ],
       isCrossShift: aEmp.shiftType !== bEmp.shiftType, approvers: chain, status: chain.length > 1 ? 'รออนุมัติครบ 2 ฝ่าย' : 'รอดำเนินการ', quotaUsed: `${used + 1} / ${limit} ครั้ง`
-    }, `ยื่นคำขอสลับกะกับ ${bEmp.name} วันที่ ${day} และคืนกะวันที่ ${pay} ${monthText()}`, aEmp);
+    }, `ยื่นคำขอสลับกะกับ ${bEmp.name} วันที่ ${day} และคืนกะวันที่ ${pay} ${monthText()}`, aEmp)) return;
     done(`ส่งคำขอสลับกะเรียบร้อยแล้ว · รอหัวหน้ากะทั้ง 2 ทีมพิจารณา (ใช้สิทธิ์ ${used + 1}/${limit} ครั้งในเดือนนี้)`);
     return;
   }
@@ -138,13 +143,13 @@ export function submitColleagueSwapRequest(aId, bId, day) {
   if (!validateOTRequest(bId, day, otCode).valid) { showToast('ไม่สามารถส่งคำขอได้ — ผลตรวจสอบฝั่ง OT ไม่ผ่านเงื่อนไข', 'alert'); return; }
   const roles = leaveApprovalChain(aEmp, bEmp);
   const dateLabel = `${day} ${monthText()}`;
-  saveLocalRequest({
+  if (!saveLocalRequest({
     kind: 'leaveOT', type: 'ลา + OT คุมกะแทน', person: aEmp.name, requesterId: aEmp.id, targetPerson: bEmp.name, targetId: bEmp.id, day, leaveCode, otCode,
     initials: aEmp.initials, roleCategory: aEmp.roleCategory, targetRole: bEmp.roleCategory, date: dateLabel,
     currentShift: getShiftCodeForDate(aEmp, y, m, day), targetShift: leaveCode,
     reason: `${aEmp.name} ขอลา (${leaveCode}) และให้ ${bEmp.name} ทำ OT (${otCode}) แทน`, isCrossShift: true,
     changes: [{ empId: aEmp.id, y, m, d: day, to: leaveCode }, { empId: bEmp.id, y, m, d: day, to: otCode }],
     approvers: roles.map(role => ({ role, status: 'pending' })), status: 'รออนุมัติครบ 2 ฝ่าย', quotaUsed: `${used + 1} / ${limit} ครั้ง`
-  }, `ยื่นคำขอลา (${leaveCode}) พร้อมให้ ${bEmp.name} ทำ OT (${otCode}) แทน วันที่ ${dateLabel}`, aEmp);
+  }, `ยื่นคำขอลา (${leaveCode}) พร้อมให้ ${bEmp.name} ทำ OT (${otCode}) แทน วันที่ ${dateLabel}`, aEmp)) return;
   done('ส่งคำขอลา + OT คุมกะแทนเรียบร้อยแล้ว · รออนุมัติ 2 ฝั่ง');
 }

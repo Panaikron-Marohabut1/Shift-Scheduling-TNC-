@@ -102,6 +102,7 @@ export const state = {
     'O/M/S': { label: 'ปรับกะ + ลาป่วย (หยุด → เช้า → ลาป่วย)', time: 'Adjustment + Sick Leave: O → M → S', family: 'swap', ot: false, half: false, leave: false },
     D: { label: 'เวลาทำการปกติ (Day)', time: '08:00–17:00 (กรณีหยุดเดินเครื่อง/ไม่เหมาะกับงานกะ)', family: 'D', ot: false, half: false, leave: false },
     O: { label: 'วันหยุด (Off)', time: 'พักผ่อนประจำสัปดาห์', family: 'O', ot: false, half: false, leave: false },
+    L: { label: 'ลา', time: 'คำขอลาได้รับอนุมัติแล้ว', family: 'leave', ot: false, half: false, leave: true },
     V: { label: 'ลาพักร้อน (Vacation)', time: 'สูงสุด 18 วัน/ปี (ตามสิทธิ์รายบุคคล)', family: 'leave', ot: false, half: false, leave: true },
     B: { label: 'ลากิจ', time: 'เฉพาะเหตุที่บริษัทอนุญาต ไม่เกิน 6 วัน/ปี', family: 'leave', ot: false, half: false, leave: true },
     S: { label: 'ลาป่วย (Sick Leave)', time: 'สูงสุด 30 วัน/ปี', family: 'leave', ot: false, half: false, leave: true },
@@ -113,7 +114,7 @@ export const state = {
 
 // หน้าจอที่ยังไม่เกี่ยวกับข้อมูล (มุมมอง ช่องค้นหา ฟอร์มที่กำลังกรอก)
 // authMsg/loginUrl/unlinked ใช้ในหน้าเข้าสู่ระบบ (features/session/view.js)
-export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false, accessPending: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false };
+export const view = { signed: false, authMsg: '', loginUrl: '', unlinked: false, accessPending: false, moreNav: false, mode: 'month', day: DEMO_TODAY.getDate(), q: '', rq: null, cell: null, loading: false, employeeRequestGroup: 'shared' };
 
 /* ---------- เก็บข้อมูลเดโมในเบราว์เซอร์ ---------- */
 let lastSaved = '';

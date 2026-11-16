@@ -60,6 +60,17 @@ export class SwapQuotaService {
     return this.db.transaction(client => this.readSettings(client));
   }
 
+  readMine(actor: Actor, month: string) {
+    const employeeId = actor.employeeId;
+    if (!employeeId || !['EMPLOYEE', 'SUPERVISOR'].includes(actor.role) || !this.localPilotEnabled()) {
+      throw new ForbiddenException({ code: 'SWAP_QUOTA_FORBIDDEN', message: 'บัญชีนี้ไม่มีสิทธิ์ดูโควตาสลับกะ' });
+    }
+    if (typeof month !== 'string' || !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month)) {
+      throw new BadRequestException({ code: 'INVALID_INPUT', message: 'กรุณาระบุเดือนที่ต้องการดูโควตา' });
+    }
+    return this.db.transaction(client => this.readRequesterQuota(client, employeeId, `${month}-01`));
+  }
+
   schedule(actor: Actor, value: unknown, expectedEffectiveMonth: unknown, expectedRevision: unknown) {
     this.requireManager(actor);
     const monthlyLimit = id(value, 'โควตาสลับกะ');

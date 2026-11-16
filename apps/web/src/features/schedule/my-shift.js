@@ -5,9 +5,10 @@
    ========================================================================== */
 
 import { DEMO_TODAY, state } from '../../app/state.js';
+import { getMySwapQuota } from '../../app/data.js';
 import { esc, js } from '../../shared/dom.js';
 import { isYearPublished } from '../../shared/scheduling/annual.js';
-import { daysIn, shortDate, TH_DW } from '../../shared/scheduling/dates.js';
+import { daysIn, monthLabel, TH_DW } from '../../shared/scheduling/dates.js';
 import { currentEmp, getAllEmployees, getEmployeeFacingShiftLabel } from '../../shared/scheduling/employees.js';
 import { getShiftCodeForDate, getTeamForDate, hasScheduleDataForMonth, isSchedulePublished } from '../../shared/scheduling/roster.js';
 import { countMonthlySwapRequests } from '../../shared/scheduling/rules.js';
@@ -29,6 +30,9 @@ export function myHtml() {
   const sup = getAllEmployees().find(e => e.roleCategory === 'Shift Supervisor' && getTeamForDate(e, y, m, todayNum) === team && e.id !== emp.id);
   const todayCode = getShiftCodeForDate(emp, y, m, todayNum);
   const todayDef = state.shiftDefs[todayCode] || state.shiftDefs.O;
+  const time = todayDef.time || '';
+  const [, hours, extra] = /^(\d{2}:\d{2}–\d{2}:\d{2})(?: \((.+)\))?$/.exec(time) || [];
+  const details = extra?.replace(/^\+/, '').replace('รับ-ส่ง', 'รับ–ส่ง').replace('OT x', 'OT ×').split(', ') || [];
   const todayStr = new Date(y, m, todayNum).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   // วันทำงานต่อเนื่อง: นับย้อนหลังจากวันนี้จนเจอวันหยุด
   let streak = 0;
@@ -37,9 +41,13 @@ export function myHtml() {
     if (!def || def.family === 'off' || c === 'O' || def.leave) break;
     streak++;
   }
-  const next = [1, 2, 3].map(i => todayNum + i).filter(d => d <= n);
   const mine = state.requests.filter(r => r.requesterId === emp.id);
-  const left = Math.max(0, state.managerConfig.swapRequestMonthlyLimit - countMonthlySwapRequests(emp.id));
+  const legacyLimit = state.managerConfig.swapRequestMonthlyLimit;
+  const quota = getMySwapQuota();
+  const quotaText = state.actor?.centralSwap
+    ? quota?.result ? `เหลือ ${quota.result.remaining}/${quota.result.limit} ครั้ง`
+      : quota?.error ? 'โหลดข้อมูลไม่สำเร็จ' : 'กำลังโหลด…'
+    : `เหลือ ${Math.max(0, legacyLimit - countMonthlySwapRequests(emp.id))}/${legacyLimit} ครั้ง`;
   const codes = Array.from({ length: n }, (_, i) => getShiftCodeForDate(emp, y, m, i + 1));
   const sum = { work: 0, ot: 0, leave: 0, off: 0 };
   codes.forEach(c => { const d = state.shiftDefs[c]; if (c === 'O') sum.off++; else if (d && d.leave) sum.leave++; else { sum.work++; if (d && d.ot) sum.ot++; } });
@@ -61,24 +69,40 @@ export function myHtml() {
       </div>
     </div>`;
   return `
-    ${pageHead('กะของฉัน', '<button class="btn primary" data-click="SF.newRequest()">ยื่นคำขอ</button>')}
+    <header class="phead">
+      <div class="my-page-title">
+        <h1>กะของฉัน</h1>
+        <p class="my-date">${esc(todayStr)} · ${esc(team)}</p>
+      </div>
+      <div class="phead-r"><button class="btn primary" data-click="SF.newRequest()">ยื่นคำขอ</button></div>
+    </header>
     <div class="my">
       <section class="panel my-now">
-        <p class="my-date">${esc(todayStr)} · ${esc(team)}</p>
         <div class="my-shift ${famOf(todayCode)}">
-          <b>${esc(label(todayCode))}</b>
-          <span>รหัส ${esc(todayCode)} · ${esc(todayDef.time || '-')}</span>
+          <div class="my-shift-heading">
+            <b>${esc(label(todayCode))}</b>
+            <span class="my-shift-code">รหัส ${esc(todayCode)}</span>
+          </div>
+          ${hours ? `<div class="my-shift-hours">
+            <strong>${esc(hours)}</strong>${todayDef.family === 'N' ? '<span class="small">เลิกวันถัดไป</span>' : ''}
+          </div>
+          ${details.length ? `<div class="my-shift-details">${details.map(detail => `<span>${esc(detail)}</span>`).join('')}</div>` : ''}`
+    : time ? `<p class="my-shift-description">${esc(time)}</p>` : ''}
         </div>
         ${state.actor?.remotePilot ? (!isSchedulePublished(y, m) ? '<p class="note warn">ตารางกะเดือนนี้ยังไม่ประกาศใช้</p>' : '') : !isYearPublished(y) ? `<p class="note warn">${draftNote(y)}</p>` : !hasData ? '<p class="note warn">ตารางเดือนนี้เป็นการคาดการณ์ ยังไม่ใช่ตารางจริง โปรดยืนยันกะกับหัวหน้ากะ</p>' : ''}
         <dl class="facts plain my-meta">
           ${emp.roleCategory === 'Shift Supervisor' ? '<div><dt>ตำแหน่ง</dt><dd>หัวหน้ากะ</dd></div>' : `<div><dt>หัวหน้ากะ</dt><dd>${sup ? `คุณ${esc(sup.name)}` : 'ไม่ระบุ'}</dd></div>`}
           <div><dt>รหัสพนักงาน</dt><dd>${esc(emp.code || emp.id)}</dd></div>
           <div><dt>ทำงานต่อเนื่อง</dt><dd>${streak} / ${state.managerConfig.maxConsecutiveWorkDays} วัน</dd></div>
+          <div>
+            <dt>สิทธิ์สลับกะ<span class="my-quota-caption">${esc(monthLabel(y, m))}</span></dt>
+            <dd id="mySwapQuota">${esc(quotaText)}<span class="my-quota-caption">(สิทธิ์ต่อเดือน)</span></dd>
+          </div>
         </dl>
-        <ul class="my-next">
-          ${next.map((d, i) => { const c = getShiftCodeForDate(emp, y, m, d); return `<li><span>${i === 0 ? 'พรุ่งนี้' : shortDate(y, m, d)}</span><i class="cd ${famOf(c)}"></i><b>${esc(label(c))}</b></li>`; }).join('')}
-        </ul>
-        <div class="linkrow"><button class="link" data-click="SF.whoToday()">ดูว่าใครเข้ากะวันนี้</button><button class="link" data-click="SF.nav('schedule')">ดูตารางกะเต็มของทุกทีม</button></div>
+        <div class="my-now-actions">
+          <button type="button" class="link" data-click="SF.whoToday()">ดูว่าใครเข้ากะวันนี้</button>
+          <button type="button" class="link" data-click="SF.nav('schedule')">ดูตารางกะเต็มของทุกทีม</button>
+        </div>
       </section>
 
       <section class="panel my-cal">
@@ -94,13 +118,13 @@ export function myHtml() {
       </section>
 
       <section class="panel my-req">
-        <div class="panel-h"><h2>คำขอของฉัน</h2><span class="muted">สิทธิ์สลับกะเหลือ ${left}/${state.managerConfig.swapRequestMonthlyLimit}</span></div>
-        ${mine.length ? `<ul class="rlist">${mine.slice(0, 4).map(r => `
+        <div class="panel-h"><h2>คำขอของฉัน (${mine.length})</h2></div>
+        ${mine.length ? `<ul class="rlist">${mine.slice(0, 5).map(r => `
           <li><button class="rline" data-click="openRequestDetails(${js(r.id)})">
             <span class="rl-main"><b>${esc(r.type)} · ${esc(r.date)}</b><span>${esc(r.targetPerson ? `กับ ${r.targetPerson}` : r.reason)}</span></span>
             <span class="st ${statusCls(r)}">${esc(r.status)}</span>
           </button></li>`).join('')}</ul>
-          <button class="link" data-click="SF.nav(${js(state.activeRole === 'Shift Employee' ? 'my-requests' : 'requests')})">ดูทั้งหมด</button>` : '<p class="none">ยังไม่มีคำขอ</p>'}
+          <button type="button" class="link my-req-all" data-click="SF.nav(${js(state.activeRole === 'Shift Employee' ? 'my-requests' : 'requests')})">ดูทั้งหมด</button>` : '<p class="none">ยังไม่มีคำขอ</p>'}
       </section>
     </div>`;
 }

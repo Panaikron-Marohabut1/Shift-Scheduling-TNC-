@@ -8,8 +8,18 @@
 .tbl.sum th, .tbl.sum td { padding: 9px 12px; }
 .tbl.sum thead th { white-space: normal; vertical-align: bottom; line-height: 1.3; }
 .tbl.chg th, .tbl.chg td { padding: 9px 10px; }
+.tbl.chg.leave-preview :is(th, td):last-child { text-align: center; }
 .tbl.chg td .sw + span { margin-left: 6px; color: var(--ink-2); }
-.tbl.log td:last-child { min-width: 280px; }
+.tbl.log td:nth-child(3) { min-width: 12rem; }
+.tbl.personal-history th:first-child { width: 19%; }
+.tbl.personal-history th:nth-child(2) { width: 25%; }
+.tbl.personal-history td:nth-child(3) { min-width: 0; }
+.personal-history time { font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) {
+  .tbl.personal-history th, .tbl.personal-history td { padding: 10px 8px; }
+  .tbl.personal-history th { white-space: normal; }
+  .personal-history .btn { min-height: 44px; padding-inline: 8px; }
+}
 .tbl.year td { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .yr { display: inline-flex; align-items: center; gap: 5px; margin-right: 12px; }
 .cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
@@ -37,12 +47,46 @@
 /* ---------- ตั้งค่า และคนขับรถ ---------- */
 .numfield { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
 .numfield .inp { width: 80px; text-align: center; }
+.quota-settings { display: grid; gap: 14px; max-width: 48rem; }
+.quota-settings-note, .quota-settings-months dt .small { color: var(--ink-2); }
+.quota-settings-months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.quota-settings-months > div { display: grid; gap: 6px; padding: 12px 16px; background: var(--soft); border-radius: 10px; }
+.quota-settings-months dt { display: grid; gap: 2px; }
+.quota-settings-months dd strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.quota-settings form { padding-top: 14px; border-top: 1px solid var(--line); }
+.quota-settings .numfield { flex-wrap: wrap; }
+.quota-settings .numfield .btn { height: 40px; }
+@media (max-width: 480px) {
+  .quota-settings-months { grid-template-columns: minmax(0, 1fr); }
+}
 .driver-note { margin-top: 12px; }
 @media (max-width: 760px) {
   .kpis3 { grid-template-columns: 1fr; }
 }
 .yr-act { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
 #employeeForm { display: grid; gap: 14px; }
+
+.panel.flush.people-table-wrap { position: relative; overflow-x: auto; }
+.people-table-wrap:focus-visible { outline-offset: -2px; }
+.tbl.people-table { min-width: 44rem; table-layout: fixed; }
+.tbl.people-table th, .tbl.people-table td { padding: 10px 16px; }
+.tbl.people-table thead th { background: var(--soft); color: var(--ink-2); }
+.tbl.people-table tbody th { font-weight: 600; }
+.tbl.people-table tbody th, .tbl.people-table tbody td { overflow-wrap: anywhere; }
+.people-table .people-team { width: 20%; }
+.people-table .people-role { width: 9.5rem; }
+.people-table .people-position { width: 22%; }
+.people-table .people-details { width: 9.5rem; }
+.people-table .act { width: 5.75rem; }
+.people-meta { display: block; margin-top: 2px; color: var(--ink-2); font-size: 0.87rem; font-weight: 400; line-height: 1.4; }
+.people-table .act .btn { color: var(--primary); }
+.people-table .act .btn:hover { background: var(--primary-tint); }
+@media (min-width: 1360px) {
+  .people-table .people-role { width: 20%; }
+}
+@media (pointer: coarse) {
+  .people-table .act .btn { min-height: 44px; }
+}
 
 .people-access-list { margin-top: 12px; }
 .people-access-row { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; padding: 14px 0; border-top: 1px solid var(--line-2); }
@@ -55,10 +99,10 @@
 .admin-account-meta:empty { display: none; }
 .employee-edit-person { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .employee-edit-person span, .employee-edit-hint { color: var(--ink-2); }
-.employee-edit-hint { text-wrap: balance; }
 .employee-edit-hint span { display: block; }
-.employee-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.employee-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
 .employee-edit-grid .field, .employee-edit-grid .inp { min-width: 0; }
+.employee-edit-timing { padding-top: 12px; border-top: 1px solid var(--line); }
 #centralEmployeeError:empty { display: none; }
 #centralEmployeeError ul { margin-block-start: 6px; }
 @media (max-width: 480px) {

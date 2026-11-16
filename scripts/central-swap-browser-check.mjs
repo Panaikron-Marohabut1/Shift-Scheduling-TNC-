@@ -34,9 +34,50 @@ const responseFor = (page, pathname) => page.waitForResponse(response =>
 
 try {
   const worker = await pageFor('worker');
+  const forecast = await worker.evaluate(async () => {
+    const { getShiftCodeForDate } = await import('/src/shared/scheduling/roster.js');
+    return [[7,1],[7,2],[8,1],[9,1],[10,1],[11,1]].map(([month, day]) =>
+      ['A','B','C','D'].map(team => getShiftCodeForDate({ id: `FORECAST-${team}`, shiftType: `Shift ${team}` }, 2101, month, day)).join(''));
+  });
+  const decForecast = await worker.evaluate(async () => {
+    const { getShiftCodeForDate, isSchedulePublished } = await import('/src/shared/scheduling/roster.js');
+    const codes = Array.from({ length: 31 }, (_, i) => ['A','B','C','D'].map(team =>
+      getShiftCodeForDate({ id: `DEMO-${team}1`, shiftType: `Shift ${team}` }, 2026, 11, i+1)).join(''));
+    return { codes, published: isSchedulePublished(2026, 11) };
+  });
+  assert.ok(forecast.every(codes => [...codes].sort().join('') === 'MNOO'));
+  assert.ok(decForecast.codes.every(codes => [...codes].sort().join('') === 'MNOO'));
+  assert.equal(decForecast.published, false);
+  const dashboardQuota = worker.locator('.my-now .my-meta > div').last().locator('dd#mySwapQuota');
+  const quotaFor = async month => {
+    const response = await worker.request.get(`${origin}/api/settings/swap-quota/mine?month=${month}`);
+    assert.equal(response.status(), 200);
+    const { remaining, limit } = await response.json();
+    return `เหลือ ${remaining}/${limit} ครั้ง`;
+  };
+  await dashboardQuota.filter({ hasText: await quotaFor('2096-08') }).waitFor();
+  await worker.evaluate(async () => {
+    const { state } = await import('/src/app/state.js');
+    const { renderApp } = await import('/src/app/render.js');
+    const original = state.requests;
+    state.requests = Array.from({ length: 8 }, (_, i) => ({
+      id: 9000 + i, requesterId: 'DEMO-A1', status: 'อนุมัติแล้ว', type: 'ขอทำ OT', date: `ทดสอบ ${i + 1}`,
+    }));
+    renderApp();
+    state.requests = original;
+  });
+  assert.equal(await worker.locator('.my-req .rlist li').count(), 5);
+  assert.equal(await worker.locator('.my-req h2').innerText(), 'คำขอของฉัน (8)');
+  assert.ok(await worker.locator('.my').evaluate(el =>
+    Math.abs(el.querySelector('.my-req').getBoundingClientRect().bottom
+      - el.querySelector('.my-cal').getBoundingClientRect().bottom) < 1));
+  await worker.getByRole('button', {name:'เดือนก่อนหน้า',exact:true}).click();
+  await dashboardQuota.filter({ hasText: await quotaFor('2096-07') }).waitFor();
+  await worker.getByRole('button', {name:'เดือนถัดไป',exact:true}).click();
+  await dashboardQuota.filter({ hasText: await quotaFor('2096-08') }).waitFor();
   for (const width of [390, 1440]) {
     await worker.setViewportSize({width, height: 1000});
-    for (const [day, labels] of [[19, ['ขอสลับกะ', 'ขอลา', 'ขอทำงานล่วงเวลา (OT)']], [29, ['ขอสลับกะ', 'ขอทำงานล่วงเวลา (OT)', 'ขอย้ายวันหยุดนักขัตฤกษ์']]]) {
+    for (const [day, labels] of [[19, ['ขอสลับกะ', 'ขอลา']], [29, ['ขอสลับกะ', 'ขอทำงานล่วงเวลา (OT)', 'ขอย้ายวันหยุดนักขัตฤกษ์']]]) {
       await worker.locator(`[data-click='SF.cell("DEMO-A1", ${day})']`).first().click();
       const options = worker.getByRole('region', {name: 'คำขอสำหรับวันที่เลือก'});
       const originalDay = await worker.locator('#modalRoot .cellinfo span').textContent();
@@ -46,7 +87,7 @@ try {
       assert.equal(await worker.locator('#modalRoot .cellinfo span').textContent(), originalDay);
       assert.doesNotMatch(await options.textContent(), /\d+ ประเภท/);
       assert.deepEqual(await options.locator('button b').allTextContents(), labels);
-      assert.equal(await options.getByText('ฟอร์มเดโม่', {exact: true}).count(), 2);
+      assert.equal(await options.getByText('ฟอร์มเดโม่', {exact: true}).count(), labels.includes('ขอลา') ? 0 : 1);
       assert.ok(await options.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
       await worker.locator('#modalRoot').getByText('ปิด', {exact: true}).click();
     }
@@ -62,6 +103,50 @@ try {
   assert.equal(await worker.getByRole('region', {name: 'คำขอสำหรับวันที่เลือก'}).getByRole('button', {name: /^ขอสลับกะ/}).count(), 1);
   await worker.locator('#modalRoot').getByText('ปิด', {exact: true}).click();
   await worker.clock.setFixedTime(new Date('2096-08-01T12:00:00Z'));
+  await worker.locator(`[data-click='SF.cell("DEMO-A1", 7)']`).first().click();
+  await worker.getByRole('region', { name: 'คำขอสำหรับวันที่เลือก' }).getByRole('button', { name: /^ขอทำงานล่วงเวลา/ }).click();
+  assert.deepEqual(await worker.locator('#otReqCode option').evaluateAll(options => options.map(option => option.value)), ['', 'MT', 'NT']);
+  assert.equal(await worker.locator('#modalRoot .helpers').count(), 0);
+  const otChecks = worker.getByRole('region', { name: 'ตรวจเงื่อนไข OT' });
+  await worker.locator('#otReqCode').selectOption('MT');
+  await otChecks.locator('li.fail').filter({hasText:'เวลาพักระหว่างกะ'}).waitFor();
+  assert.match(await otChecks.textContent(), /พักได้ 0 ชั่วโมง/);
+  assert.equal(await worker.locator('#otSubmit').isDisabled(), true);
+  await worker.locator('#otReqCode').selectOption('NT');
+  await otChecks.locator('li.fail').first().waitFor();
+  assert.match(await otChecks.textContent(), /หลังทำ OT 7\/6 วัน/);
+  assert.equal(await otChecks.locator('li.fail').filter({hasText:'เวลาพักระหว่างกะ'}).count(), 0);
+  assert.equal(await worker.locator('#otSubmit').isDisabled(), true);
+  await worker.locator('#modalRoot').getByRole('button', { name: 'ย้อนกลับ', exact: true }).click();
+  await worker.locator('#modalRoot').getByText('ปิด', {exact: true}).click();
+  await worker.locator(`[data-click='SF.cell("DEMO-A1", 8)']`).first().click();
+  await worker.getByRole('region', { name: 'คำขอสำหรับวันที่เลือก' }).getByRole('button', { name: /^ขอทำงานล่วงเวลา/ }).click();
+  await worker.locator('#otReqCode').selectOption('NT');
+  await otChecks.locator('li.pass').first().waitFor();
+  const otSent = responseFor(worker, '/api/ot-requests');
+  await worker.locator('#otSubmit').click();
+  const otResult = await otSent;
+  assert.equal(otResult.status(), 201, await otResult.text());
+  await worker.getByRole('button', { name: 'คำขอเฉพาะฉัน' }).waitFor();
+  await worker.locator(`[data-click='SF.nav("team-schedule")']`).first().click();
+  await worker.locator(`[data-click='SF.cell("DEMO-A1", 20)']`).first().click();
+  await worker.getByRole('region', { name: 'คำขอสำหรับวันที่เลือก' }).getByRole('button', { name: /^ขอลา/ }).click();
+  await worker.locator('#leaveCoverageSelect').selectOption('solo');
+  assert.equal(await worker.locator('#leaveCoverSelect').count(), 0);
+  const leaveType = worker.locator('#leaveReqTypeSelect');
+  assert.deepEqual(await leaveType.locator('option').allTextContents(), ['ลาพักผ่อน (V)', 'ลาป่วย (S)', 'ลากิจ (B)', 'ลาอื่น ๆ (VG)']);
+  for (const code of ['V', 'S', 'B', 'VG']) {
+    await leaveType.selectOption(code);
+    assert.equal(await worker.locator('#modalRoot .chg tbody tr:first-child td:last-child').innerText(), code);
+  }
+  assert.equal(await worker.locator('#leaveSubmit').isDisabled(), true);
+  await worker.locator('#leaveReqReason').fill('ทดสอบการส่งคำขอลา');
+  const leaveSent = responseFor(worker, '/api/leave-requests');
+  await worker.locator('#leaveSubmit').click();
+  const leaveResult = await leaveSent;
+  assert.equal(leaveResult.status(), 201, await leaveResult.text());
+  await worker.getByRole('button', { name: 'คำขอเฉพาะฉัน' }).waitFor();
+  assert.equal(await worker.getByRole('button', { name: 'คำขอเฉพาะฉัน' }).getAttribute('aria-pressed'), 'true');
   await worker.locator('[data-click="SF.newRequest()"]').first().click();
   const generalOptions = worker.getByRole('region', {name: 'เลือกคำขอ'});
   assert.equal(await generalOptions.locator('button').count(), 4);
@@ -96,9 +181,10 @@ try {
   assert.equal(await rules.getByText('วันที่ในตาราง', { exact: true }).count(), 0);
   for (const participantRules of [requesterRules, partnerRules]) {
     assert.equal(await participantRules.getByText('วันทำงานต่อเนื่อง', { exact: true }).count(), 1);
-    assert.equal(await participantRules.getByText('ช่วงเวลาทำงาน', { exact: true }).count(), 1);
-    assert.match(await participantRules.textContent(), /วันที่ 7 ติดต่อกัน/);
-    assert.match(await participantRules.textContent(), /เวลาเลิกกะดึกในวันถัดไป/);
+    assert.equal(await participantRules.getByText('ช่วงเวลาทำงาน', { exact: true }).count(), 0);
+    assert.equal(await participantRules.getByText('เวลาพักระหว่างกะ', { exact: true }).count(), 1);
+    assert.match(await participantRules.textContent(), /ก่อนสลับ \d+\/6 วัน.*หลังสลับ \d+\/6 วัน/);
+    assert.match(await participantRules.textContent(), /พักอย่างน้อย 12 ชั่วโมง/);
     assert.equal(await participantRules.getByText('สังกัดทีม', { exact: true }).count(), 0);
   }
   assert.equal(await sharedRules.getByText('สังกัดทีม', { exact: true }).count(), 1);
@@ -110,7 +196,7 @@ try {
   const coverDate = sharedRules.locator('li').filter({ hasText: 'วันที่คู่สลับมาทำแทน' });
   assert.match(await coverDate.textContent(), /19 ส\.ค\./);
   assert.doesNotMatch(await coverDate.textContent(), /29 ส\.ค\./);
-  assert.equal(await pendingRules.locator('li.pending').count(), 4);
+  assert.equal(await pendingRules.locator('li.pending').count(), 3);
   const preview = worker.locator('#modalRoot table tbody tr');
   const names = await preview.locator('td:first-child').allTextContents();
   assert.equal(await requesterRules.getByRole('heading').textContent(), `ผู้ขอ · ${names[0]}`);
@@ -156,8 +242,44 @@ try {
   ]);
   assert.equal(await secondApprover.locator(`[data-click='promptCancelApproved("${requestId}")']`).count(), 0);
   await worker.reload();
+  await worker.locator(`[data-click='SF.nav("team-schedule")']`).first().click();
+  for (const day of [19, 29]) {
+    await worker.locator(`[data-click='SF.cell("DEMO-A1", ${day})']`).first().click();
+    const modal = worker.locator('#modalRoot');
+    assert.match(await modal.textContent(), /ต้องยกเลิกและคืนกะเดิมก่อนยื่นใหม่/);
+    assert.equal(await modal.locator('.request-option').count(), 0);
+    assert.equal(await modal.getByRole('button', { name: 'ดูคำขอที่ทำให้เปลี่ยน' }).count(), 1);
+    await modal.locator('footer').getByRole('button', { name: 'ปิด', exact: true }).click();
+  }
   await worker.locator(`[data-click='SF.nav("my-requests")']`).first().click();
   const workerRequest = worker.locator(`[data-click='openRequestDetails("${requestId}")']`).first();
+  await worker.getByRole('button', { name: 'คำขอเฉพาะฉัน' }).click();
+  assert.equal(await workerRequest.count(), 0);
+  await worker.getByRole('button', { name: 'คำขอร่วมกับผู้อื่น' }).click();
+  assert.match(await workerRequest.locator('xpath=ancestor::tr').textContent(), /ผู้ยื่น คุณ/);
+  const partner = await pageFor('target');
+  await partner.locator(`[data-click='SF.nav("my-requests")']`).first().click();
+  const partnerRequest = partner.locator(`[data-click='openRequestDetails("${requestId}")']`).first();
+  assert.equal(await partnerRequest.locator('xpath=ancestor::tr').locator('td:first-child small').textContent(), `ผู้ยื่น ${names[0]}`);
+  await partner.getByRole('button', { name: 'คำขอเฉพาะฉัน' }).click();
+  assert.equal(await partnerRequest.count(), 0);
+  const openPersonalHistory = page => page.locator(`[data-click='SF.nav("my-history")']`).first().click();
+  await openPersonalHistory(partner);
+  assert.equal(await partner.locator('.personal-history thead th').last().textContent(), '');
+  const historyRowsFor = page => page.locator('.personal-history tbody tr').filter({ has: page.getByRole('button', { name: `ดูคำขอ #${requestId}`, exact: true }) });
+  assert.ok(await historyRowsFor(partner).count() > 1);
+  const appliedEntry = historyRowsFor(partner).filter({ hasText: 'กะของคุณเปลี่ยนแล้ว' });
+  assert.equal(await appliedEntry.count(), 1);
+  assert.match(await appliedEntry.textContent(), /O → M.*N → O/s);
+  assert.doesNotMatch(await appliedEntry.textContent(), /M → O|O → N/);
+  for (const width of [390, 1440]) {
+    await partner.setViewportSize({ width, height: 1000 });
+    assert.ok(await partner.locator('.personal-history').evaluate(table => table.scrollWidth <= table.parentElement.clientWidth + 1));
+    assert.equal(await appliedEntry.locator('time').count(), 1);
+  }
+  await appliedEntry.getByRole('button', { name: `ดูคำขอ #${requestId}` }).click();
+  assert.match(await partner.locator('#modalRoot').textContent(), /อนุมัติแล้ว/);
+  await partner.locator('#modalRoot').getByRole('button', { name: 'ปิด', exact: true }).last().click();
   await workerRequest.click();
   await worker.locator('#modalRoot').getByRole('button', { name: 'ยกเลิกและคืนตาราง' }).click();
   assert.match(await worker.locator('#modalRoot').textContent(), /คืนโควตา 1 สิทธิ์/);
@@ -188,12 +310,21 @@ try {
     ['DEMO-B1','2096-08-19','O'], ['DEMO-B1','2096-08-29','N'],
   ]);
   assert.ok(restored.every(item => !item.swap));
+  assert.ok(restored.every(item => !item.requestConflict));
   await worker.setViewportSize({ width: 1440, height: 1000 });
   await workerRequest.locator('xpath=ancestor::tr').getByText('ยกเลิกแล้ว', { exact: true }).waitFor();
   await workerRequest.click();
   assert.match(await worker.locator('#modalRoot').textContent(), /คืนตารางและโควตาแล้ว/);
   assert.equal(await worker.locator('#modalRoot').getByRole('button', { name: 'ยกเลิกและคืนตาราง' }).count(), 0);
   await worker.locator('#modalRoot').getByRole('button', { name: 'ปิด', exact: true }).last().click();
+  await openPersonalHistory(worker);
+  assert.match(await historyRowsFor(worker).filter({ hasText: 'คืนกะเดิมของคุณแล้ว' }).textContent(), /O → M.*N → O/s);
+  await partner.reload();
+  await openPersonalHistory(partner);
+  assert.match(await historyRowsFor(partner).filter({ hasText: 'คืนกะเดิมของคุณแล้ว' }).textContent(), /M → O.*O → N/s);
+  await partner.setViewportSize({ width: 390, height: 900 });
+  assert.ok(await partner.locator('.personal-history').evaluate(table => table.scrollWidth <= table.parentElement.clientWidth + 1));
+  await partner.context().close();
 
   const supervisor = await pageFor('a');
   await supervisor.locator(`[data-click='SF.nav("my-shift")']`).first().click();
@@ -211,11 +342,12 @@ try {
   await supervisor.locator('#centralSwapPartner').selectOption('DEMO-B0');
   assert.equal(await supervisor.locator('#modalRoot table tbody tr').count(), 2);
   const supervisorRules = supervisor.getByRole('region', { name: 'ตรวจเงื่อนไขคำขอ' });
-  await supervisorRules.getByRole('region', { name: /^ผู้ถูกขอ/ }).getByText('ช่วงเวลาทำงาน', { exact: true }).waitFor();
+  await supervisorRules.getByRole('region', { name: /^ผู้ถูกขอ/ }).getByText('เวลาพักระหว่างกะ', { exact: true }).waitFor();
   assert.equal(await supervisorRules.getByText('เจ้าของกะ', { exact: true }).count(), 0);
   assert.equal(await supervisorRules.getByText('วันที่ในตาราง', { exact: true }).count(), 0);
   assert.match(await supervisorRules.getByText(/^วันที่สลับกะ /).textContent(), /26 ส\.ค\./);
-  assert.doesNotMatch(await supervisorRules.locator('li').allTextContents().then(rows => rows.join(' ')), /26 ส\.ค\./);
+  assert.doesNotMatch(await supervisorRules.getByRole('region', { name: 'เงื่อนไขร่วม' }).locator('li').allTextContents().then(rows => rows.join(' ')), /26 ส\.ค\./);
+  assert.match(await supervisorRules.locator('li').filter({hasText:'วันทำงานต่อเนื่อง'}).first().textContent(), /ก่อนสลับ 1\/6 วัน \(26 ส\.ค\..*หลังสลับ 1\/6 วัน/);
   assert.match(await supervisor.locator('#modalRoot ol.steps').textContent(), /ผู้จัดการ/);
   const sentBySupervisor = responseFor(supervisor, '/api/requests');
   await supervisor.locator('#modalRoot').getByRole('button', { name: 'ส่งคำขอ', exact: true }).click();
@@ -235,8 +367,12 @@ try {
   await newRequester.locator('#modalRoot').getByRole('button', { name: /^ขอสลับกะ/ }).click();
   await newRequester.locator('#centralSwapDay').selectOption('17');
   await newRequester.locator('#centralSwapPartner').selectOption('DEMO-B1');
+  const sendAgain = newRequester.locator('#modalRoot').getByRole('button', { name: 'ส่งคำขอ', exact: true });
+  assert.equal(await sendAgain.isDisabled(), true);
+  await newRequester.locator('#centralSwapDay').selectOption('19');
+  await newRequester.locator('#centralSwapPartner').selectOption('DEMO-B1');
   const sentForRejection = responseFor(newRequester, '/api/requests');
-  await newRequester.locator('#modalRoot').getByRole('button', { name: 'ส่งคำขอ', exact: true }).click();
+  await sendAgain.click();
   const sentResponse = await sentForRejection;
   assert.equal(sentResponse.status(), 201, await sentResponse.text());
   const rejectedId = (await sentResponse.json()).requestId;
@@ -262,7 +398,7 @@ try {
   const nextLimit = beforeQuota.nextLimit + 1;
   await input.fill(String(nextLimit));
   const savingQuota = manager.waitForResponse(response => response.url() === quotaUrl && response.request().method() === 'PUT');
-  await manager.getByRole('button', { name: 'บันทึกสำหรับเดือนถัดไป' }).click();
+  await manager.getByRole('button', { name: 'บันทึกโควตา', exact: true }).click();
   const savedQuota = await savingQuota;
   assert.equal(savedQuota.status(), 200, await savedQuota.text());
   const settings = await savedQuota.json();

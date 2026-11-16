@@ -33,18 +33,17 @@ export function peopleHtml() {
       <input class="inp q" id="peopleQ" type="search" placeholder="ค้นหาชื่อหรือรหัส" value="${esc(state.employeeSearch)}" data-input="filterEmployeeSearch(this.value)" autocomplete="off">
     </div>
     ${list.length ? `
-      <div class="panel flush tbl-wrap">
-        <table class="tbl">
-          <thead><tr><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ทีม</th><th>ตำแหน่ง</th><th>โทรศัพท์</th><th><span class="sr">แก้ไข</span></th></tr></thead>
+      <div class="panel flush tbl-wrap people-table-wrap" role="region" aria-label="รายชื่อพนักงาน" tabindex="0">
+        <table class="tbl people-table">
+          <thead><tr><th scope="col">พนักงาน</th><th scope="col" class="people-team">ทีม</th><th scope="col" class="people-position">ตำแหน่ง</th><th scope="col" class="people-details">โทรศัพท์</th><th scope="col" class="act"><span class="sr">แก้ไข</span></th></tr></thead>
           <tbody>
             ${list.map(e => `
               <tr>
-                <td class="num muted">${esc(e.id)}</td>
-                <th scope="row">${esc(e.name)}</th>
+                <th scope="row">${esc(e.name)}<span class="people-meta">${esc(e.id)}</span></th>
                 <td>${esc(e.shiftType)}</td>
                 <td>${esc(e.position || (e.roleCategory === 'Shift Supervisor' ? 'Shift Supervisor (S)' : 'Shift Operator'))}</td>
                 <td>${telOf(e.phone)}</td>
-                <td class="act"><button class="btn ghost sm" data-click="openEmployeeForm(${js(e.id)})">แก้ไข</button></td>
+                <td class="act"><button type="button" class="btn sm" data-click="openEmployeeForm(${js(e.id)})">แก้ไข</button></td>
               </tr>`).join('')}
           </tbody>
         </table>

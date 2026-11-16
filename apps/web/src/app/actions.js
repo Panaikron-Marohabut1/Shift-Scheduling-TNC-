@@ -9,12 +9,12 @@ import { renderApp } from './render.js';
 import { logout } from './session.js';
 import { DATA_LABEL } from './shell.js';
 import { clearLocal, DEMO_TODAY, state, view } from './state.js';
-import { esc } from '../shared/dom.js';
+import { $, esc } from '../shared/dom.js';
 import { register } from '../shared/events.js';
 import { openModal } from '../shared/modal.js';
 import { isYearPublished } from '../shared/scheduling/annual.js';
 import { daysIn } from '../shared/scheduling/dates.js';
-import { isMonthLocked } from '../shared/scheduling/roster.js';
+import { isMonthLocked, isSchedulePublished } from '../shared/scheduling/roster.js';
 import { showToast } from '../shared/toast.js';
 import { assignAdminRole, loadAdminAccess, updateAdminRole } from '../features/admin/access.js';
 import { loadAdminAccounts, searchAdminAccounts, showAdminAccounts } from '../features/admin/accounts.js';
@@ -37,7 +37,8 @@ import { openForm, renderForm } from '../features/requests/form.js';
 import { LOCKED_NOTE, newRequestModal } from '../features/requests/new-request.js';
 import { submitDayOffChangeRequest } from '../features/requests/types/dayoff.js';
 import { submitLeaveRequest } from '../features/requests/types/leave.js';
-import { submitOTRequest, toggleOtHelper } from '../features/requests/types/ot.js';
+import { selectEmployeeRequestGroup } from '../features/requests/list.js';
+import { submitOTRequest } from '../features/requests/types/ot.js';
 import { submitColleagueSwapRequest } from '../features/requests/types/swap.js';
 import { submitCentralSwap } from '../features/requests/types/central-swap.js';
 import { openCell } from '../features/schedule/cell.js';
@@ -74,6 +75,7 @@ function filterScheduleShiftType(t) { state.selectedShiftFilter = t; renderApp()
 
 /* ---------- คำสั่งของปุ่ม ---------- */
 const SF = {
+  employeeRequestGroup(group) { selectEmployeeRequestGroup(group); renderApp(); },
   nav(id) {
     view.moreNav = false;
     if (id === 'driver') { switchView('driver'); return; }
@@ -112,15 +114,24 @@ const SF = {
     if (key === 'oldDay') Object.assign(view.rq, { newDay: '', workCode: '' });
     if (key === 'newDay') view.rq.workCode = '';
     if (key === 'partner' || key === 'mode') view.rq.payDay = '';
+    if (key === 'leaveCoverage') view.rq.cover = '';
     renderForm();
   },
-  rqHelper(id, checked) { toggleOtHelper(id, checked); renderForm(); },
-  rqKeep(key, val) { if (view.rq) view.rq[key] = val; },
+  rqKeep(key, val) {
+    if (!view.rq || view.rq.submitting) return;
+    view.rq[key] = val;
+    if (view.rq.k === 'leave' && key === 'reason') {
+      const submit = $('#leaveSubmit[data-click]');
+      if (submit) submit.disabled = !val.trim();
+    }
+  },
   rqDate(v) {
     const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
-    if (!p || !view.rq) return;
+    if (!p || !view.rq || view.rq.submitting) return;
     const y = Number(p[1]), m = Number(p[2]) - 1;
-    if (isMonthLocked(y, m) || !isYearPublished(y)) { showToast(isYearPublished(y) ? LOCKED_NOTE : 'ปีนี้ยังไม่ประกาศใช้ ยังยื่นคำขอไม่ได้', 'alert'); renderForm(); return; }
+    const central = (view.rq.k === 'leave' && state.actor?.centralLeave) || (view.rq.k === 'ot' && state.actor?.centralOT);
+    const published = central ? isSchedulePublished(y, m) : isYearPublished(y);
+    if (isMonthLocked(y, m) || !published) { showToast(published ? LOCKED_NOTE : 'ตารางกะที่เลือกยังไม่ประกาศใช้', 'alert'); renderForm(); return; }
     if (y !== state.currentYear || m !== state.currentMonth) { state.currentYear = y; state.currentMonth = m; renderApp(); }
     view.rq.day = Math.min(Number(p[3]), daysIn(y, m));
     renderForm();
@@ -174,8 +185,8 @@ register({
   switchView, changeScheduleMonth, jumpToScheduleMonth, toggleMonthPicker, filterScheduleShiftType,
   openRequestDetails, approveRequest, promptRejectRequest, confirmRejectRequest, withdrawRequest, resetTestcases,
   submitColleagueSwapRequest: localDemoOnly(submitColleagueSwapRequest), submitCentralSwap: () => submitCentralSwap(renderForm),
-  submitLeaveRequest: localDemoOnly(submitLeaveRequest), submitDayOffChangeRequest: localDemoOnly(submitDayOffChangeRequest),
-  submitOTRequest: localDemoOnly(submitOTRequest), promptCancelApproved, confirmCancelApproved,
+  submitLeaveRequest, submitDayOffChangeRequest: localDemoOnly(submitDayOffChangeRequest),
+  submitOTRequest: () => submitOTRequest(renderForm), promptCancelApproved, confirmCancelApproved,
   filterEmployeeTeam, filterEmployeeSearch, openEmployeeForm: localDemoOnly(openEmployeeForm), saveEmployeeProfile: localDemoOnly(saveEmployeeProfile),
   loadAdminAccess: () => loadAdminAccess(renderApp), assignAdminRole: (id, form) => assignAdminRole(id, form, renderApp), updateAdminRole,
   loadAdminAccounts: () => loadAdminAccounts(renderApp),

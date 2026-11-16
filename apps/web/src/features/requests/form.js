@@ -13,7 +13,7 @@ import { approversList, changesTable, routeApprovers } from './form-parts.js';
 import { draftBlocked, kindLabel, PAST_DATE_NOTE } from './new-request.js';
 import { dayoffForm } from './types/dayoff.js';
 import { leaveForm } from './types/leave.js';
-import { otForm } from './types/ot.js';
+import { otForm, validateOTPreview } from './types/ot.js';
 import { swapForm } from './types/swap.js';
 import { centralSwapForm, validateCentralSwapPreview } from './types/central-swap.js';
 
@@ -32,10 +32,10 @@ export function openForm(k, day, origin = 'menu') {
   view.rq = {
     k, day: d, partner: '', mode: k === 'swap' && state.actor?.centralSwap ? 'one' : 'mutual',
     originCell: origin === 'cell' && view.cell ? { ...view.cell, y: state.currentYear, m: state.currentMonth } : null,
-    leave: 'V', ot: 'MT', cover: '', coverOt: 'MT',
+    leave: 'V', leaveCoverage: '', ot: k === 'ot' ? '' : 'MT', cover: '',
     code: (state.shiftDefs[code] || {}).family === 'M' ? 'N' : 'M',
-    ...(((state.shiftDefs[code] || {}).family === 'N' || String(code).startsWith('N')) ? { ot: 'NT', coverOt: 'NT' } : {}),
-    oldDay: code === 'O' || code === 'H' ? d : (offDays[0] || ''), newDay: '', workCode: '', payDay: '', helpers: [], reason: '', retro: false
+    ...(k !== 'ot' && ((state.shiftDefs[code] || {}).family === 'N' || String(code).startsWith('N')) ? { ot: 'NT' } : {}),
+    oldDay: code === 'O' || code === 'H' ? d : (offDays[0] || ''), newDay: '', workCode: '', payDay: '', reason: '', retro: false
   };
   renderForm();
   return true;
@@ -63,12 +63,13 @@ export function renderForm() {
     ${note}
     ${changesTable(rows)}
     ${checks}
-    ${central ? (approvers.length ? approversList(approvers, 'ผู้อนุมัติ') : '') : approversList(routeApprovers(emp, approvers))}`;
+    ${approvers.length ? approversList(central ? approvers : routeApprovers(emp, approvers), central ? 'ผู้อนุมัติ' : undefined) : ''}`;
   const box = $('#modalRoot .modal-body');
   const top = box ? box.scrollTop : 0;
-  const focusedId = central && box?.contains(document.activeElement) ? document.activeElement.id : '';
+  const focusedId = (central || f.k === 'leave' || f.k === 'ot') && box?.contains(document.activeElement) ? document.activeElement.id : '';
+  const leave = f.k === 'leave';
   openModal(kindLabel(f.k), body,
-    `<button class="btn" data-click="SF.backRequestForm()" ${f.submitting ? 'disabled' : ''}>ย้อนกลับ</button><button class="btn primary" ${ready && submit ? `data-click="${submit}"` : 'disabled'}>ส่งคำขอ</button>`);
+    `<button class="btn" data-click="SF.backRequestForm()" ${f.submitting ? 'disabled' : ''}>ย้อนกลับ</button><button class="btn primary" ${leave ? 'id="leaveSubmit"' : f.k === 'ot' ? 'id="otSubmit"' : ''} ${ready && submit ? `data-click="${submit}"` : 'disabled'} ${leave && !f.reason.trim() ? 'disabled' : ''}>ส่งคำขอ</button>`);
   const nb = $('#modalRoot .modal-body');
   if (nb) nb.scrollTop = top;
   const nextFocus = focusedId && document.getElementById(focusedId);
@@ -80,5 +81,12 @@ export function renderForm() {
       renderForm();
     });
     void validateCentralSwapPreview(f, renderForm);
+  }
+  if (f.k === 'ot') {
+    $('#otCheckRetry')?.addEventListener('click', () => {
+      f.preview = null;
+      renderForm();
+    });
+    void validateOTPreview(f, renderForm);
   }
 }

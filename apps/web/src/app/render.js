@@ -2,7 +2,7 @@
    วาดหน้าจอใหม่ทั้งหน้า (คงตำแหน่งเคอร์เซอร์และการเลื่อน) และโหลดตารางของปีที่กำลังดู
    ========================================================================== */
 
-import { loadYear } from './data.js';
+import { loadMySwapQuota, loadYear } from './data.js';
 import { viewHtml } from './routes.js';
 import { navBadges, shellHtml } from './shell.js';
 import { saveLocal, state, view } from './state.js';
@@ -49,5 +49,6 @@ export function renderApp() {
   app.innerHTML = shellHtml(viewHtml());
   translateTree(app);
   restore(k);
+  if ($('#mySwapQuota', app)) void loadMySwapQuota()?.then(() => { if (view.signed) renderApp(); });
   if (state.actor?.role !== 'ADMIN') saveLocal();
 }

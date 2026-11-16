@@ -1,7 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import { isLocalSchedulingDatabase } from '../src/config';
 import { adminDemoProfile, onboardingDemoProfile } from '../src/admin-access/demo-access';
-import { bangkokWorkDate } from '../src/requests/swap-request-time';
+import { bangkokWorkDate } from '../src/requests/request-time';
 import { PILOT_ROSTER_START, pilotShiftCode, SHIFT_ROTATION } from './pilot-rotation';
 // ชื่อพนักงานเดโม (ชื่อสมมติชุดเดียวกับต้นแบบ ShiftFlow) — ใช้ทั้งตอนสร้างข้อมูลใหม่และตอนรัน seed ซ้ำ
 const DEMO_NAMES:Record<string,[string,string]>={

@@ -2,11 +2,19 @@
    หน้ารายการคำขอ: ตารางคำขอ ปุ่มตามสิทธิ์ของแต่ละคน และขั้นอนุมัติ
    ========================================================================== */
 
-import { state } from '../../app/state.js';
+import { state, view } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { currentEmp, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
 import { pageHead } from '../../shared/ui.js';
-import { canCancelApproved, canUserReviewRequest, canWithdrawRequest, getVisibleRequests, managerCanAct } from './permissions.js';
+import { localLeaveClosureStatus } from './leave-time.js';
+import { canCancelApproved, canUserReviewRequest, canWithdrawRequest, getVisibleRequests, hasOtherParticipants, isRequestOwner, managerCanAct, visibleRequestReason } from './permissions.js';
+
+const employeeRequestGroups = { personal: 'คำขอเฉพาะฉัน', shared: 'คำขอร่วมกับผู้อื่น' };
+
+export function selectEmployeeRequestGroup(group) {
+  if (state.activeRole !== 'Shift Employee' || !Object.hasOwn(employeeRequestGroups, group)) return;
+  view.employeeRequestGroup = group;
+}
 
 export function statusCls(req) {
   if (req.status === 'อนุมัติแล้ว') return 'ok';
@@ -43,14 +51,26 @@ function stepsInline(req) {
   }).join(req.parallelApproval ? '<i>·</i>' : '<i>›</i>')}</div>`;
 }
 export function requestsHtml(title) {
-  const list = getVisibleRequests();
   const isEmp = state.activeRole === 'Shift Employee';
+  const visible = getVisibleRequests().map(request => {
+    const status = localLeaveClosureStatus(request);
+    return status ? { ...request, status } : request;
+  });
+  const group = view.employeeRequestGroup;
+  const list = isEmp ? visible.filter(request => hasOtherParticipants(request) === (group === 'shared')) : visible;
   const pendingN = list.filter(r => r.status && r.status.includes('รอ')).length;
-  const right = [`<span class="st ${pendingN ? 'wait' : ''}">${isEmp ? `คำขอของฉัน ${list.length} รายการ` : `รอดำเนินการ ${pendingN} รายการ`}</span>`];
+  const right = [`<span class="st ${pendingN ? 'wait' : ''}">${isEmp ? `ทั้งหมด ${list.length} รายการ` : `รอดำเนินการ ${pendingN} รายการ`}</span>`];
+  const personLine = request => isEmp
+    ? `ผู้ยื่น ${isRequestOwner(request, currentEmp()) ? 'คุณ' : request.person}`
+    : `${request.person} · ${request.roleCategory}`;
+  const relatedPerson = request => request.kind === 'leave' ? 'คนที่มาทำแทน' : 'คู่สลับ/ผู้เกี่ยวข้อง';
   if (!state.actor?.remotePilot && state.localRequests.length) right.push('<button class="btn" data-click="resetTestcases()" title="ล้างรายการคำขอทดลองในเครื่องนี้ เพื่อเริ่มทดสอบใหม่">ล้างคิวคำขอ</button>');
   if (isEmp) right.push('<button class="btn primary" data-click="SF.newRequest()">ยื่นคำขอ</button>');
   return `
     ${pageHead(esc(title), right.join(''))}
+    ${isEmp ? `<div class="bar"><div class="seg" role="group" aria-label="กลุ่มคำขอ">
+      ${Object.entries(employeeRequestGroups).map(([key, label]) => `<button id="employee-requests-${key}" type="button" class="${group === key ? 'on' : ''}" aria-pressed="${group === key}" data-click="SF.employeeRequestGroup(${js(key)})">${label}</button>`).join('')}
+    </div></div>` : ''}
     ${list.length ? `
       <div class="panel flush tbl-wrap only-wide">
         <table class="tbl reqs">
@@ -58,9 +78,9 @@ export function requestsHtml(title) {
           <tbody>
             ${list.map(r => `
               <tr>
-                <td><b class="rq-type">${esc(r.type)}</b><small>${esc(r.person)} · ${esc(r.roleCategory)}</small></td>
+                <td><b class="rq-type">${esc(r.type)}</b><small>${esc(personLine(r))}</small></td>
                 <td class="nowrap">${esc(r.date)}<small>ยื่นเมื่อ ${esc(r.submittedAt)}</small></td>
-                <td>${esc(r.reason)}${r.currentShift && r.currentShift !== '-' ? `<small>${esc(r.type.includes('OT') ? 'กะเดิม → OT ที่ขอ' : 'กะเดิม → กะใหม่')}: ${esc(r.currentShift)} → ${esc(r.targetShift)}</small>` : ''}${r.targetPerson ? `<small>คู่สลับ/ผู้เกี่ยวข้อง: ${esc(r.targetPerson)}</small>` : ''}${r.quotaUsed && r.quotaUsed !== '-' ? `<small>โควตาเดือนนี้ ${esc(r.quotaUsed)}</small>` : ''}${stepsInline(r)}${r.rejectReason ? `<small class="err">เหตุผลที่ไม่อนุมัติ: ${esc(r.rejectReason)}</small>` : ''}</td>
+                <td>${esc(visibleRequestReason(r))}${r.currentShift && r.currentShift !== '-' ? `<small>${esc(r.type.includes('OT') ? 'กะเดิม → OT ที่ขอ' : 'กะเดิม → กะใหม่')}: ${esc(r.currentShift)} → ${esc(r.targetShift)}</small>` : ''}${r.targetPerson ? `<small>${relatedPerson(r)}: ${esc(r.targetPerson)}</small>` : ''}${r.quotaUsed && r.quotaUsed !== '-' ? `<small>โควตาเดือนนี้ ${esc(r.quotaUsed)}</small>` : ''}${stepsInline(r)}${r.rejectReason ? `<small class="err">เหตุผลที่ไม่อนุมัติ: ${esc(r.rejectReason)}</small>` : ''}</td>
                 <td><span class="st ${statusCls(r)}">${esc(r.status)}</span>${r.approvalBlockReason ? '<small>ต้องยื่นใหม่</small>' : ''}${r.cancelBlockReason ? `<small>${esc(r.cancelBlockReason)}</small>` : ''}</td>
                 <td class="act"><div class="acts">${reqActions(r)}</div></td>
               </tr>`).join('')}
@@ -71,11 +91,11 @@ export function requestsHtml(title) {
         ${list.map(r => `
           <li class="panel">
             <div class="rc-top"><b>${esc(r.type)} · ${esc(r.date)}</b><span class="st ${statusCls(r)}">${esc(r.status)}</span></div>
-            <p class="muted small">${esc(r.person)} · ${esc(r.reason)}</p>
+            <p class="muted small">${[isEmp ? personLine(r) : r.person, visibleRequestReason(r)].filter(Boolean).map(esc).join(' · ')}</p>
             ${r.approvalBlockReason ? `<p class="small err">${esc(r.approvalBlockReason)}</p>` : ''}
             ${r.cancelBlockReason ? `<p class="muted small">${esc(r.cancelBlockReason)}</p>` : ''}
             ${r.rejectReason ? `<p class="small err">เหตุผลที่ไม่อนุมัติ: ${esc(r.rejectReason)}</p>` : ''}
             <div class="rc-act">${reqActions(r)}</div>
           </li>`).join('')}
-      </ul>` : `<p class="empty">${isEmp ? 'ยังไม่มีคำขอ' : 'ไม่มีคำขอที่ต้องตรวจสอบ'}</p>`}`;
+      </ul>` : `<p class="empty">${isEmp ? `ยังไม่มี${employeeRequestGroups[group]}` : 'ไม่มีคำขอที่ต้องตรวจสอบ'}</p>`}`;
 }

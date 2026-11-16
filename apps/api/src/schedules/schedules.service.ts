@@ -3,9 +3,10 @@ import { PoolClient } from 'pg';
 import { centralSchedulingEnabled } from '../config';
 import { Database } from '../database/database.service';
 import { Actor, Assignment } from '../shared/types';
-import { bangkokWorkDate } from '../requests/swap-request-time';
+import { bangkokWorkDate } from '../requests/request-time';
+import { rosterRequestConflicts } from '../requests/roster-request-conflicts';
+import { restoredRosterVersions } from '../requests/restored-roster-versions';
 type ClosedRosterRow={employeeCode:string;team:string;workDate:string;shiftCode:string};
-type RestoredRosterSlot=Pick<Assignment,'assignment_id'|'version'|'work_date'|'shift_type_id'> & {restoredFromVersion:number};
 type SchedulePeriod={year:number;month:number};
 const monthKey=(period:SchedulePeriod)=>`${period.year}-${String(period.month).padStart(2,'0')}`;
 function previousMonth(current:string) {
@@ -23,6 +24,15 @@ const assignmentSelect=`SELECT a.*, t.team_id, e.position, e.first_name||' '||e.
 export class SchedulesService {
  constructor(@Inject(Database) private readonly db:Database) {}
  effectiveTeamsEnabled() { return centralSchedulingEnabled(new URL(this.db.pool.options.connectionString!)); }
+ async leaveEnabled(c?:PoolClient) {
+  if(!this.effectiveTeamsEnabled())return false;
+  const {rows:[row]}=await (c??this.db).query("SELECT to_regclass('shiftflow_policy.leave_requests') IS NOT NULL AS available");
+  return row.available as boolean;
+ }
+ async otEnabled() {
+  return this.effectiveTeamsEnabled() && (await this.db.query(
+   "SELECT 1 FROM schema_migrations WHERE name='012_individual_ot_requests.sql'")).rowCount === 1;
+ }
  assignmentTeamJoin() {
   return this.effectiveTeamsEnabled()
    ? 'JOIN teams t ON t.team_id=shiftflow_policy.employee_team_on(e.employee_id,e.team_id,a.work_date)'
@@ -87,10 +97,27 @@ export class SchedulesService {
   const [year,number]=month.split('-').map(Number);
   return this.db.transaction(async c=>{
   await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
-  const assignments=(await c.query(`${this.assignmentSelect()} WHERE a.schedule_id IN
+  const assignments=(await c.query<Assignment>(`${this.assignmentSelect()} WHERE a.schedule_id IN
    (SELECT schedule_id FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')) ORDER BY e.employee_id,a.work_date`,[year,number,actor.role])).rows;
   const schedule=(await c.query("SELECT schedule_id,month,year,status,version,updated_at FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')",[year,number,actor.role])).rows[0]??null;
   await this.attachAppliedSwaps(c,assignments);
+  if(schedule?.status==='PUBLISHED'&&['EMPLOYEE','SUPERVISOR'].includes(actor.role)) {
+   const conflicts=await rosterRequestConflicts(c,assignments.map(slot=>slot.assignment_id),new Date(),await this.leaveEnabled(c));
+   const slots=new Map(assignments.map(slot=>[slot.assignment_id,slot]));
+   for(const conflict of conflicts) {
+    const slot=slots.get(conflict.assignment_id);
+    if(!slot||slot.requestConflict)continue;
+    const canSeeRequest=slot.employee_id===actor.employeeId
+     &&(conflict.request_type!=='SWAP'||actor.role==='EMPLOYEE'||conflict.requester_id===actor.employeeId);
+    slot.requestConflict={
+     status:conflict.status,
+     ...(canSeeRequest?{
+      requestId:conflict.request_id,
+      ...(conflict.expiresAt?{expiresAt:conflict.expiresAt.toISOString()}:{}),
+     }:{}),
+    };
+   }
+  }
   await c.query("INSERT INTO audit_logs(user_id,action,entity_type,entity_id,new_value) VALUES($1,'SCHEDULE_VIEWED','USER',$1,$2)",[actor.userId,JSON.stringify({month,scope:'ORGANIZATION',teamId:actor.teamId,scheduleVersion:schedule?.version??null})]);
   return {month,schedule,assignments,scope:'ORGANIZATION',dataSource:'SYNTHETIC'};
   });
@@ -111,22 +138,7 @@ export class SchedulesService {
    ORDER BY al.audit_id DESC`,[assignments.map(a=>a.assignment_id)])).rows;
   if(!rows.length)return;
   const visible=new Map(assignments.map(a=>[a.assignment_id,a]));
-  const restored=(await c.query<{slot:RestoredRosterSlot}>(`SELECT entry.slot
-   FROM audit_logs al JOIN requests r ON r.request_id=al.entity_id
-   CROSS JOIN LATERAL jsonb_array_elements(al.new_value->'assignments') AS entry(slot)
-   WHERE al.entity_type='REQUEST' AND al.action='SCHEDULE_SWAP_REVERSED' AND r.status='CANCELLED'
-    AND (entry.slot->>'assignment_id')::int=ANY($1::int[])
-   ORDER BY al.audit_id DESC`,[assignments.map(a=>a.assignment_id)])).rows;
-  const evidenceVersions=new Map<number,number>();
-  // A reversal writes a new version. Follow protected evidence back to the restored roster state.
-  for(const {slot} of restored) {
-   const current=visible.get(slot.assignment_id);
-   if(current&&current.work_date===slot.work_date&&current.shift_type_id===slot.shift_type_id
-    && (evidenceVersions.get(slot.assignment_id)??current.version)===slot.version
-    && Number.isSafeInteger(slot.restoredFromVersion)&&slot.restoredFromVersion<slot.version) {
-    evidenceVersions.set(slot.assignment_id,slot.restoredFromVersion);
-   }
-  }
+  const evidenceVersions=await restoredRosterVersions(c,assignments);
   for(const row of rows) for(const [oldPair,newPair] of [[row.old_value,row.new_value],[row.old_value?.secondSwap,row.new_value?.secondSwap]]) {
    for(const [side,other] of [['source','target'],['target','source']]) {
    const before=oldPair?.[side],after=newPair?.[side],partnerAfter=newPair?.[other];

@@ -7,22 +7,23 @@ import { currentEmp, getEmployeeFacingShiftLabel } from '../../../shared/schedul
 import { showToast } from '../../../shared/toast.js';
 import { checksList, opt } from '../form-parts.js';
 import { done } from '../submit.js';
+import { canSubmitRequestDate } from '../request-time.js';
+import { requestConflictAt, requestConflictText } from '../request-conflict.js';
 
-const bangkokDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', dateStyle: 'short' });
 const isDayOff = shift => shift?.shift_code === 'O' && shift.is_working === false;
 
 function choices(f, emp, y, m) {
-  const today = bangkokDate.format(new Date());
+  const now = Date.now();
   const month = isoOf(y, m, 1).slice(0, 7);
   const twoDates = f.mode === 'two';
   const own = state.apiAssign[emp.id] || {};
   const dates = Object.entries(own)
-    .filter(([date, shift]) => date.slice(0, 7) === month && month === today.slice(0, 7)
-      && date >= today && shift.status === 'ACTIVE')
+    .filter(([date, shift]) => date.slice(0, 7) === month && canSubmitRequestDate(date, now)
+      && shift.status === 'ACTIVE' && shift.shift_code !== 'L')
     .map(([date]) => date).sort();
   const canSwap = (date, other) => {
     const a = own[date], b = other[date];
-    return a && b?.status === 'ACTIVE' && a.team_id !== b.team_id && a.position === b.position
+    return a && b?.status === 'ACTIVE' && b.shift_code !== 'L' && a.team_id !== b.team_id && a.position === b.position
       && a.shift_type_id !== b.shift_type_id;
   };
   const colleagues = Object.entries(state.apiAssign);
@@ -143,10 +144,14 @@ function renderRulePreview(preview, requesterName, partnerName, selectedDates) {
 
 export function centralSwapForm({ f, emp, y, m }) {
   const { dates, firstDates, first, partners, partner, secondDates, second, pairs } = choices(f, emp, y, m);
+  const conflictOn = (id, date) => date && requestConflictAt(id, y, m, Number(date.slice(-2)));
+  const firstConflict = conflictOn(emp.id, first) || conflictOn(partner?.id, first);
+  const conflict = firstConflict || conflictOn(emp.id, second) || conflictOn(partner?.id, second);
+  const conflictLabel = blocked => blocked ? ' · มีคำขออยู่แล้ว' : '';
   const teams = new Map();
   for (const { id, shift } of partners) {
     if (!teams.has(shift.team_code)) teams.set(shift.team_code, []);
-    teams.get(shift.team_code).push(opt(id, shift.name, f.partner));
+    teams.get(shift.team_code).push(opt(id, shift.name + conflictLabel(conflictOn(id, first)), f.partner));
   }
   const twoDates = f.mode === 'two';
   const noCrossDate = twoDates && !firstDates.length;
@@ -165,7 +170,8 @@ export function centralSwapForm({ f, emp, y, m }) {
     `<div class="field"><label for="centralSwapDay">${twoDates ? 'วันที่คู่สลับมาทำกะแทนคุณ' : 'วันที่ต้องการสลับกะ'}</label>
       <select class="inp" id="centralSwapDay" data-change="SF.rq('day', this.value)" ${firstDates.length ? disabled : 'disabled'}>
         ${firstDates.map(date => opt(Number(date.slice(-2)), dayLabel(date, y, m)
-          + (twoDates ? ` · ${getEmployeeFacingShiftLabel(state.apiAssign[emp.id][date].shift_code)}` : ''), Number(first?.slice(-2)))).join('')}
+          + (twoDates ? ` · ${getEmployeeFacingShiftLabel(state.apiAssign[emp.id][date].shift_code)}` : '')
+          + conflictLabel(conflictOn(emp.id, date)), Number(first?.slice(-2)))).join('')}
       </select></div>`,
     `<div class="field"><label for="centralSwapPartner">คู่สลับ</label>
       <select class="inp" id="centralSwapPartner" data-change="SF.rq('partner', this.value)" ${disabled}>
@@ -177,20 +183,22 @@ export function centralSwapForm({ f, emp, y, m }) {
     fields.push(`<div class="field"><label for="centralSwapSecond">วันที่คุณไปทำกะแทนคู่สลับ</label>
       <select class="inp" id="centralSwapSecond" data-change="SF.rq('secondDate', this.value)" ${partner ? disabled : 'disabled'}>
         ${opt('', partner ? 'เลือกวันที่คุณหยุดและคู่สลับมีกะ' : 'เลือกคู่สลับก่อน', second || '')}
-        ${secondDates.map(date => opt(date, `${dayLabel(date, y, m)} · ${getEmployeeFacingShiftLabel(state.apiAssign[partner.id][date].shift_code)}`, second)).join('')}
+        ${secondDates.map(date => opt(date, `${dayLabel(date, y, m)} · ${getEmployeeFacingShiftLabel(state.apiAssign[partner.id][date].shift_code)}`
+          + conflictLabel(conflictOn(emp.id, date) || conflictOn(partner.id, date)), second)).join('')}
       </select></div>`);
   }
   if (!f.submitting) {
-    const payload = pairs.length === (twoDates ? 2 : 1)
+    const payload = !conflict && pairs.length === (twoDates ? 2 : 1)
       ? { ...payloadFor(pairs[0]), ...(pairs[1] ? { secondSwap: payloadFor(pairs[1]) } : {}) } : null;
     const signature = JSON.stringify(payload);
     if (f.preview?.signature !== signature) f.preview = payload ? { signature, payload } : null;
   }
-  const rows = pairs.flatMap(({ date, a, b }) => [
+  const rows = conflict ? [] : pairs.flatMap(({ date, a, b }) => [
     { e: a, date: dayLabel(date, y, m), from: a.shift_code, to: b.shift_code },
     { e: b, date: dayLabel(date, y, m), from: b.shift_code, to: a.shift_code },
   ]);
-  const note = noCrossDate ? `<div class="notice field">
+  const note = conflict ? `<p class="notice">${esc(requestConflictText(conflict))}</p>`
+    : noCrossDate ? `<div class="notice field">
       <b>เดือนนี้ไม่มีคู่สลับกะคนละวัน</b>
       <p>ในตารางที่เหลือ ยังไม่มีคู่ต่างทีมที่หยุดในวันที่คุณมีกะ และมีกะในวันที่คุณหยุด</p>
       <div><button class="btn sm" type="button" data-click="SF.rq('mode', 'one')">ดูตัวเลือกสลับกะวันเดียวกัน</button></div>
@@ -198,15 +206,15 @@ export function centralSwapForm({ f, emp, y, m }) {
     : f.error ? `<p class="err" role="alert">${esc(f.error)}</p>`
     : !dates.length ? '<p class="notice">ยื่นได้เฉพาะกะที่มีในตารางส่วนกลางของเดือนนี้และยังไม่ผ่านวัน</p>'
       : '<p class="muted small">ตกลงกับคู่สลับก่อนส่ง ระบบจะหักสิทธิ์จากผู้ยื่นเมื่ออนุมัติครบ</p>';
-  const coverage = pairs[1] ? `<p class="notice"><b>ใครทำกะแทนใคร</b><br>
+  const coverage = !conflict && pairs[1] ? `<p class="notice"><b>ใครทำกะแทนใคร</b><br>
     ${esc(dayLabel(first, y, m))} · ${esc(pairs[0].b.name)} รับ${esc(getEmployeeFacingShiftLabel(pairs[0].a.shift_code))}แทน ${esc(pairs[0].a.name)}<br>
     ${esc(dayLabel(second, y, m))} · ${esc(pairs[1].a.name)} รับ${esc(getEmployeeFacingShiftLabel(pairs[1].b.shift_code))}แทน ${esc(pairs[1].b.name)}
   </p>` : '';
   return {
     fields, rows, checks: renderRulePreview(f.preview, emp.name, partner?.shift.name, pairs.map(({ date }) => date)),
-    ready: !f.submitting && f.preview?.result?.valid === true,
+    ready: !conflict && !f.submitting && f.preview?.result?.valid === true,
     note: note + coverage, submit: 'submitCentralSwap()',
-    approvers: noCrossDate ? [] : state.actor.role === 'SUPERVISOR' ? ['ผู้จัดการ'] : ['หัวหน้ากะทั้งสองทีม (กดได้ทั้งสองลำดับ)'],
+    approvers: conflict || noCrossDate ? [] : state.actor.role === 'SUPERVISOR' ? ['ผู้จัดการ'] : ['หัวหน้ากะทั้งสองทีม (กดได้ทั้งสองลำดับ)'],
   };
 }
 
@@ -240,7 +248,10 @@ export async function submitCentralSwap(render) {
   try {
     await api('/requests', { method: 'POST', body, key: f.submission.key });
     await refreshAll();
-    if (view.rq === f && $('#centralSwapMode')) done('ส่งคำขอสลับกะแล้ว');
+    if (view.rq === f && $('#centralSwapMode')) {
+      if (state.activeRole === 'Shift Employee') view.employeeRequestGroup = 'shared';
+      done('ส่งคำขอสลับกะแล้ว');
+    }
     else showToast('ส่งคำขอสลับกะแล้ว');
   } catch (error) {
     f.error = error.message || 'ส่งคำขอไม่สำเร็จ';

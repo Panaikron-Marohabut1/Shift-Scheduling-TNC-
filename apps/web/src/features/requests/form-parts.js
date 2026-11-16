@@ -25,9 +25,9 @@ export function changesTable(rows) {
   if (!rows.length) return '';
   return `
     <h3>ผลที่จะเกิดในตารางกะเมื่ออนุมัติครบ</h3>
-    <table class="tbl chg">
+    <table class="tbl chg${rows.some(row => row.targetCodeOnly) ? ' leave-preview' : ''}">
       <thead><tr><th>พนักงาน</th><th>วันที่</th><th>เดิม</th><th>เปลี่ยนเป็น</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${esc(r.e.name)}</td><td class="nowrap">${esc(r.date)}</td><td>${codeLabel(r.from)}</td><td>${codeLabel(r.to)}</td></tr>`).join('')}</tbody>
+      <tbody>${rows.map(r => `<tr><td>${esc(r.e.name)}</td><td class="nowrap">${esc(r.date)}</td><td>${codeLabel(r.from)}</td><td>${r.targetCodeOnly ? `<b>${esc(r.to)}</b>` : codeLabel(r.to)}</td></tr>`).join('')}</tbody>
     </table>`;
 }
 export const approversList = (roles, heading = 'ลำดับผู้อนุมัติ') => `<h3>${esc(heading)}</h3><ol class="steps">${roles.map(r => `<li><b>${esc(r)}</b></li>`).join('')}</ol>`;
@@ -41,7 +41,7 @@ export function dateField(labelText, idHidden) {
       <small>${esc(new Date(y, m, f.day).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))} · กะของคุณ ${codeLabel(c)}</small>
     </div>`;
 }
-export const reasonField = id => `<div class="field"><label for="${id}">เหตุผล / รายละเอียดเพิ่มเติม (ไม่บังคับ)</label><textarea class="inp" id="${id}" rows="2" data-input="SF.rqKeep('reason', this.value)">${esc(view.rq.reason)}</textarea></div>`;
+export const reasonField = (id, { required = false, hint = '' } = {}) => `<div class="field"><label for="${id}">${required ? 'เหตุผลการลา (จำเป็น)' : 'เหตุผล / รายละเอียดเพิ่มเติม (ไม่บังคับ)'}</label><textarea class="inp" id="${id}" rows="2" ${required ? 'required' : ''} ${hint ? `aria-describedby="${id}Hint"` : ''} data-input="SF.rqKeep('reason', this.value)">${esc(view.rq.reason)}</textarea>${hint ? `<small id="${id}Hint">${esc(hint)}</small>` : ''}</div>`;
 export const retroField = id => `<label class="chk"><input type="checkbox" id="${id}" ${view.rq.retro ? 'checked' : ''} data-change="SF.rqKeep('retro', this.checked)"><span>ยื่นคำขอย้อนหลัง (สำหรับวันที่ผ่านมาแล้ว)</span></label>`;
 export const ownSup = emp => `Shift Supervisor (${emp.shiftType})`;
 // หัวหน้ากะไม่อนุมัติคำขอของตัวเอง: ขั้นที่เป็นหัวหน้ากะทีมเดียวกับผู้ขอ ให้ผู้จัดการฝ่ายผลิตอนุมัติแทน

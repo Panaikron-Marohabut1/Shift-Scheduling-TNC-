@@ -5,9 +5,9 @@
 import { state, view } from './state.js';
 import { esc, js } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
-import { currentEmp, isSupervisorRoleName } from '../shared/scheduling/employees.js';
+import { isSupervisorRoleName } from '../shared/scheduling/employees.js';
 import { unreadCount } from '../features/notifications/store.js';
-import { canUserReviewRequestForRole } from '../features/requests/permissions.js';
+import { canUserReviewRequestForRole, getVisibleRequests } from '../features/requests/permissions.js';
 
 export const DATA_LABEL = 'เชื่อมฐานข้อมูลแล้ว';
 /* ---------- เมนู ---------- */
@@ -27,9 +27,8 @@ export function navBadges() {
   if (state.activeRole === 'Manager') role.nav[0].badge = pending.length;
   else if (isSupervisorRoleName(state.activeRole)) { const n = role.nav.find(x => x.id === 'requests'); if (n) n.badge = state.requests.filter(r => canUserReviewRequestForRole(r, state.activeRole)).length; }
   else if (state.activeRole === 'Shift Employee') {
-    const me = currentEmp();
     const n = role.nav.find(x => x.id === 'my-requests');
-    if (n) n.badge = state.requests.filter(r => (r.requesterId === (me && me.id) || r.person === (me && me.name) || r.targetPerson === (me && me.name)) && r.status && r.status.includes('รอ')).length;
+    if (n) n.badge = getVisibleRequests().filter(r => r.status && r.status.includes('รอ')).length;
   }
 }
 function navList() {

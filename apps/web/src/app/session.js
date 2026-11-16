@@ -21,6 +21,7 @@ export async function enter(actor) {
   state.actor = actor;
   state.roles = { [key]: buildRole(key, actor) };
   state.activeRole = key;
+  view.employeeRequestGroup = 'shared';
   state.activeView = (state.roles[key].nav[0] || { id: 'driver' }).id;
   state.selectedShiftFilter = 'ALL';
   state.operatorShowFullGrid = false;

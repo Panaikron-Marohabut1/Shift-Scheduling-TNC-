@@ -51,8 +51,10 @@ export function cancellationDeadlineIssue(deadline: number, checkedAt: Date) {
   } : null;
 }
 
-export function cancellationSlotsMatch(changes: readonly { before: SwapSlot; after: SwapSlot }[], current: SwapSlot[]) {
+export function cancellationSlotsMatch(changes: readonly { before: SwapSlot; after: SwapSlot }[], current: SwapSlot[],
+  restoredVersions: ReadonlyMap<number, number>) {
   return changes.length === current.length && changes.every(({ after }) => current.some(slot => sameAssignment(slot, after)
-    && slot.version === after.version && slot.shift_type_id === after.shift_type_id && slot.assigned_by === after.assigned_by
+    && (slot.version === after.version || restoredVersions.get(slot.assignment_id) === after.version)
+    && slot.shift_type_id === after.shift_type_id && slot.assigned_by === after.assigned_by
     && slot.is_working === after.is_working && slot.start_time === after.start_time && slot.end_time === after.end_time));
 }

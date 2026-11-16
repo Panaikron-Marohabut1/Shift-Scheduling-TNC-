@@ -30,7 +30,6 @@
 .roster td .off { font-size: 1.3rem; font-weight: 700; line-height: 1; }
 .roster td.is-long button { font-size: 0.72rem; letter-spacing: -0.02em; }
 .roster td button:hover { box-shadow: inset 0 0 0 2px var(--primary); }
-.roster td.tdy { box-shadow: inset 2px 0 0 var(--primary), inset -2px 0 0 var(--primary); }
 .roster .sm { width: 40px; min-width: 40px; background: var(--surface); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .roster thead .sm { font-size: 0.82rem; font-weight: 600; }
 .roster tbody td.sm:nth-last-child(3), .roster thead th.sm:nth-last-child(3) { border-left: 1px solid var(--line-2); font-weight: 700; color: var(--ink); }
@@ -125,9 +124,13 @@
 .roster thead th.tdy span, .roster thead th.tdy b { color: #fff; }
 .roster td.c-O.we, .roster td.c-L.we { background: var(--we-bg); }
 .roster td.c-O.hol, .roster td.c-L.hol { background: var(--hol-bg); }
-.roster td.we:not(.c-O):not(.c-L) { box-shadow: inset 0 -3px 0 #f6c58e; }
-.roster td.hol:not(.c-O):not(.c-L) { box-shadow: inset 0 -3px 0 #ef9a9a; }
-.roster td.tdy.we, .roster td.tdy.hol, .roster td.tdy { box-shadow: inset 2px 0 0 var(--primary), inset -2px 0 0 var(--primary); }
+.roster td.we:where(:not(.c-O, .c-L)) { --day-accent: inset 0 -3px 0 #f6c58e; box-shadow: var(--day-accent); }
+.roster td.hol:where(:not(.c-O, .c-L)) { --day-accent: inset 0 -3px 0 #ef9a9a; box-shadow: var(--day-accent); }
+.roster td.tdy {
+  --today-line: color-mix(in srgb, var(--primary) 35%, transparent);
+  --today-guide: inset 1px 0 0 var(--today-line), inset -1px 0 0 var(--today-line);
+  box-shadow: var(--today-guide), var(--day-accent, inset 0 0 0 transparent);
+}
 .roster tfoot td.we { background: #fbe5cc; }
 .roster tfoot td.hol { background: #f8cfcf; }
 .roster th.wk, .roster td.wk { border-left: 2px solid var(--wk-line); }
@@ -154,9 +157,17 @@
 .roster tr.me .name { color: #fff; font-weight: 700; }
 .roster tr.me .you { background: #f2b705; color: #1b2433; font-weight: 700; }
 .roster tr.me .tag { color: #dfe7f5; }
-.roster tr.me td { box-shadow: inset 0 3px 0 var(--primary), inset 0 -3px 0 var(--primary); }
-.roster tr.me td.tdy { box-shadow: inset 0 3px 0 var(--primary), inset 0 -3px 0 var(--primary), inset 2px 0 0 var(--primary), inset -2px 0 0 var(--primary); }
-.roster tr.me td button { font-weight: 800; }
+.roster tr.me td {
+  --my-row-line: color-mix(in srgb, var(--primary) 52%, transparent);
+  box-shadow: inset 0 1px 0 var(--my-row-line),
+    var(--today-guide, inset 0 0 0 transparent),
+    var(--day-accent, inset 0 -1px 0 var(--my-row-line));
+}
+.roster tr.me td.tdy > button {
+  box-shadow: inset 0 0 0 2px var(--primary-dark);
+  font-weight: 800;
+}
+.roster tr.me td.tdy.c-O > button { color: var(--ink-2); }
 .roster tr.me td.sm { background: var(--primary-tint); color: var(--primary-dark); font-weight: 700; }
 .plist li.me { background: var(--primary-tint); box-shadow: inset 6px 0 0 var(--primary); }
 .plist li.me .pname { color: var(--primary-dark); font-weight: 700; }

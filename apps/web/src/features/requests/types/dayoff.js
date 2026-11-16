@@ -14,6 +14,7 @@ import { showToast } from '../../../shared/toast.js';
 import { checksList, opt, ownSup, reasonField, retroField } from '../form-parts.js';
 import { done, monthText, saveLocalRequest } from '../submit.js';
 import { holidaysOf } from '../../schedule/days.js';
+import { requestConflictAt, requestConflictText } from '../request-conflict.js';
 
 const WORK_CODES = ['M', 'N'];
 const family = code => (state.shiftDefs[code] || {}).family;
@@ -41,11 +42,13 @@ export function dayoffForm({ f, emp, y, m, n, myCode }) {
   const fields = [];
   let rows = [], checks = '', approvers = [ownSup(emp)], ready = false, submit = '', note = '';
   const offs = movableOffDays(emp, y, m, n);
+  const conflictOn = d => requestConflictAt(emp.id, y, m, Number(d));
+  const conflictLabel = d => conflictOn(d) ? ' · มีคำขออยู่แล้ว' : '';
   if (f.oldDay && !offs.includes(Number(f.oldDay))) f.oldDay = offs[0] || '';
   fields.push(`
     <div class="field"><label for="dayOffOldSelect">วันหยุดเดิม (วันที่จะไปทำงานแทน)</label>
       <select class="inp" id="dayOffOldSelect" data-change="SF.rq('oldDay', this.value)">
-        ${offs.length ? offs.map(d => opt(d, offLabel(emp, y, m, d), f.oldDay)).join('') : '<option value="">เดือนนี้ไม่มีวันหยุด</option>'}
+        ${offs.length ? offs.map(d => opt(d, offLabel(emp, y, m, d) + conflictLabel(d), f.oldDay)).join('') : '<option value="">เดือนนี้ไม่มีวันหยุด</option>'}
       </select><small>${esc(monthLabel(y, m))} · เปลี่ยนเดือนได้ที่ปฏิทินกะของฉัน</small></div>`);
   const old = Number(f.oldDay);
   const cand = old ? workDaysNear(emp, y, m, n, old) : [];
@@ -53,9 +56,10 @@ export function dayoffForm({ f, emp, y, m, n, myCode }) {
     <div class="field"><label for="dayOffNewDay">วันที่จะหยุดแทน</label>
       <select class="inp" id="dayOffNewDay" data-change="SF.rq('newDay', this.value)">
         ${opt('', 'เลือกวัน (วันทำงาน ไม่เกิน 7 วันจากวันหยุดเดิม)', f.newDay)}
-        ${cand.map(d => opt(d, `${shortDate(y, m, d)} · ปัจจุบัน${getEmployeeFacingShiftLabel(getShiftCodeForDate(emp, y, m, d))}`, f.newDay)).join('')}
+        ${cand.map(d => opt(d, `${shortDate(y, m, d)} · ปัจจุบัน${getEmployeeFacingShiftLabel(getShiftCodeForDate(emp, y, m, d))}` + conflictLabel(d), f.newDay)).join('')}
       </select></div>`);
   const nd = Number(f.newDay);
+  const conflict = conflictOn(old) || conflictOn(nd);
   // กะที่จะไปทำในวันหยุดเดิม: ตั้งต้นเป็นกะเดียวกับวันที่จะหยุดแทน
   if (!WORK_CODES.includes(f.workCode)) {
     const fam = nd ? family(getShiftCodeForDate(emp, y, m, nd)) : '';
@@ -65,7 +69,8 @@ export function dayoffForm({ f, emp, y, m, n, myCode }) {
     <div class="field"><label for="dayOffWorkCode">กะที่จะไปทำในวันหยุดเดิม</label>
       <select class="inp" id="dayOffWorkCode" data-change="SF.rq('workCode', this.value)">${WORK_CODES.map(c => opt(c, `${getEmployeeFacingShiftLabel(c)} (${c}) · ${state.shiftDefs[c].time}`, f.workCode)).join('')}</select></div>`);
   fields.push(reasonField('dayOffReason'), retroField('dayOffRetroactive'));
-  if (old && nd) {
+  if (conflict) note = `<p class="notice">${esc(requestConflictText(conflict))}</p>`;
+  else if (old && nd) {
     const oldCode = getShiftCodeForDate(emp, y, m, old);
     rows = [
       { e: emp, date: shortDate(y, m, old), from: oldCode, to: f.workCode },
@@ -76,7 +81,7 @@ export function dayoffForm({ f, emp, y, m, n, myCode }) {
       { status: within ? 'pass' : 'fail', rule: 'กรอบเวลา', msg: within ? 'วันที่หยุดแทนอยู่ภายใน 7 วันจากวันหยุดเดิม' : 'วันที่หยุดแทนต้องอยู่ภายใน 7 วันจากวันหยุดเดิม' },
       { status: 'pass', rule: 'เดือนเดียวกัน', msg: 'เปลี่ยนภายในเดือนเดียวกัน' }
     ]);
-    ready = within;
+    ready = within && cand.includes(nd);
   }
   submit = `submitDayOffChangeRequest(${js(emp.id)})`;
   return { fields, rows, checks, approvers, ready, submit, note };
@@ -97,12 +102,12 @@ export function submitDayOffChangeRequest(empId) {
   const offCode = oldCode === 'H' ? 'H' : 'O';
   const hol = holidaysOf(y)[`${m}-${oldDay}`];
   const dateLabel = `${oldDay} → ${newDay} ${monthText()}`;
-  saveLocalRequest({
+  if (!saveLocalRequest({
     kind: 'dayoff', type: `วันหยุดนักขัตฤกษ์ (ย้ายวันหยุด)${isRetroactive ? ' — ย้อนหลัง' : ''}`, person: emp.name, requesterId: emp.id, oldDay, newDay, workCode,
     initials: emp.initials, roleCategory: emp.roleCategory, targetPerson: null, targetRole: null, date: dateLabel, currentShift: oldCode, targetShift: workCode,
     reason: reason || `ไปทำ${getEmployeeFacingShiftLabel(workCode)}วันที่ ${oldDay}${hol ? ` (${hol})` : ''} และหยุดแทนวันที่ ${newDay}`,
     changes: [{ empId: emp.id, y, m, d: oldDay, to: workCode }, { empId: emp.id, y, m, d: newDay, to: offCode }],
     isCrossShift: false, isRetroactive, approvers: [{ role: `Shift Supervisor (${emp.shiftType})`, status: 'pending' }], status: 'รอดำเนินการ', quotaUsed: '-'
-  }, `ยื่นคำขอย้ายวันหยุดจากวันที่ ${oldDay} (ไปทำ ${workCode}) เป็นหยุดวันที่ ${newDay}${isRetroactive ? ' (ยื่นย้อนหลัง)' : ''}`, emp);
+  }, `ยื่นคำขอย้ายวันหยุดจากวันที่ ${oldDay} (ไปทำ ${workCode}) เป็นหยุดวันที่ ${newDay}${isRetroactive ? ' (ยื่นย้อนหลัง)' : ''}`, emp)) return;
   done('ส่งคำขอวันหยุดนักขัตฤกษ์ (ย้ายวันหยุด) เรียบร้อยแล้ว · รอหัวหน้ากะพิจารณา');
 }

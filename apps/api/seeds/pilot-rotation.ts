@@ -1,9 +1,8 @@
-export const SHIFT_ROTATION = ['M', 'M', 'O', 'O', 'N', 'N', 'O', 'O'] as const;
-export const PILOT_ROSTER_START = '2026-08-01';
+import rotation from '../../web/src/shared/scheduling/rotation.json';
 
-// August 1 continues the previous day's night shift for B and morning for D.
-// A and C take over August 2–3, then B and D return on August 4–5.
-const teamOffsets = new Map([['A', 7], ['B', 5], ['C', 3], ['D', 1]]);
+export const SHIFT_ROTATION = rotation.cycle;
+export const PILOT_ROSTER_START = rotation.anchor;
+const teamOffsets = new Map(Object.entries(rotation.offsets));
 const dayMs = 86_400_000;
 const anchor = Date.parse(PILOT_ROSTER_START);
 

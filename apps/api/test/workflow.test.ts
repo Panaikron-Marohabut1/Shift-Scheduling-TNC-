@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { createServer, Server } from 'node:http';
 import { seed } from '../seeds/demo';
 import { start } from '../src/main';
@@ -35,7 +36,12 @@ async function request(role:string|undefined,path:string,method='GET',body?:unkn
  const response=await fetch(`${base}/api${path}`,{method,headers:{Origin:base,...(role?{Cookie:cookies[role]}:{}),...(body?{'Content-Type':'application/json'}:{}),...(key?{'Idempotency-Key':key}:{})},...(body?{body:JSON.stringify(body)}:{})});
  return {status:response.status,body:await response.json(),headers:response.headers};
 }
-async function assignments(role='worker',month='2026-10') {const r=await request(role,`/schedules?month=${month}`);assert.equal(r.status,200);return r.body.assignments;}
+const assignmentWithoutRequestConflict=({requestConflict:_,...row}:any)=>row;
+async function assignments(role='worker',month='2026-10',includeRequestConflict=false) {
+ const r=await request(role,`/schedules?month=${month}`);
+ assert.equal(r.status,200);
+ return includeRequestConflict?r.body.assignments:r.body.assignments.map(assignmentWithoutRequestConflict);
+}
 async function swapInput(date:string,source='worker',target='target') {
  const a=(await assignments(source,date.slice(0,7))).find((x:any)=>x.employee_id===accounts[source].employeeId&&x.work_date===date);
  const b=(await assignments(target,date.slice(0,7))).find((x:any)=>x.employee_id===accounts[target].employeeId&&x.work_date===date);
@@ -51,6 +57,30 @@ async function teamSwapInput(date:string,source:string,targetTeam:string) {
 async function create(date:string) {const input=await swapInput(date);const r=await request('worker','/requests','POST',input,randomUUID());assert.equal(r.status,201,JSON.stringify(r.body));return r.body;}
 async function approve(role:string,record:any,key=randomUUID()) {return request(role,`/requests/${record.requestId}/decisions`,'POST',{decision:'APPROVE',expectedVersion:record.version,reason:''},key);}
 async function cancel(role:string,record:any,key=randomUUID()) {return request(role,`/requests/${record.requestId}/cancel`,'POST',{expectedVersion:record.version},key);}
+// Pre-existing overlaps remain readable and reversible after new submissions are blocked.
+async function seedHistoricalSwap(source:any,target:any,lastApprover:string,quotaMonth:string|null=null,firstApprover='a') {
+ const now=new Date();
+ const {rows:[{request_id:requestId}]}=await admin.query(`INSERT INTO requests
+  (requester_id,request_type,status,version,quota_month,submitted_at) VALUES($1,'SWAP','APPROVED',3,$2,$3) RETURNING request_id`,
+  [source.employee_id,quotaMonth,now]);
+ const snapshot={source,target,requestVersion:1,...(quotaMonth?{approvalRoute:'TWO_SUPERVISORS'}:{})};
+ await admin.query(`INSERT INTO change_requests(request_id,assignment_id,target_employee_id,target_assignment_id,snapshot)
+  VALUES($1,$2,$3,$4,$5)`,[requestId,source.assignment_id,target.employee_id,target.assignment_id,JSON.stringify(snapshot)]);
+ const userId=accounts[lastApprover].userId;
+ await admin.query(`INSERT INTO approvals(request_id,approver_id,approver_level,status,request_version,approved_at)
+  VALUES($1,$2,1,'APPROVED',1,$4),($1,$3,2,'APPROVED',2,$4)`,[requestId,accounts[firstApprover].userId,userId,now]);
+ const after=(own:any,incoming:any)=>({...own,shift_type_id:incoming.shift_type_id,shift_code:incoming.shift_code,
+  shift_name:incoming.shift_name,is_working:incoming.is_working,start_time:incoming.start_time,end_time:incoming.end_time,
+  assigned_by:userId,version:own.version+1});
+ for(const [own,incoming] of [[source,target],[target,source]]) {
+  await admin.query('UPDATE shift_assignments SET shift_type_id=$1,assigned_by=$2,version=version+1 WHERE assignment_id=$3',
+   [incoming.shift_type_id,userId,own.assignment_id]);
+ }
+ await admin.query(`INSERT INTO audit_logs(user_id,action,entity_type,entity_id,old_value,new_value,created_at)
+  VALUES($1,'SCHEDULE_SWAP_APPLIED','REQUEST',$2,$3,$4,$5)`,[userId,requestId,JSON.stringify({source,target}),
+  JSON.stringify({source:after(source,target),target:after(target,source),requestVersion:2,...(quotaMonth?{quota:{month:quotaMonth}}:{})}),now]);
+ return {requestId,version:3};
+}
 async function peopleBrowser(fixture:Record<string,string|number>) {
  await new Promise<void>((done,reject)=>{
   const child=spawn(process.execPath,[resolve(projectRoot,'scripts/milestone4-people-browser-check.mjs')],
@@ -75,7 +105,21 @@ before(async()=>{
  authServer=await startAuthStub();
  admin=new Pool({connectionString:owner.toString()});
  await migrate();
- await seed(false);app=await start();
+ await seed(false);
+ // Keep the legacy workflow scenarios focused on routing, audit, and cancellation.
+ // These neighboring demo cells would otherwise make their one-day swaps unsafe.
+ await admin.query(`UPDATE shift_assignments a SET shift_type_id=off.shift_type_id
+  FROM (VALUES
+   ('A1','2026-09-10'),('A1','2026-09-18'),('A1','2026-10-07'),('A1','2026-10-20'),
+   ('A1','2026-11-05'),('A1','2026-11-16'),('A1','2026-11-21'),('A1','2026-11-29'),
+   ('B1','2026-09-01'),('B1','2026-09-06'),('B1','2026-10-11'),('B1','2026-10-16'),
+   ('B1','2026-11-25'),('C1','2026-09-13'),('C1','2026-11-13'),('C1','2026-11-21'),
+   ('D1','2026-09-14')
+  ) AS fixture(code,day)
+  JOIN employees e ON e.employee_code='DEMO-'||fixture.code
+  CROSS JOIN shift_types off
+  WHERE a.employee_id=e.employee_id AND a.work_date=fixture.day::date AND off.shift_code='O'`);
+ app=await start();
  const users=(await admin.query(`SELECT u.user_id,r.role_name AS role,t.team_code AS team FROM users u JOIN roles r USING(role_id)
   LEFT JOIN employees e USING(employee_id) LEFT JOIN teams t USING(team_id) WHERE u.demo_order IS NOT NULL ORDER BY u.demo_order`)).rows;
  assert.equal(users.length,9);
@@ -442,16 +486,13 @@ test('all table readers get minimal applied-swap provenance, but pending, first-
  assert.equal((await request('external','/schedules?month=2026-10')).status,403);
 });
 
-test('repeat swaps show the latest applied partner; unchanged counterpart and protected evidence remain accurate',async()=>{
- const {input,a}=await teamSwapInput('2026-11-20','worker','C');
+test('historical repeat swaps show the latest applied partner and preserve protected evidence',async()=>{
+ const {a,b}=await teamSwapInput('2026-11-20','worker','C');
  assert.equal(a.swap.partner.teamCode,'D');
  const oldD=(await assignments('manager','2026-11')).find((r:any)=>r.employee_code==='DEMO-D1'&&r.work_date==='2026-11-20');
- const created=await request('worker','/requests','POST',input,randomUUID());assert.equal(created.status,201);
- const first=await approve('a',created.body);assert.equal(first.status,201);
- assert.equal((await assignments('manager','2026-11')).find((r:any)=>r.assignment_id===a.assignment_id).swap.requestId,a.swap.requestId,'A pending repeat still shows the currently applied swap');
- const last=await approve('c',first.body);assert.equal(last.body.status,'APPROVED');
+ const historical=await seedHistoricalSwap(a,b,'c');
  const rows=await assignments('hr','2026-11'),current=rows.find((r:any)=>r.assignment_id===a.assignment_id);
- assert.equal(current.swap.requestId,created.body.requestId);assert.equal(current.swap.partner.teamCode,'C');assert.equal(current.swap.originalShiftCode,a.shift_code);assert.equal(current.swap.receivedShiftCode,current.shift_code);
+ assert.equal(current.swap.requestId,historical.requestId);assert.equal(current.swap.partner.teamCode,'C');assert.equal(current.swap.originalShiftCode,a.shift_code);assert.equal(current.swap.receivedShiftCode,current.shift_code);
  assert.deepEqual(rows.find((r:any)=>r.assignment_id===oldD.assignment_id).swap,oldD.swap,'D still retains the origin of its own current shift');
  await app.close();app=await start();
  assert.deepEqual((await assignments('c','2026-11')).find((r:any)=>r.assignment_id===a.assignment_id).swap,current.swap,'Restart preserves the derived provenance');
@@ -461,7 +502,7 @@ test('repeat swaps show the latest applied partner; unchanged counterpart and pr
  assert.equal((await assignments('manager','2026-11')).find((r:any)=>r.assignment_id===a.assignment_id).swap,undefined,'A different shift cannot inherit an old swap marker even with the same version');
  await admin.query('UPDATE shift_assignments SET shift_type_id=$1 WHERE assignment_id=$2',[current.shift_type_id,a.assignment_id]);
  assert.deepEqual((await assignments('manager','2026-11')).find((r:any)=>r.assignment_id===a.assignment_id).swap,current.swap);
- assert.equal((await admin.query("SELECT count(*)::int n FROM audit_logs WHERE action='SCHEDULE_SWAP_APPLIED' AND entity_id=ANY($1::int[])",[[a.swap.requestId,created.body.requestId]])).rows[0].n,2,'Neither provenance read nor version matching rewrites audit');
+ assert.equal((await admin.query("SELECT count(*)::int n FROM audit_logs WHERE action='SCHEDULE_SWAP_APPLIED' AND entity_id=ANY($1::int[])",[[a.swap.requestId,historical.requestId]])).rows[0].n,2,'Neither provenance read nor version matching rewrites audit');
 });
 
 test('activity history filters before pagination, keeps technical audit and preserves request scope',async()=>{
@@ -475,15 +516,26 @@ test('activity history filters before pagination, keeps technical audit and pres
  assert.equal((await request('external','/audit?view=activity')).status,403);
 });
 
-test('personal history contains only the signed-in actor business actions before pagination',async()=>{
+test('personal history contains request actions and roster changes only for the signed-in participant',async()=>{
  const before=(await admin.query('SELECT * FROM audit_logs ORDER BY audit_id')).rows;
  for(const role of ['worker','target','a','b']) {
   const result=await request(role,'/audit?view=personal');assert.equal(result.status,200);assert.ok(result.body.length>0);
-  for(const event of result.body){assert.equal(event.user_id,accounts[role].userId);assert.equal(event.entity_type,'REQUEST');assert.ok(['REQUEST_SUBMITTED','REQUEST_APPROVED','REQUEST_REJECTED'].includes(event.action));}
-  if(['worker','target'].includes(role))assert.ok(result.body.every((event:any)=>event.action==='REQUEST_SUBMITTED'));
+  if(['a','b'].includes(role)) {
+   assert.ok(result.body.every((event:any)=>event.user_id===accounts[role].userId));
+   continue;
+  }
+  const visibleIds=new Set((await request(role,'/requests')).body.map((row:any)=>row.request_id));
+  for(const event of result.body) {
+   assert.equal(event.entity_type,'REQUEST');
+   assert.ok(visibleIds.has(event.entity_id));
+   for(const key of ['snapshot','reason','source','target','secondSwap','assignments','quota']) {
+    assert.equal(Object.hasOwn(event.new_value,key),false);
+   }
+  }
+  assert.ok(result.body.some((event:any)=>event.action==='SCHEDULE_SWAP_APPLIED'&&event.new_value.changes.length>0));
  }
  const forged=await request('worker',`/audit?view=personal&userId=${accounts.target.userId}`);
- assert.ok(forged.body.every((event:any)=>event.user_id===accounts.worker.userId),'Query parameters cannot choose another account history');
+ assert.deepEqual(forged.body,(await request('worker','/audit?view=personal')).body,'Query parameters cannot choose another account history');
  assert.equal((await request('external','/audit?view=personal')).status,403);
  const after=(await admin.query('SELECT * FROM audit_logs WHERE audit_id=ANY($1::int[]) ORDER BY audit_id',[before.map(event=>event.audit_id)])).rows;
  assert.deepEqual(after,before,'Personal history never removes or rewrites the underlying audit evidence; renewed sessions may add new access events');
@@ -499,7 +551,9 @@ test('requester cancellation is persistent, idempotent, audited and leaves both 
  const key=randomUUID(),results=await Promise.all([cancel('worker',record,key),cancel('worker',record,key)]);
  assert.deepEqual(results.map(r=>r.status),[201,201]);assert.deepEqual(results[0].body,results[1].body);
  assert.deepEqual(results[0].body,{requestId:record.requestId,status:'CANCELLED',version:2});
- const after=await request('worker','/schedules?month=2026-09');assert.deepEqual(after.body,before.body);
+ const after=await request('worker','/schedules?month=2026-09');
+ assert.deepEqual({...after.body,assignments:after.body.assignments.map(assignmentWithoutRequestConflict)},
+  {...before.body,assignments:before.body.assignments.map(assignmentWithoutRequestConflict)});
  assert.deepEqual((await admin.query('SELECT * FROM change_requests WHERE request_id=$1',[record.requestId])).rows[0],original);
  assert.deepEqual((await admin.query('SELECT * FROM approvals WHERE request_id=$1 ORDER BY approver_level',[record.requestId])).rows,steps);
  const events=(await admin.query("SELECT * FROM audit_logs WHERE entity_id=$1 AND action='REQUEST_CANCELLED'",[record.requestId])).rows;
@@ -569,7 +623,9 @@ test('concurrent cancellation and first approval have exactly one winner across 
   assert.equal(row.version,2);assert.equal(row.canCancel,false);
   if(row.status==='CANCELLED')assert.ok(row.approvals.every((s:any)=>s.status==='PENDING'));
   else {assert.equal(row.status,'PENDING');assert.deepEqual(row.approvals.map((s:any)=>s.status),['APPROVED','PENDING']);}
-  assert.deepEqual((await request(source,'/schedules?month=2026-09')).body,before.body);
+  const after=await request(source,'/schedules?month=2026-09');
+  assert.deepEqual({...after.body,assignments:after.body.assignments.map(assignmentWithoutRequestConflict)},
+   {...before.body,assignments:before.body.assignments.map(assignmentWithoutRequestConflict)});
   assert.equal((await admin.query("SELECT count(*)::int n FROM audit_logs WHERE entity_id=$1 AND action IN ('REQUEST_CANCELLED','REQUEST_APPROVED')",[record.requestId])).rows[0].n,1);
  }
 });
@@ -587,8 +643,15 @@ test('notification failure rolls back cancellation, audit and receipt, so the sa
 });
 
 test('the local scheduling default enables central swap and HR month close without environment flags',async(t)=>{
- const date='2026-11-20';
- t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-10T12:00:00Z')});
+ const date='2099-03-20';
+ t.mock.timers.enable({apis:['Date'],now:new Date('2099-03-10T12:00:00Z')});
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(3,2099,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,person.employee_id,st.shift_type_id,$2,'ACTIVE',$3
+  FROM (VALUES ($4::int,'M'),($5::int,'N')) person(employee_id,code)
+  JOIN shift_types st ON st.shift_code=person.code`,
+  [schedule.schedule_id,date,accounts.a.userId,accounts.worker.employeeId,accounts.target.employeeId]);
  const legacy=await create(date);
  delete process.env.ENABLE_LOCAL_SWAP_POLICY;
  delete process.env.ENABLE_LOCAL_MONTH_CLOSE;
@@ -597,7 +660,7 @@ test('the local scheduling default enables central swap and HR month close witho
   process.env.ENABLE_LOCAL_MONTH_CLOSE='false';
  });
  assert.deepEqual((await request('worker','/me')).body.capabilities,
-  {centralSwap:true,swapPolicy:true,hrClosedRoster:false,monthClose:true});
+  {centralSwap:true,centralLeave:true,centralOT:true,swapPolicy:true,hrClosedRoster:false,monthClose:true});
  assert.equal((await request('hr','/me')).body.capabilities.hrClosedRoster,true);
  assert.equal((await request('hr','/hr/closed-roster?month=2026-10')).status,200);
  assert.match((await request('a','/requests')).body.find((row:any)=>row.request_id===legacy.requestId).approvalBlockReason,/ยื่นคำขอใหม่/);
@@ -606,7 +669,7 @@ test('the local scheduling default enables central swap and HR month close witho
  const current=await create(date);
  const row=(await request('b','/requests')).body.find((item:any)=>item.request_id===current.requestId);
  assert.equal(row.snapshot.approvalRoute,'TWO_SUPERVISORS');
- assert.equal(row.quota_month,'2026-11-01');
+ assert.equal(row.quota_month,'2099-03-01');
  assert.equal((await cancel('worker',current)).body.status,'CANCELLED');
 });
 
@@ -629,8 +692,13 @@ test('final approval consumes one requester quota atomically and only one reques
   [schedule.schedule_id,accounts.a.userId,[...dates,extraDate],accounts.worker.employeeId,accounts.target.employeeId]);
  const preview=await request('worker','/swap/validate','POST',await swapInput(extraDate));
  assert.deepEqual(preview.body.quota,{month:'2090-12-01',limit:2,used:0,remaining:2});
+ const quotaPath='/settings/swap-quota/mine?month=2090-12';
+ assert.deepEqual((await request('worker',quotaPath)).body,preview.body.quota);
+ assert.equal((await request('a',quotaPath)).status,200);
+ assert.equal((await request('hr',quotaPath)).status,403);
+ assert.equal((await request('worker','/settings/swap-quota/mine?month=2090-13')).status,400);
  assert.ok(preview.body.checks.some((check:any)=>check.rule==='REQUEST_WINDOW'&&check.status==='PASS'&&check.label));
- assert.ok(preview.body.checks.some((check:any)=>check.rule==='REST_AFTER_NIGHT'&&check.status==='UNCONFIRMED'));
+ assert.equal(preview.body.checks.filter((check:any)=>check.rule.startsWith('MIN_SHIFT_REST_')&&check.status==='PASS').length,2);
  assert.ok(preview.body.checks.some((check:any)=>check.rule==='ROTATION_PATTERN'&&check.status==='UNCONFIRMED'));
  const submitted=[];
  for(const date of dates) submitted.push(await create(date));
@@ -680,6 +748,9 @@ test('final approval consumes one requester quota atomically and only one reques
  const zero=await request('worker','/swap/validate','POST',await swapInput(extraDate));
  assert.equal(zero.body.valid,true);
  assert.deepEqual(zero.body.quota,{month:'2090-12-01',limit:2,used:2,remaining:0});
+ assert.deepEqual((await request('worker',quotaPath)).body,zero.body.quota);
+ assert.equal((await request('target',quotaPath+'&employeeId='+accounts.worker.employeeId)).body.used,0);
+ assert.equal((await request('worker','/settings/swap-quota/mine?month=2090-11')).body.used,0);
  const partnerQuota=await request('target','/swap/validate','POST',await swapInput(extraDate,'target','worker'));
  assert.equal(partnerQuota.body.quota.used,0);
  assert.equal((await create(extraDate)).status,'PENDING');
@@ -1328,7 +1399,7 @@ test('approved swap cancellation cannot invalidate a later swap on a neighboring
  assert.equal((await cancel('worker',removed)).body.status,'CANCELLED');
 });
 
-test('cancelling the latest approved swap restores the preceding approved roster marker',async(t)=>{
+test('historical approved swaps can be cancelled newest first only through protected roster evidence',async(t)=>{
  const date='2092-10-12',month='2092-10';
  t.mock.timers.enable({apis:['Date'],now:new Date('2092-10-10T05:00:00Z')});
  const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
@@ -1346,16 +1417,84 @@ test('cancelling the latest approved swap restores the preceding approved roster
  assert.equal(approvedFirst.body.status,'APPROVED');
  const beforeSecond=(await assignments('worker',month)).filter((row:any)=>row.work_date===date);
  assert.ok(beforeSecond.every((row:any)=>row.swap?.requestId===first.requestId));
- const second=await create(date);
- const approvedSecond=await approve('b',(await approve('a',second)).body);
- assert.equal(approvedSecond.body.status,'APPROVED');
+ const [source,target]=['worker','target'].map(role=>beforeSecond.find((row:any)=>row.employee_id===accounts[role].employeeId));
+ const historical=await seedHistoricalSwap(source,target,'b','2092-10-01');
 
- const reversed=await cancel('worker',approvedSecond.body);
+ const firstInList=async()=>(await request('worker','/requests')).body.find((row:any)=>row.request_id===first.requestId);
+ assert.equal((await firstInList()).canCancel,false);
+ const outOfOrder=await cancel('worker',approvedFirst.body);
+ assert.equal(outOfOrder.status,409,JSON.stringify(outOfOrder.body));
+ assert.equal(outOfOrder.body.code,'SWAP_CANCELLATION_CONFLICT');
+ const reversed=await cancel('worker',historical);
  assert.equal(reversed.status,201,JSON.stringify(reversed.body));
  const restored=(await assignments('worker',month)).filter((row:any)=>row.work_date===date);
  assert.deepEqual(restored.map((row:any)=>row.shift_code),beforeSecond.map((row:any)=>row.shift_code));
  assert.deepEqual(restored.map((row:any)=>row.swap),beforeSecond.map((row:any)=>row.swap));
  assert.ok(restored.every((row:any,index:number)=>row.version>beforeSecond[index].version));
+ assert.equal((await firstInList()).canCancel,true);
+
+ // A direct edit with no matching reversal evidence cannot extend the version chain.
+ const restoredSource=restored.find((row:any)=>row.employee_id===accounts.worker.employeeId);
+ await admin.query('UPDATE shift_assignments SET version=version+1 WHERE assignment_id=$1',[restoredSource.assignment_id]);
+ try {
+  assert.equal((await firstInList()).canCancel,false);
+  const changed=await cancel('worker',approvedFirst.body);
+  assert.equal(changed.status,409,JSON.stringify(changed.body));
+  assert.equal(changed.body.code,'SWAP_CANCELLATION_CONFLICT');
+ } finally {
+  await admin.query('UPDATE shift_assignments SET version=$1 WHERE assignment_id=$2',[restoredSource.version,restoredSource.assignment_id]);
+ }
+ const original=await cancel('worker',approvedFirst.body);
+ assert.equal(original.status,201,JSON.stringify(original.body));
+ const final=(await assignments('worker',month,true)).filter((row:any)=>row.work_date===date);
+ assert.deepEqual(final.map((row:any)=>row.shift_code),['M','N']);
+ assert.ok(final.every((row:any)=>!row.swap&&!row.requestConflict));
+ const quota=await request('worker','/settings/swap-quota/mine?month=2092-10');
+ assert.equal(quota.body.used,0);
+ assert.equal((await create(date)).status,'PENDING');
+});
+
+test('an approved historical swap on the cover can be undone before cancelling the leave',async(t)=>{
+ const date='2092-11-12',month='2092-11';
+ t.mock.timers.enable({apis:['Date'],now:new Date('2092-11-10T05:00:00Z')});
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(11,2092,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ const {rows:[partner]}=await admin.query("SELECT employee_id FROM employees WHERE employee_code='DEMO-C1'");
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,person.employee_id,st.shift_type_id,$2,'ACTIVE',$3
+  FROM (VALUES ($4::int,'M'),($5::int,'O'),($6::int,'N')) person(employee_id,code)
+  JOIN shift_types st ON st.shift_code=person.code`,
+  [schedule.schedule_id,date,accounts.a.userId,accounts.worker.employeeId,accounts.target.employeeId,partner.employee_id]);
+ const shifts=await swapInput(date);
+ const leave=await request('worker','/leave-requests','POST',{
+  assignmentId:shifts.assignmentId,assignmentVersion:shifts.assignmentVersion,
+  coverAssignmentId:shifts.targetAssignmentId,coverVersion:shifts.targetVersion,leaveCode:'B',reason:'ธุระส่วนตัว',
+ },randomUUID());
+ assert.equal(leave.status,201,JSON.stringify(leave.body));
+ const approved=await approve('b',(await approve('a',leave.body)).body);
+ assert.equal(approved.body.status,'APPROVED',JSON.stringify(approved.body));
+ const roster=async()=>(await assignments('worker',month,true)).filter((row:any)=>row.work_date===date);
+ const listLeave=async()=>(await request('worker','/requests')).body.find((row:any)=>row.request_id===leave.body.requestId);
+ const applied=await roster();
+ const [source,target]=[accounts.target.employeeId,partner.employee_id].map(id=>
+  assignmentWithoutRequestConflict(applied.find((row:any)=>row.employee_id===id)));
+ assert.equal(source.shift_code,'MT');
+ const historical=await seedHistoricalSwap(source,target,'c','2092-11-01','b');
+ assert.equal((await listLeave()).canCancel,false);
+ assert.equal((await cancel('worker',approved.body)).status,409);
+ const undone=await cancel('target',historical);
+ assert.equal(undone.status,201,JSON.stringify(undone.body));
+ assert.equal((await listLeave()).canCancel,true);
+ const reversed=await cancel('worker',approved.body);
+ assert.equal(reversed.status,201,JSON.stringify(reversed.body));
+ const final=await roster();
+ assert.deepEqual(final.map((row:any)=>[row.employee_code,row.shift_code]),[
+  ['DEMO-A1','M'],['DEMO-B1','O'],['DEMO-C1','N'],
+ ]);
+ assert.ok(final.every((row:any)=>!row.requestConflict));
 });
 
 test('a two-date swap validates the combined roster and applies four cells as one approved request',async(t)=>{
@@ -1367,7 +1506,7 @@ test('a two-date swap validates the combined roster and applies four cells as on
   "INSERT INTO schedules(month,year,status,created_by) VALUES(8,2096,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
  const fixture=[
   ...[1,2,3,4,5].map(day=>[day,'M','O']),
-  [6,'N','O'],[7,'O','M'],[12,'M','N'],[17,'M','O'],[19,'M','O'],
+  [6,'N','O'],[7,'O','M'],[8,'O','O'],[12,'M','N'],[17,'M','O'],[19,'M','O'],
   [20,'M','N'],[25,'O','N'],[29,'O','N'],
  ];
  for(const [day,source,target] of fixture) {
@@ -1398,10 +1537,17 @@ test('a two-date swap validates the combined roster and applies four cells as on
   VALUES($1,$2,1,'PENDING'),($1,$3,2,'PENDING')`,[legacy.request_id,accounts.a.userId,accounts.b.userId]);
  const legacyRow=(await request('worker','/requests')).body.find((row:any)=>row.request_id===legacy.request_id);
  assert.match(legacyRow.approvalBlockReason,/เลือกวันที่/);
+ const targetRow=(await request('target','/requests')).body.find((row:any)=>row.request_id===legacy.request_id);
+ assert.ok(targetRow,'The swap partner can read the shared request');
+ assert.equal(targetRow.canDecide,false);
+ assert.equal(targetRow.canCancel,false);
  assert.equal((await approve('b',{requestId:legacy.request_id,version:legacy.version})).body.code,'CROSS_DATE_RESUBMISSION_REQUIRED');
  const rejection=await request('b',`/requests/${legacy.request_id}/decisions`,'POST',
   {decision:'REJECT',expectedVersion:legacy.version,reason:'ต้องเลือกวันที่คนมาทำแทนหยุดอยู่'},randomUUID());
  assert.equal(rejection.body.status,'REJECTED');
+ const rejectedTargetRow=(await request('target','/requests')).body.find((row:any)=>row.request_id===legacy.request_id);
+ assert.equal(rejectedTargetRow.status,'REJECTED');
+ assert.ok(rejectedTargetRow.approvals.every((step:any)=>!Object.hasOwn(step,'comment')));
  assert.deepEqual(await assignments('worker','2096-08'),legacyRoster);
 
  const early=await swapInput('2096-08-06'),next=await swapInput('2096-08-07');
@@ -1458,9 +1604,406 @@ test('a two-date swap validates the combined roster and applies four cells as on
   const script=resolve(projectRoot,'scripts/central-swap-browser-check.mjs');
   await new Promise<void>((done,reject)=>{
    const child=spawn(process.execPath,[script],{cwd:projectRoot,windowsHide:true,stdio:'inherit',
-    env:{...process.env,APP_TEST_ORIGIN:base,TNC_SWAP_BROWSER_SESSIONS:JSON.stringify({worker:cookies.worker,a:cookies.a,b:cookies.b,manager:cookies.manager})}});
+    env:{...process.env,APP_TEST_ORIGIN:base,TNC_SWAP_BROWSER_SESSIONS:JSON.stringify({worker:cookies.worker,target:cookies.target,a:cookies.a,b:cookies.b,manager:cookies.manager})}});
    child.once('error',reject);
    child.once('exit',code=>code===0?done():reject(new Error(`Central swap browser check exited with ${code}`)));
   });
+ }
+});
+
+test('active requests reserve every involved employee date across swap, leave and OT',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2095-07-01T12:00:00Z')});
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES(7,2095,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ const first='2095-07-04',second='2095-07-10',independent='2095-07-16';
+ for(const [date,source,target] of [[first,'M','O'],[second,'O','N'],[independent,'M','O']]) {
+  await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+   SELECT $1,person.employee_id,st.shift_type_id,$2,'ACTIVE',$3
+   FROM (VALUES ($4::int,$5::text),($6::int,$7::text)) person(employee_id,code)
+   JOIN shift_types st ON st.shift_code=person.code`,
+   [schedule.schedule_id,date,accounts.a.userId,accounts.worker.employeeId,source,accounts.target.employeeId,target]);
+ }
+ const submit=(role:string,path:string,input:unknown)=>request(role,path,'POST',input,randomUUID());
+ const leaveInput=(swap:Awaited<ReturnType<typeof swapInput>>,cover=false)=>({
+  assignmentId:swap.assignmentId,assignmentVersion:swap.assignmentVersion,leaveCode:'B',reason:'ธุระส่วนตัว',
+  ...(cover?{coverAssignmentId:swap.targetAssignmentId,coverVersion:swap.targetVersion}:{})
+ });
+ const otInput=(swap:Awaited<ReturnType<typeof swapInput>>)=>({
+  assignmentId:swap.assignmentId,assignmentVersion:swap.assignmentVersion,otCode:'MT'
+ });
+ const conflict=(result:Awaited<ReturnType<typeof request>>,code:string)=>{
+  assert.equal(result.status,409,JSON.stringify(result.body));
+  assert.equal(result.body.code,code);
+ };
+ const slot=async(role:string,date:string,reader=role)=>(await assignments(reader,'2095-07',true))
+  .find((row:any)=>row.employee_id===accounts[role].employeeId&&row.work_date===date);
+
+ // Race an individual OT request with a leave request that needs the same person as cover.
+ const source=await swapInput(first),cover=await swapInput(first,'target','worker');
+ const race=await Promise.all([
+  submit('worker','/leave-requests',leaveInput(source,true)),
+  submit('target','/ot-requests',otInput(cover))
+ ]);
+ assert.deepEqual(race.map(result=>result.status).sort((a,b)=>a-b),[201,409]);
+ const winner=race.findIndex(result=>result.status===201);
+ conflict(race[1-winner],'PENDING_REQUEST');
+ conflict(await submit('worker','/requests',source),'PENDING_REQUEST');
+ assert.equal((await cancel(winner===0?'worker':'target',race[winner].body)).body.status,'CANCELLED');
+
+ // One two-date swap reserves all four cells, including the second date.
+ const secondLeg=await swapInput(second);
+ const swap={...source,secondSwap:secondLeg};
+ const held=await submit('worker','/requests',swap);
+ assert.equal(held.status,201,JSON.stringify(held.body));
+ conflict(await request('worker','/ot-requests/validate','POST',otInput(secondLeg)),'PENDING_REQUEST');
+ conflict(await submit('target','/leave-requests',leaveInput(await swapInput(second,'target','worker'))),'PENDING_REQUEST');
+ assert.deepEqual((await slot('target',second)).requestConflict,
+  {status:'PENDING',requestId:held.body.requestId,expiresAt:'2095-07-02T12:00:00.000Z'});
+ assert.deepEqual((await slot('target',second,'c')).requestConflict,{status:'PENDING'});
+ assert.equal((await slot('worker',independent)).requestConflict,undefined);
+ const rejected=await request('a',`/requests/${held.body.requestId}/decisions`,'POST',
+  {decision:'REJECT',expectedVersion:held.body.version,reason:'ทดสอบปฏิเสธคำขอ'},randomUUID());
+ assert.equal(rejected.body.status,'REJECTED',JSON.stringify(rejected.body));
+ assert.equal((await slot('target',second)).requestConflict,undefined);
+
+ const fresh=await submit('worker','/requests',swap);
+ assert.equal(fresh.status,201,JSON.stringify(fresh.body));
+ const approved=await approve('a',(await approve('b',fresh.body)).body);
+ assert.equal(approved.body.status,'APPROVED',JSON.stringify(approved.body));
+ assert.deepEqual((await slot('worker',first)).requestConflict,{status:'APPROVED',requestId:fresh.body.requestId});
+ conflict(await submit('target','/leave-requests',leaveInput(await swapInput(first,'target','worker'))),'APPROVED_REQUEST');
+ conflict(await submit('worker','/ot-requests',otInput(await swapInput(first))),'APPROVED_REQUEST');
+ const updatedSwap=await swapInput(first);
+ conflict(await request('worker','/swap/validate','POST',updatedSwap),'APPROVED_REQUEST');
+ conflict(await submit('worker','/requests',updatedSwap),'APPROVED_REQUEST');
+
+ // A pending request created before enforcement cannot overwrite an approved change.
+ const {rows:[legacy]}=await admin.query(`INSERT INTO requests(requester_id,request_type,status,quota_month,submitted_at,version)
+  VALUES($1,'SWAP','PENDING','2095-07-01',$2,2) RETURNING request_id,version`,[accounts.worker.employeeId,new Date()]);
+ const legacySource=assignmentWithoutRequestConflict(await slot('worker',first));
+ const legacyTarget=assignmentWithoutRequestConflict(await slot('target',first));
+ const legacySnapshot={source:legacySource,target:legacyTarget,requestVersion:1,approvalRoute:'TWO_SUPERVISORS'};
+ await admin.query(`INSERT INTO change_requests(request_id,assignment_id,target_employee_id,target_assignment_id,snapshot)
+  VALUES($1,$2,$3,$4,$5)`,[legacy.request_id,legacySource.assignment_id,legacyTarget.employee_id,legacyTarget.assignment_id,legacySnapshot]);
+ await admin.query(`INSERT INTO approvals(request_id,approver_id,approver_level,status)
+  VALUES($1,$2,1,'APPROVED'),($1,$3,2,'PENDING')`,[legacy.request_id,accounts.a.userId,accounts.b.userId]);
+ const legacyRecord={requestId:legacy.request_id,version:legacy.version};
+ conflict(await approve('b',legacyRecord),'APPROVED_REQUEST');
+ assert.deepEqual(assignmentWithoutRequestConflict(await slot('worker',first)),legacySource);
+ const rejectLegacy=await request('b',`/requests/${legacy.request_id}/decisions`,'POST',
+  {decision:'REJECT',expectedVersion:legacy.version,reason:'มีคำขอเดิมอนุมัติแล้ว'},randomUUID());
+ assert.equal(rejectLegacy.body.status,'REJECTED',JSON.stringify(rejectLegacy.body));
+
+ // Cancelling the swap restores both dates and allows a different request for the first date.
+ assert.equal((await cancel('worker',approved.body)).body.status,'CANCELLED');
+ assert.equal((await slot('worker',first)).shift_code,'M');
+ assert.equal((await slot('target',second)).shift_code,'N');
+ const leave=await submit('worker','/leave-requests',leaveInput(await swapInput(first),true));
+ assert.equal(leave.status,201,JSON.stringify(leave.body));
+ const approvedLeave=await approve('b',(await approve('a',leave.body)).body);
+ assert.equal(approvedLeave.body.status,'APPROVED',JSON.stringify(approvedLeave.body));
+ assert.deepEqual((await slot('target',first)).requestConflict,{status:'APPROVED',requestId:leave.body.requestId});
+ conflict(await submit('target','/leave-requests',leaveInput(await swapInput(first,'target','worker'))),'APPROVED_REQUEST');
+ assert.equal((await cancel('worker',approvedLeave.body)).body.status,'CANCELLED');
+ const ot=await submit('target','/ot-requests',otInput(await swapInput(first,'target','worker')));
+ assert.equal(ot.status,201,JSON.stringify(ot.body));
+ const approvedOT=await approve('b',ot.body);
+ assert.equal(approvedOT.body.status,'APPROVED',JSON.stringify(approvedOT.body));
+ conflict(await submit('target','/leave-requests',leaveInput(await swapInput(first,'target','worker'))),'APPROVED_REQUEST');
+ assert.equal((await cancel('target',approvedOT.body)).body.status,'CANCELLED');
+ assert.equal((await slot('target',first)).shift_code,'O');
+ assert.equal((await slot('target',first)).requestConflict,undefined);
+
+ // An expired request releases its date while an unrelated date can be used independently.
+ const expiring=await submit('worker','/leave-requests',leaveInput(await swapInput(first)));
+ const separate=await submit('worker','/leave-requests',leaveInput(await swapInput(independent)));
+ assert.equal(expiring.status,201);
+ assert.equal(separate.status,201);
+ t.mock.timers.setTime(new Date('2095-07-02T12:01:00Z').getTime());
+ assert.equal((await slot('worker',first)).requestConflict,undefined);
+ const retry=await submit('worker','/leave-requests',leaveInput(await swapInput(first)));
+ assert.equal(retry.status,201,JSON.stringify(retry.body));
+});
+
+test('central leave shares the request, applies roster only after approval, reverses and purges private details',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2097-08-18T23:00:00Z')});
+ const {rows:[schedule]}=await admin.query("INSERT INTO schedules(month,year,status,created_by) VALUES(8,2097,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,person.employee_id,st.shift_type_id,day::date,'ACTIVE',$2 FROM
+  (VALUES ($3::int,'M'),($4::int,'O')) person(employee_id,code)
+  CROSS JOIN unnest(ARRAY['2097-08-19','2097-08-20','2097-08-21']) day JOIN shift_types st ON st.shift_code=person.code`,
+  [schedule.schedule_id,accounts.a.userId,accounts.worker.employeeId,accounts.target.employeeId]);
+ const initial=await assignments('worker','2097-08');
+ const input=async(date:string,withCover:boolean)=>{
+  const swap=await swapInput(date);
+  return {assignmentId:swap.assignmentId,assignmentVersion:swap.assignmentVersion,leaveCode:'B',reason:'ธุระส่วนตัว',
+   ...(withCover?{coverAssignmentId:swap.targetAssignmentId,coverVersion:swap.targetVersion}:{})};
+ };
+ const createLeave=async(date:string,withCover:boolean,leaveCode='B')=>request('worker','/leave-requests','POST',{...await input(date,withCover),leaveCode},randomUUID());
+ const shared=await createLeave('2097-08-20',true);
+ assert.equal(shared.status,201,JSON.stringify(shared.body));
+ const record=shared.body;
+ const partner=(await request('target','/requests')).body.find((row:any)=>row.request_id===record.requestId);
+ assert.equal(partner.reason,'ธุระส่วนตัว');
+ assert.equal(partner.canCancel,false);
+ assert.equal((await request('manager','/requests')).body.some((row:any)=>row.request_id===record.requestId),false);
+ assert.equal((await approve('b',record)).body.status,'PENDING');
+ assert.deepEqual(await assignments('worker','2097-08'),initial);
+ const done=await approve('a',record);
+ assert.equal(done.body.status,'APPROVED',JSON.stringify(done.body));
+ assert.deepEqual((await assignments('worker','2097-08')).filter((row:any)=>row.work_date==='2097-08-20').map((row:any)=>row.shift_code),['L','MT']);
+ const invalidSwap=await request('target','/swap/validate','POST',await swapInput('2097-08-20','target','worker'));
+ assert.ok(invalidSwap.body.checks.some((check:any)=>check.rule==='EFFECTIVE_ASSIGNMENT'&&check.status==='FAIL'));
+ const applied=(await request('target','/audit?view=personal')).body.find((row:any)=>row.entity_id===record.requestId&&row.action==='SCHEDULE_LEAVE_APPLIED');
+ assert.deepEqual(applied.new_value.changes,[{workDate:'2097-08-20',from:'O',to:'MT'}]);
+ assert.equal((await cancel('worker',done.body)).body.status,'CANCELLED');
+ assert.deepEqual((await assignments('worker','2097-08')).filter((row:any)=>row.work_date==='2097-08-20').map((row:any)=>row.shift_code),['M','O']);
+ const expired=await createLeave('2097-08-19',false);
+ assert.equal(expired.status,201,JSON.stringify(expired.body));
+ assert.equal((await request('target','/requests')).body.some((row:any)=>row.request_id===expired.body.requestId),false);
+ t.mock.timers.setTime(new Date('2097-08-19T00:30:00Z').getTime());
+ const approvedAfterStart=await approve('a',expired.body);
+ assert.equal(approvedAfterStart.body.status,'APPROVED',JSON.stringify(approvedAfterStart.body));
+ assert.equal((await cancel('worker',approvedAfterStart.body)).body.code,'LEAVE_EXPIRED');
+ assert.equal((await createLeave('2097-08-19',false)).status,400);
+ assert.equal((await createLeave('2097-08-21',false,'S/N/O')).body.code,'INVALID_LEAVE');
+ const solo=await createLeave('2097-08-21',false,'VG');
+ assert.equal(solo.status,201,JSON.stringify(solo.body));
+ const soloDetail=(await request('worker','/requests')).body.find((row:any)=>row.request_id===solo.body.requestId);
+ assert.equal(soloDetail.leave_code,'VG');
+ assert.equal((await approve('a',solo.body)).body.status,'APPROVED');
+ assert.equal((await assignments('target','2097-08')).find((row:any)=>row.employee_id===accounts.worker.employeeId&&row.work_date==='2097-08-21').shift_code,'L');
+ await admin.query("UPDATE shiftflow_policy.leave_requests SET finished_at=now()-interval '12 months' WHERE request_id=$1",[record.requestId]);
+ assert.equal((await admin.query('SELECT shiftflow_policy.purge_leave_details() AS count')).rows[0].count,1);
+ const purged=(await request('target','/requests')).body.find((row:any)=>row.request_id===record.requestId);
+ assert.equal(purged.status,'CANCELLED');
+ assert.equal(purged.reason,null);
+ assert.equal(purged.leave_code,null);
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,person.employee_id,st.shift_type_id,'2097-08-22','ACTIVE',$2
+  FROM (VALUES ($3::int,'N'),($4::int,'O')) person(employee_id,code) JOIN shift_types st ON st.shift_code=person.code`,
+  [schedule.schedule_id,accounts.manager.userId,accounts.a.employeeId,accounts.b.employeeId]);
+ const supervisorSlots=await swapInput('2097-08-22','a','b');
+ const supervisorInput={assignmentId:supervisorSlots.assignmentId,assignmentVersion:supervisorSlots.assignmentVersion,
+  coverAssignmentId:supervisorSlots.targetAssignmentId,coverVersion:supervisorSlots.targetVersion,leaveCode:'B',reason:'ธุระส่วนตัว'};
+ const malformed=await request('a','/leave-requests','POST',{...supervisorInput,leaveCode:['B']},randomUUID());
+ assert.equal(malformed.body.code,'INVALID_LEAVE');
+ const supervisorLeave=await request('a','/leave-requests','POST',supervisorInput,randomUUID());
+ assert.equal(supervisorLeave.status,201,JSON.stringify(supervisorLeave.body));
+ assert.equal((await approve('b',supervisorLeave.body)).status,403);
+ const manager=(await request('manager','/requests')).body.find((row:any)=>row.request_id===supervisorLeave.body.requestId);
+ assert.deepEqual(manager.approvals.map((step:any)=>step.approver_id),[accounts.manager.userId]);
+ assert.equal((await approve('manager',supervisorLeave.body)).body.status,'APPROVED');
+ assert.deepEqual((await assignments('worker','2097-08')).filter((row:any)=>row.work_date==='2097-08-22').map((row:any)=>row.shift_code),['L','NT']);
+});
+
+test('leave uses the same Bangkok submission and approval window as swap',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2098-11-30T11:00:00Z')});
+ for(const [date,month] of [['2098-11-29',11],['2098-11-30',11],['2098-12-01',12]] as const) {
+  await admin.query("INSERT INTO schedules(month,year,status,created_by) VALUES($1,2098,'PUBLISHED',$2) ON CONFLICT(year,month) DO NOTHING",[month,accounts.a.userId]);
+  await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+   SELECT schedule_id,$1,shift_type_id,$2,'ACTIVE',$3 FROM schedules CROSS JOIN shift_types
+   WHERE year=2098 AND month=$4 AND shift_code='M' ON CONFLICT(employee_id,work_date) DO NOTHING`,
+   [accounts.worker.employeeId,date,accounts.a.userId,month]);
+ }
+ const submit=async(date:string)=>{
+  const slot=(await assignments('worker',date.slice(0,7))).find((row:any)=>row.employee_id===accounts.worker.employeeId&&row.work_date===date);
+  return request('worker','/leave-requests','POST',{assignmentId:slot.assignment_id,assignmentVersion:slot.version,leaveCode:'B',reason:'ธุระส่วนตัว'},randomUUID());
+ };
+ assert.equal((await submit('2098-11-29')).body.code,'LEAVE_SUBMISSION_LATE');
+ assert.equal((await submit('2098-12-01')).body.code,'LEAVE_OUTSIDE_MONTH');
+ const sameDay=await submit('2098-11-30');
+ assert.equal(sameDay.status,201,JSON.stringify(sameDay.body));
+ t.mock.timers.setTime(new Date('2098-11-30T17:00:00Z').getTime());
+ assert.equal((await approve('a',sameDay.body)).body.code,'LEAVE_MONTH_CLOSED');
+ const expired=(await request('worker','/requests')).body.find((row:any)=>row.request_id===sameDay.body.requestId);
+ assert.equal(expired.status,'MONTH_CLOSED');
+});
+
+test('central OT is individual, shares the request window, and restores the original day off',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2097-09-16T02:00:00Z')});
+ const {rows:[schedule]}=await admin.query("INSERT INTO schedules(month,year,status,created_by) VALUES(9,2097,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,person.employee_id,st.shift_type_id,day::date,'ACTIVE',$2
+  FROM (VALUES ($3::int,'O'),($4::int,'O'),($5::int,'O')) person(employee_id,code)
+  CROSS JOIN unnest(ARRAY['2097-09-16','2097-09-17','2097-09-18']) day JOIN shift_types st ON st.shift_code=person.code`,
+  [schedule.schedule_id,accounts.a.userId,accounts.worker.employeeId,accounts.target.employeeId,accounts.a.employeeId]);
+ const read=()=>assignments('worker','2097-09');
+ const submit=async(role:string,date:string,code:string)=>{
+  const slot=(await read()).find((row:any)=>row.employee_id===accounts[role].employeeId&&row.work_date===date);
+  return request(role,'/ot-requests','POST',{assignmentId:slot.assignment_id,assignmentVersion:slot.version,otCode:code},randomUUID());
+ };
+ assert.equal((await submit('worker','2097-09-16','MTh')).status,400);
+ const a=await submit('worker','2097-09-16','MT');
+ const b=await submit('target','2097-09-16','NT');
+ assert.equal(a.status,201,JSON.stringify(a.body));
+ assert.equal(b.status,201,JSON.stringify(b.body));
+ assert.equal((await submit('worker','2097-09-16','MT')).body.code,'PENDING_REQUEST');
+ assert.equal((await request('target','/requests')).body.some((row:any)=>row.request_id===a.body.requestId),false);
+ assert.equal((await approve('b',a.body)).status,403);
+ assert.equal((await approve('a',a.body)).body.status,'APPROVED');
+ const slot=async(role:string,date:string)=>(await read()).find((row:any)=>row.employee_id===accounts[role].employeeId&&row.work_date===date).shift_code;
+ assert.equal(await slot('worker','2097-09-16'),'MT');
+ assert.equal(await slot('target','2097-09-16'),'O');
+ const approvedB=await approve('b',b.body);
+ assert.equal(approvedB.body.status,'APPROVED');
+ assert.equal(await slot('target','2097-09-16'),'NT');
+ assert.equal((await cancel('target',approvedB.body)).body.status,'CANCELLED');
+ assert.equal(await slot('target','2097-09-16'),'O');
+ const supervisor=await submit('a','2097-09-18','NT');
+ assert.equal(supervisor.status,201,JSON.stringify(supervisor.body));
+ assert.equal((await approve('manager',supervisor.body)).body.status,'APPROVED');
+ const expires=await submit('worker','2097-09-17','NT');
+ assert.equal(expires.status,201);
+ t.mock.timers.setTime(new Date('2097-09-17T02:00:00Z').getTime());
+ assert.equal((await approve('a',expires.body)).body.code,'REQUEST_EXPIRED');
+});
+
+test('central swap, OT, and leave cover enforce a full shift of rest and recheck live neighbors',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2097-10-15T00:00:00Z')});
+ const previous=process.env.ENABLE_LOCAL_SWAP_POLICY;
+ process.env.ENABLE_LOCAL_SWAP_POLICY='true';
+ t.after(()=>{if(previous===undefined)delete process.env.ENABLE_LOCAL_SWAP_POLICY;else process.env.ENABLE_LOCAL_SWAP_POLICY=previous;});
+ const {rows:[schedule]}=await admin.query("INSERT INTO schedules(month,year,status,created_by) VALUES(10,2097,'PUBLISHED',$1) RETURNING schedule_id",[accounts.a.userId]);
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT $1,slot.employee_id,st.shift_type_id,slot.day::date,'ACTIVE',$2
+  FROM (VALUES ($3::int,'2097-10-15','N'),($3::int,'2097-10-16','O'),($4::int,'2097-10-16','M')) slot(employee_id,day,code)
+  JOIN shift_types st ON st.shift_code=slot.code`,[schedule.schedule_id,accounts.a.userId,accounts.worker.employeeId,accounts.target.employeeId]);
+ const swap=await swapInput('2097-10-16','target','worker');
+ const leave={assignmentId:swap.assignmentId,assignmentVersion:swap.assignmentVersion,
+  coverAssignmentId:swap.targetAssignmentId,coverVersion:swap.targetVersion,leaveCode:'B',reason:'ธุระส่วนตัว'};
+ const createLeave=()=>request('target','/leave-requests','POST',leave,randomUUID());
+ const createOT=(otCode:string)=>request('worker','/ot-requests','POST',
+  {assignmentId:swap.targetAssignmentId,assignmentVersion:swap.targetVersion,otCode},randomUUID());
+ const setNightBefore=(code:string)=>admin.query(`UPDATE shift_assignments a SET shift_type_id=st.shift_type_id
+  FROM shift_types st WHERE a.employee_id=$1 AND a.work_date='2097-10-15' AND st.shift_code=$2`,
+  [accounts.worker.employeeId,code]);
+
+ const preview=await request('target','/swap/validate','POST',swap);
+ assert.equal(preview.body.valid,false);
+ assert.ok(preview.body.checks.some((check:any)=>check.rule.startsWith('MIN_SHIFT_REST_')&&check.participant==='partner'&&check.status==='FAIL'));
+ assert.equal((await request('target','/requests','POST',swap,randomUUID())).body.code,'VALIDATION_FAILED');
+ const otInput={assignmentId:swap.targetAssignmentId,assignmentVersion:swap.targetVersion,otCode:'MT'};
+ const beforeOTPreview=await request('worker','/requests');
+ const otPreview=await request('worker','/ot-requests/validate','POST',otInput);
+ assert.equal(otPreview.status,201,JSON.stringify(otPreview.body));
+ assert.equal(otPreview.body.valid,false);
+ assert.match(otPreview.body.checks.find((check:any)=>check.rule.startsWith('MIN_SHIFT_REST_')).message,/0 ชั่วโมง/);
+ const nightPreview=await request('worker','/ot-requests/validate','POST',{...otInput,otCode:'NT'});
+ assert.equal(nightPreview.body.valid,true);
+ assert.equal((await request('target','/ot-requests/validate','POST',otInput)).status,403);
+ assert.equal((await request('worker','/ot-requests/validate','POST',{...otInput,assignmentVersion:otInput.assignmentVersion+1})).status,409);
+ assert.deepEqual((await request('worker','/requests')).body,beforeOTPreview.body);
+ const lateMorning=await createOT('MT');
+ assert.equal(lateMorning.body.code,'OT_ROSTER_INVALID');
+ assert.match(lateMorning.body.message,/0 ชั่วโมง/);
+ const rejectedCover=await createLeave();
+ assert.equal(rejectedCover.body.code,'LEAVE_ROSTER_INVALID');
+ assert.match(rejectedCover.body.message,/0 ชั่วโมง/);
+ const nextNight=await createOT('NT');
+ assert.equal(nextNight.status,201,JSON.stringify(nextNight.body));
+ assert.equal((await cancel('worker',nextNight.body)).body.status,'CANCELLED');
+
+ await setNightBefore('O');
+ const pendingSwap=await request('target','/requests','POST',swap,randomUUID());
+ assert.equal(pendingSwap.status,201,JSON.stringify(pendingSwap.body));
+ await setNightBefore('N');
+ const swapApproval=await approve('b',pendingSwap.body);
+ assert.equal(swapApproval.body.code,'VALIDATION_CHANGED');
+ assert.match(swapApproval.body.message,/0 ชั่วโมง/);
+ assert.equal((await cancel('target',pendingSwap.body)).body.status,'CANCELLED');
+
+ await setNightBefore('O');
+ const requestWithCover=await createLeave();
+ assert.equal(requestWithCover.status,201,JSON.stringify(requestWithCover.body));
+ const first=await approve('b',requestWithCover.body);
+ assert.equal(first.body.status,'PENDING');
+ await setNightBefore('N');
+ const blocked=await approve('a',first.body);
+ assert.equal(blocked.body.code,'LEAVE_ROSTER_INVALID');
+ const day=()=>assignments('worker','2097-10').then(rows=>rows.filter((row:any)=>row.work_date==='2097-10-16').map((row:any)=>row.shift_code));
+ assert.deepEqual(await day(),['O','M']);
+ await setNightBefore('O');
+ assert.equal((await approve('a',first.body)).body.status,'APPROVED');
+ assert.deepEqual(await day(),['MT','L']);
+});
+
+test('OT and leave reversal use the latest six-day run across New Year',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2097-12-31T23:00:00Z')});
+ await admin.query(`INSERT INTO schedules(month,year,status,created_by)
+  VALUES (12,2097,'PUBLISHED',$1),(1,2098,'PUBLISHED',$1)`,[accounts.a.userId]);
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT s.schedule_id,$1,st.shift_type_id,slot.day,'ACTIVE',$2
+  FROM generate_series('2097-12-27'::timestamp,'2098-01-02'::timestamp,interval '1 day') slot(day)
+  JOIN schedules s ON s.month=extract(month FROM slot.day) AND s.year=extract(year FROM slot.day)
+  JOIN shift_types st ON st.shift_code=CASE WHEN slot.day='2098-01-02' THEN 'O' ELSE 'M' END`,
+  [accounts.worker.employeeId,accounts.a.userId]);
+ const days=async()=> (await assignments('worker','2098-01'))
+  .filter((row:any)=>row.employee_id===accounts.worker.employeeId);
+ const createOT=async()=>{
+  const [,off]=await days();
+  return request('worker','/ot-requests','POST',{assignmentId:off.assignment_id,assignmentVersion:off.version,otCode:'MT'},randomUUID());
+ };
+ const initial=await days();
+ const daySeven=await createOT();
+ assert.equal(daySeven.body.code,'OT_ROSTER_INVALID');
+ assert.match(daySeven.body.message,/เกิน 6 วัน/);
+ assert.deepEqual(await days(),initial);
+
+ const [daySix]=initial;
+ const leave=await request('worker','/leave-requests','POST',
+  {assignmentId:daySix.assignment_id,assignmentVersion:daySix.version,leaveCode:'B',reason:'ธุระส่วนตัว'},randomUUID());
+ assert.equal(leave.status,201,JSON.stringify(leave.body));
+ const approvedLeave=await approve('a',leave.body);
+ assert.equal(approvedLeave.body.status,'APPROVED');
+ const ot=await createOT();
+ assert.equal(ot.status,201,JSON.stringify(ot.body));
+ const approvedOT=await approve('a',ot.body);
+ assert.equal(approvedOT.body.status,'APPROVED');
+ const beforeCancel=await days();
+ assert.deepEqual(beforeCancel.map((row:any)=>row.shift_code),['L','MT']);
+
+ const blocked=await cancel('worker',approvedLeave.body);
+ assert.equal(blocked.body.code,'LEAVE_ROSTER_INVALID');
+ assert.match(blocked.body.message,/เกิน 6 วัน/);
+ assert.deepEqual(await days(),beforeCancel);
+ const stillApproved=(await request('worker','/requests')).body.find((row:any)=>row.request_id===leave.body.requestId);
+ assert.equal(stillApproved.status,'APPROVED');
+ assert.equal(stillApproved.version,approvedLeave.body.version);
+ assert.equal((await cancel('worker',approvedOT.body)).body.status,'CANCELLED');
+ assert.equal((await cancel('worker',approvedLeave.body)).body.status,'CANCELLED');
+ assert.deepEqual((await days()).map((row:any)=>row.shift_code),['M','O']);
+});
+
+test('the demo roster repair fills August, corrects an untouched slot, and preserves edited slots',async()=>{
+ const c=await admin.connect();
+ try {
+  await c.query('BEGIN');
+  const {rows:before}=await c.query(`SELECT a.assignment_id,a.version,s.shift_code,a.work_date
+   FROM shift_assignments a JOIN employees e USING(employee_id) JOIN shift_types s USING(shift_type_id)
+   WHERE e.employee_code='DEMO-C2' AND a.work_date IN ('2026-10-01','2026-10-02') ORDER BY a.work_date`);
+  assert.equal(before.length,2);
+  await c.query("UPDATE shift_assignments SET version=2 WHERE assignment_id=$1",[before[1].assignment_id]);
+  await c.query(readFileSync(resolve(projectRoot,'apps/api/migrations/013_align_demo_roster_to_august.sql'),'utf8'));
+  const {rows:after}=await c.query(`SELECT a.assignment_id,a.version,s.shift_code,a.work_date
+   FROM shift_assignments a JOIN shift_types s USING(shift_type_id) WHERE assignment_id=ANY($1::int[]) ORDER BY a.work_date`,
+   [before.map(row=>row.assignment_id)]);
+  assert.equal(after[0].shift_code,'M');
+  assert.equal(after[0].version,before[0].version+1);
+  assert.deepEqual(after[1],{...before[1],version:2});
+  const {rows:[audit]}=await c.query("SELECT old_value,new_value FROM audit_logs WHERE action='DEMO_ROSTER_REBASED' AND entity_id=$1",[before[0].assignment_id]);
+  assert.equal(audit.old_value.shiftCode,before[0].shift_code);
+  assert.equal(audit.new_value.shiftCode,'M');
+  const {rows:august}=await c.query(`SELECT a.work_date, string_agg(DISTINCT st.shift_code, '' ORDER BY st.shift_code) AS codes
+   FROM shift_assignments a JOIN shift_types st USING(shift_type_id) WHERE a.work_date BETWEEN '2026-08-01' AND '2026-08-31'
+   GROUP BY a.work_date ORDER BY a.work_date`);
+  assert.equal(august.length,31);
+  assert.ok(august.every(row=>row.codes==='MNO'));
+ } finally {
+  await c.query('ROLLBACK');
+  c.release();
  }
 });

@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { isLocalSwapPilotDatabase } from '../config';
-import { bangkokWorkDate } from './swap-request-time';
+import { bangkokWorkDate } from './request-time';
 
 type Options = { month: string; operatorId: number; apply?: boolean };
 type Candidate = {

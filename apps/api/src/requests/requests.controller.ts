@@ -12,6 +12,17 @@ export class RequestsController {
  @Get('swap/candidates') candidates(@Req() req:ActorRequest,@Query('assignmentId') value:string) { return this.service.candidates(req.actor,pathId(value)); }
  @Post('swap/validate') validate(@Req() req:ActorRequest,@Body() body:Record<string,unknown>) { return this.service.validate(req.actor,swap(body)); }
  @Post('requests') create(@Req() req:ActorRequest,@Body() body:Record<string,unknown>,@Headers('idempotency-key') key:string) { return this.service.create(req.actor,swap(body),key); }
+ @Post('leave-requests') createLeave(@Req() req:ActorRequest,@Body() body:Record<string,unknown>,@Headers('idempotency-key') key:string) {
+  return this.service.createLeave(req.actor,{assignmentId:id(body?.assignmentId),assignmentVersion:id(body?.assignmentVersion),
+   cover:body?.coverAssignmentId==null?null:{id:id(body.coverAssignmentId),version:id(body.coverVersion)},
+   leaveCode:body?.leaveCode,reason:body?.reason},key);
+ }
+ @Post('ot-requests') createOT(@Req() req:ActorRequest,@Body() body:Record<string,unknown>,@Headers('idempotency-key') key:string) {
+  return this.service.createOT(req.actor,{assignmentId:id(body?.assignmentId),assignmentVersion:id(body?.assignmentVersion),otCode:body?.otCode},key);
+ }
+ @Post('ot-requests/validate') validateOT(@Req() req:ActorRequest,@Body() body:Record<string,unknown>) {
+  return this.service.validateOT(req.actor,{assignmentId:id(body?.assignmentId),assignmentVersion:id(body?.assignmentVersion),otCode:body?.otCode});
+ }
  @Get('requests') list(@Req() req:ActorRequest) { return this.service.list(req.actor); }
  @Post('requests/:requestId/cancel') cancel(@Req() req:ActorRequest,@Param('requestId') value:string,@Body() body:Record<string,unknown>,@Headers('idempotency-key') key:string) {
   return this.service.cancel(req.actor,pathId(value),id(body?.expectedVersion),key);

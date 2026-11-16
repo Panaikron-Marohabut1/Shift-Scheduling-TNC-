@@ -15,16 +15,19 @@ import { draftNote, isToday } from '../schedule/days.js';
 // จะหยุดหรือเปลี่ยนกะต้องมีคนมาแทนเสมอ (สลับกะ / ลาโดยมีคนมาแทน / OT)
 export const KINDS = [
   { k: 'swap', label: 'ขอสลับกะ', hint: 'เลือกเพื่อนต่างทีมและวันที่ต้องการสลับกะ' },
-  { k: 'leave', label: 'ขอลา', hint: 'เลือกประเภทการลา และระบุคนที่จะมาทำกะแทนคุณ' },
-  { k: 'ot', label: 'ขอทำงานล่วงเวลา (OT)', hint: 'เลือกวันที่และกะที่คุณจะเข้าทำงานเพิ่ม' },
+  { k: 'leave', label: 'ขอลา', hint: 'เลือกรูปแบบการลาแบบมีหรือไม่มีคนทำแทน' },
+  { k: 'ot', label: 'ขอทำงานล่วงเวลา (OT)', hint: 'ขอทำ OT เต็มกะเช้าหรือกะดึกในวันหยุดของคุณ' },
   { k: 'dayoff', label: 'ขอย้ายวันหยุดนักขัตฤกษ์', hint: 'เลือกไปทำงานในวันหยุดเดิม แล้วระบุวันที่จะหยุดแทน' }
 ];
 // ทุกบทบาทที่มีกะ (พนักงานและหัวหน้ากะ) เปลี่ยนตารางได้ผ่านคำขอเท่านั้น
 export function kindsAllowed() {
-  const kinds = state.actor?.remotePilot ? KINDS.filter(kind => kind.k === 'swap' && state.actor.centralSwap) : KINDS;
-  return state.actor?.centralSwap
-    ? kinds.map(kind => kind.k === 'swap' ? { ...kind, hint: 'แลกกะกับเพื่อนในวันเดียวกัน หรือทำกะแทนกันคนละวัน', central: true } : kind)
-    : kinds;
+  const kinds = KINDS.filter(kind => kind.k !== 'ot' || state.actor?.centralOT).map(kind => {
+    if (kind.k === 'swap' && state.actor?.centralSwap) return { ...kind, hint: 'แลกกะกับเพื่อนในวันเดียวกัน หรือทำกะแทนกันคนละวัน', central: true };
+    if (kind.k === 'leave' && state.actor?.centralLeave) return { ...kind, central: true };
+    if (kind.k === 'ot') return { ...kind, central: true };
+    return kind;
+  });
+  return state.actor?.remotePilot ? kinds.filter(kind => kind.central) : kinds;
 }
 export const kindLabel = k => (KINDS.find(x => x.k === k) || {}).label || '';
 export function requestOptions(list, day, { fromCell = false, title = 'คำขอสำหรับวันที่เลือก', emptyMessage = 'วันนี้ไม่มีคำขอให้เลือก' } = {}) {
@@ -44,12 +47,14 @@ export function requestOptions(list, day, { fromCell = false, title = 'คำข
 export const LOCKED_NOTE = 'เดือนนี้ถูกล็อกข้อมูลแล้ว ดูได้อย่างเดียว ยื่นคำขอได้ตั้งแต่เดือนปัจจุบันเป็นต้นไป';
 export const PAST_DATE_NOTE = 'วันที่ผ่านมาแล้ว ดูรายละเอียดได้อย่างเดียว';
 export function draftBlocked(kind) {
-  if (state.actor?.remotePilot && (!state.actor.centralSwap || (kind && kind !== 'swap'))) {
-    openModal('ยังยื่นคำขอไม่ได้', '<p>รอบทดสอบนี้เปิดให้ยื่นเฉพาะคำขอสลับกะจากตารางส่วนกลาง</p>', '<button class="btn" data-click="closeModal()">ปิด</button>');
+  if (kind === 'ot' && !state.actor?.centralOT) return true;
+  if (state.actor?.remotePilot && !kindsAllowed().some(option => !kind || option.k === kind)) {
+    openModal('ยังยื่นคำขอไม่ได้', '<p>คำขอนี้ยังไม่เปิดใช้ในระบบส่วนกลาง</p>', '<button class="btn" data-click="closeModal()">ปิด</button>');
     return true;
   }
   const y = state.currentYear, m = state.currentMonth;
-  const central = state.actor?.centralSwap && (!kind || kind === 'swap');
+  const central = (state.actor?.centralSwap && (!kind || kind === 'swap')) || (kind === 'leave' && state.actor?.centralLeave)
+    || (kind === 'ot' && state.actor?.centralOT);
   const published = central ? isSchedulePublished(y, m) : isYearPublished(y);
   if (published && !isMonthLocked(y, m)) return false;
   const message = published ? LOCKED_NOTE : central ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(y);
