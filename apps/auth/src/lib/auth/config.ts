@@ -13,6 +13,7 @@ function required(name: string): string {
 
 export function getAuthConfig() {
   const pilot = process.env.APP_MODE === "PILOT";
+  const hostedSharedDemo = process.env.APP_MODE === "SHARED_DEMO" && process.env.SHARED_DEMO_PUBLIC_HTTPS === "true";
   const shareAuthCookie = process.env.SHARE_AUTH_COOKIE === "true";
   const cookieDomain = shareAuthCookie ? process.env.AUTH_COOKIE_DOMAIN : undefined;
   const trustedOrigins = (process.env.TRUSTED_APP_ORIGINS || defaultTrustedOrigins.join(","))
@@ -21,19 +22,24 @@ export function getAuthConfig() {
     .filter(Boolean);
 
   // Exact domain allowlist for email/password and Microsoft 365; no wildcard support.
-  const allowedEmailDomains = (process.env.NODE_ENV === "development"
-    ? (process.env.DEV_ALLOWED_EMAIL_DOMAINS || "thainitrate.com")
-    : "thainitrate.com")
+  const configuredDomains = hostedSharedDemo ? required("SHARED_DEMO_ALLOWED_EMAIL_DOMAINS")
+    : process.env.NODE_ENV === "development" ? process.env.DEV_ALLOWED_EMAIL_DOMAINS : undefined;
+  const allowedEmailDomains = (configuredDomains || "thainitrate.com")
     .split(",")
     .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
     .filter(Boolean);
 
   const supabaseUrl = required("NEXT_PUBLIC_SUPABASE_URL");
   const authHost = process.env.AUTH_HOST || "http://localhost:3001";
-  const pilotEmails = pilot ? readPilotEmails(supabaseUrl, authHost, trustedOrigins, shareAuthCookie) : [];
+  if (pilot || hostedSharedDemo) validateHostedOrigin(authHost, trustedOrigins, shareAuthCookie);
+  if (hostedSharedDemo && supabaseUrl.replace(/\/$/, "") !== "https://mmesiubkvxmsklmgsepd.supabase.co") {
+    throw new Error("Shared demo Auth must use the existing shared Supabase project.");
+  }
+  const pilotEmails = pilot ? readPilotEmails(supabaseUrl) : [];
 
   return {
     pilot,
+    hostedSharedDemo,
     pilotEmails,
     supabaseUrl,
     supabasePublishableKey: required("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
@@ -46,15 +52,18 @@ export function getAuthConfig() {
   };
 }
 
-function readPilotEmails(supabaseUrl: string, authHost: string, trustedOrigins: string[], shareAuthCookie: boolean) {
-  const project = required("PILOT_SUPABASE_PROJECT_REF");
-  if (!/^[a-z0-9]+$/.test(project) || supabaseUrl.replace(/\/$/, "") !== `https://${project}.supabase.co`) {
-    throw new Error("Pilot Auth must use the configured Supabase project.");
-  }
+function validateHostedOrigin(authHost: string, trustedOrigins: string[], shareAuthCookie: boolean) {
   const origin = new URL(required("APP_ORIGIN"));
   if (origin.protocol !== "https:" || origin.origin !== process.env.APP_ORIGIN || origin.port ||
       origin.origin !== authHost || trustedOrigins.length !== 1 || trustedOrigins[0] !== authHost || shareAuthCookie) {
-    throw new Error("Pilot Auth requires one HTTPS origin and a host-only cookie.");
+    throw new Error("Hosted Auth requires one HTTPS origin and a host-only cookie.");
+  }
+}
+
+function readPilotEmails(supabaseUrl: string) {
+  const project = required("PILOT_SUPABASE_PROJECT_REF");
+  if (!/^[a-z0-9]+$/.test(project) || supabaseUrl.replace(/\/$/, "") !== `https://${project}.supabase.co`) {
+    throw new Error("Pilot Auth must use the configured Supabase project.");
   }
   const emails = required("PILOT_AUTH_EMAILS").split(",").map(email => email.trim().toLowerCase());
   if (emails.some(email => !/^[^\s@*,]+@[^\s@*,]+\.[^\s@*,]+$/.test(email))) {
@@ -75,7 +84,7 @@ export function authCookieOptions() {
     domain: config.cookieDomain,
     path: "/",
     sameSite: "lax" as const,
-    secure: config.pilot || process.env.NODE_ENV === "production",
+    secure: config.pilot || config.hostedSharedDemo || process.env.NODE_ENV === "production",
     httpOnly: true,
   };
 }

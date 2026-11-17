@@ -1,0 +1,11 @@
+.git
+**/.env*
+**/node_modules
+**/.next
+**/dist
+.local
+.vercel
+apps/web/fonts
+**/*.log
+test-results
+playwright-report

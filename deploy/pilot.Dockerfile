@@ -12,9 +12,9 @@ COPY apps/web apps/web
 COPY apps/auth apps/auth
 COPY scripts/copy-fonts.mjs scripts/copy-fonts.mjs
 COPY config/certs config/certs
-COPY deploy/pilot-gateway.mjs deploy/run-pilot.mjs deploy/
+COPY deploy/pilot-gateway.mjs deploy/run-hosted.mjs deploy/
 RUN pnpm build && npm --prefix apps/auth run build
 ENV NODE_ENV=production
 USER node
 EXPOSE 8080
-CMD ["node", "deploy/run-pilot.mjs"]
+CMD ["node", "deploy/run-hosted.mjs"]

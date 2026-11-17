@@ -24,13 +24,17 @@ async function microsoftEnabled() {
 }
 
 export async function POST(request: Request) {
-  if (getAuthConfig().pilot) return new NextResponse(null, { status: 404 });
+  const config = getAuthConfig();
+  if (config.pilot) return new NextResponse(null, { status: 404 });
+  if (config.hostedSharedDemo && request.headers.get("origin") !== config.authHost) {
+    return new NextResponse(null, { status: 403 });
+  }
   const formData = await request.formData();
   const redirectTo = safeRedirectTarget(String(formData.get("redirect_to") || ""));
-  const callback = new URL("/auth/callback", getAuthConfig().authHost);
-  if (redirectTo) callback.searchParams.set("redirect_to", redirectTo);
+  const callback = new URL("/auth/callback", config.authHost);
+  if (redirectTo && !config.hostedSharedDemo) callback.searchParams.set("redirect_to", redirectTo);
   const unavailable = () => {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", config.hostedSharedDemo ? config.authHost : request.url);
     if (redirectTo) loginUrl.searchParams.set("redirect_to", redirectTo);
     loginUrl.searchParams.set("error", "microsoft_unavailable");
     return NextResponse.redirect(loginUrl, 303);

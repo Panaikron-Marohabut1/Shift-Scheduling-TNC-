@@ -27,7 +27,7 @@
 !config/certs/supabase-prod-ca-2021.crt
 !deploy/
 !deploy/pilot-gateway.mjs
-!deploy/run-pilot.mjs
+!deploy/run-hosted.mjs
 **/.env*
 **/node_modules
 **/node_modules/**

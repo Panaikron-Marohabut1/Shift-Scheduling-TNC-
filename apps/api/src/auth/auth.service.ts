@@ -42,7 +42,7 @@ export class AuthService {
  private readonly verified=new Map<string,{identity:Identity;expires:number}>();
  constructor(@Inject(Database) private readonly db:Database) {}
  loginUrl() {
-  const config=settings(),url=new URL('/login',config.remotePilot?config.origin:config.authUrl);
+  const config=settings(),url=new URL('/login',config.publicHttps?config.origin:config.authUrl);
   url.searchParams.set('redirect_to',`${config.origin}/`);
   return url.toString();
  }

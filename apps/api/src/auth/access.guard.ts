@@ -13,8 +13,8 @@ export class AccessGuard implements CanActivate {
  async canActivate(context:ExecutionContext) {
   const req=context.switchToHttp().getRequest<ActorRequest>();
   const config=settings();
-  const allowedHosts=new Set(config.remotePilot?[new URL(config.origin).host]:[`localhost:${config.port}`,`127.0.0.1:${config.port}`]);
-  if(!allowedHosts.has(req.headers.host??'')) throw new ForbiddenException({code:config.remotePilot?'HOST_DENIED':'LOCAL_DEMO_ONLY',message:'กรุณาเปิดแอปผ่าน URL ที่กำหนด'});
+  const allowedHosts=new Set(config.publicHttps?[new URL(config.origin).host]:[`localhost:${config.port}`,`127.0.0.1:${config.port}`]);
+  if(!allowedHosts.has(req.headers.host??'')) throw new ForbiddenException({code:config.publicHttps?'HOST_DENIED':'LOCAL_DEMO_ONLY',message:'กรุณาเปิดแอปผ่าน URL ที่กำหนด'});
   if(!['GET','HEAD','OPTIONS'].includes(req.method)&&req.headers.origin!==config.origin) throw new ForbiddenException({code:'ORIGIN_DENIED',message:'กรุณาเปิดแอปผ่าน URL ที่กำหนด'});
   if(this.reflector.getAllAndOverride('public',[context.getHandler(),context.getClass()])) return true;
   req.actor=await this.auth.resolve(req.headers.cookie,context.switchToHttp().getResponse());

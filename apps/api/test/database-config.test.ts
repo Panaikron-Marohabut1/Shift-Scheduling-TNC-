@@ -99,3 +99,27 @@ test('shared demo uses the existing Supabase project with localhost UI and centr
   process.env.DATABASE_URL = uri.replace('tnc_backend_dev.', 'postgres.');
   assert.throws(databaseOptions, /restricted backend account/);
 });
+
+test('hosted shared demo stays on the same restricted database and requires a canonical HTTPS origin', t => {
+  const uri = 'postgresql://tnc_backend_dev.mmesiubkvxmsklmgsepd:fixture@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+  const fixture = { APP_MODE: 'SHARED_DEMO', DATABASE_URL: uri, APP_ORIGIN: 'https://shiftflow-tnc.vercel.app',
+    AUTH_URL: 'http://127.0.0.1:3001', HOST: '127.0.0.1', SHARED_DEMO_PUBLIC_HTTPS: 'false' };
+  for (const [key, value] of Object.entries(fixture)) {
+    const before = process.env[key];
+    process.env[key] = value;
+    t.after(() => { if (before === undefined) delete process.env[key]; else process.env[key] = before; });
+  }
+
+  assert.throws(settings, /Invalid local origin/);
+  process.env.SHARED_DEMO_PUBLIC_HTTPS = 'true';
+  assert.equal(settings().publicHttps, true);
+  assert.equal(settings().sharedDemo, true);
+  assert.equal(settings().remotePilot, false);
+  for (const origin of ['http://shiftflow-tnc.vercel.app', 'https://localhost', 'https://shiftflow-tnc.vercel.app/path']) {
+    process.env.APP_ORIGIN = origin;
+    assert.throws(settings, /public HTTPS origin/);
+  }
+  process.env.APP_ORIGIN = fixture.APP_ORIGIN;
+  process.env.DATABASE_URL = uri.replace('tnc_backend_dev.', 'postgres.');
+  assert.throws(settings, /restricted backend account/);
+});

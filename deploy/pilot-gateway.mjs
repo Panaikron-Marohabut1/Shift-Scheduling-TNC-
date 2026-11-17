@@ -7,10 +7,17 @@ function forwardedHeaders(headers) {
   return Object.fromEntries(Object.entries(headers).filter(([key]) => !omitted.has(key)));
 }
 
-export function createPilotGateway({ origin, apiPort = 3000, authPort = 3001 }) {
+export function createPilotGateway({ origin, apiPort = 3000, authPort = 3001, microsoft = false }) {
   const publicUrl = new URL(origin);
   if (publicUrl.protocol !== 'https:' || publicUrl.origin !== origin || publicUrl.port) {
-    throw new Error('Pilot ingress requires an HTTPS origin without a port.');
+    throw new Error('Hosted ingress requires an HTTPS origin without a port.');
+  }
+  const authPaths = new Set(['/login', '/login/', '/auth/sign-in']);
+  if (microsoft) {
+    authPaths.add('/auth/microsoft');
+    authPaths.add('/auth/callback');
+    authPaths.add('/assets/login-plant.webp');
+    authPaths.add('/assets/login-product.jpg');
   }
 
   return createServer({ requestTimeout: 30_000, headersTimeout: 10_000 }, (request, response) => {
@@ -19,8 +26,8 @@ export function createPilotGateway({ origin, apiPort = 3000, authPort = 3001 }) 
     if (!request.url?.startsWith('/') || request.url.startsWith('//')) return reply(400);
     const pathname = request.url.split('?', 1)[0];
     if (/\\|%(?:2e|2f|5c|25)|(?:^|\/)\.{1,2}(?:\/|$)/i.test(pathname)) return reply(400);
-    if (pathname === '/api/auth/session' || pathname.startsWith('/api/auth/session/')) return reply(404);
-    const auth = pathname === '/login' || pathname === '/login/' || pathname === '/auth/sign-in' || pathname.startsWith('/_next/static/');
+    if (/^\/(?:api\/auth\/session|auth\/logout)(?:\/|$)/i.test(pathname)) return reply(404);
+    const auth = authPaths.has(pathname) || pathname.startsWith('/_next/static/');
     const headers = forwardedHeaders(request.headers);
     for (const name of Object.keys(headers)) {
       if (name === 'forwarded' || name.startsWith('x-forwarded-') || name.startsWith('x-middleware-') || name.startsWith('x-nextjs-')) delete headers[name];

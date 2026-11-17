@@ -100,17 +100,18 @@ export function settings() {
   const authCookie = process.env.AUTH_COOKIE_NAME ?? 'sb-session';
   const remotePilot = mode === 'PILOT';
   const sharedDemo = mode === 'SHARED_DEMO';
+  const publicHttps = remotePilot || (sharedDemo && process.env.SHARED_DEMO_PUBLIC_HTTPS === 'true');
   const publicUrl = new URL(origin);
   if (!['DEMO', 'PILOT', 'SHARED_DEMO'].includes(mode) || !['127.0.0.1', 'localhost'].includes(host)) throw new Error('Use a supported demo mode on a loopback listener.');
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid API port.');
-  if (remotePilot) {
+  if (publicHttps) {
     if (publicUrl.protocol !== 'https:' || origin !== publicUrl.origin || publicUrl.port || ['localhost', '127.0.0.1', '[::1]'].includes(publicUrl.hostname)) {
-      throw new Error('Pilot APP_ORIGIN must be its public HTTPS origin.');
-    }
-    if (!process.env.DATABASE_URL || !isRemotePilotDatabase(new URL(process.env.DATABASE_URL))) {
-      throw new Error('Pilot requires its own Supabase project and tnc_pilot_backend account.');
+      throw new Error('APP_ORIGIN must be its public HTTPS origin.');
     }
   } else if (publicUrl.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(publicUrl.hostname)) throw new Error('Invalid local origin/port.');
+  if (remotePilot && (!process.env.DATABASE_URL || !isRemotePilotDatabase(new URL(process.env.DATABASE_URL)))) {
+    throw new Error('Pilot requires its own Supabase project and tnc_pilot_backend account.');
+  }
   if (sharedDemo && (!process.env.DATABASE_URL || !isSharedDemoDatabase(new URL(process.env.DATABASE_URL)))) {
     throw new Error('Shared demo requires the existing Supabase project and its restricted backend account.');
   }
@@ -123,5 +124,5 @@ export function settings() {
   if (internalAuth.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(internalAuth.hostname) || authUrl !== internalAuth.origin) throw new Error('AUTH_URL must be a local HTTP login service origin.');
   if (!/^[A-Za-z0-9_-]+$/.test(authCookie)) throw new Error('Invalid AUTH_COOKIE_NAME.');
   if (!process.env.DATABASE_URL) throw new Error('Run setup to configure DATABASE_URL.');
-  return { mode, remotePilot, sharedDemo, host, port, origin, retention, hours, authUrl, authCookie };
+  return { mode, remotePilot, sharedDemo, publicHttps, host, port, origin, retention, hours, authUrl, authCookie };
 }
