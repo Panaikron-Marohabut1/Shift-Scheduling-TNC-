@@ -2,8 +2,7 @@
 
 This is the server-side authentication boundary for the scheduling applications.
 This application lives in `apps/auth/`. The scheduling frontend is in `apps/web/`
-and its business API is in `apps/api/`. The legacy prototype in
-`prototypes/legacy-static/` is intentionally not treated as authenticated.
+and its business API is in `apps/api/`.
 
 Dependencies remain managed separately with npm and this directory's
 `package-lock.json`. From the repository root, install with

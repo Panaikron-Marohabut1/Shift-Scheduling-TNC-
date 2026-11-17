@@ -11,7 +11,7 @@ import { toggleMonthPicker } from './actions.js';
 import { markReady, renderApp } from './render.js';
 import { afterApi, enter, leave, refreshNotificationsOnly } from './session.js';
 import { bindSideHover, HOVER_SIDE } from './shell.js';
-import { loadLocal, saveLocal, state, view } from './state.js';
+import { loadLocal, nextBangkokMidnightDelay, saveLocal, state, syncToday, view } from './state.js';
 import { $ } from '../shared/dom.js';
 import { closeModal, modalOpen } from '../shared/modal.js';
 import { seedYearData } from '../shared/scheduling/annual.js';
@@ -59,8 +59,19 @@ window.addEventListener('session-expired', ev => {
   closeModal();
   if (state.actor && state.actor.role !== 'ADMIN') saveLocal();
   leave((ev.detail || {}).loginUrl, 'หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง');
-  goToLogin();
 });
+
+let dateTimer;
+function refreshCalendarDate() {
+  clearTimeout(dateTimer);
+  if (syncToday() && view.signed) renderApp();
+  const delay = nextBangkokMidnightDelay();
+  if (delay !== null) dateTimer = setTimeout(refreshCalendarDate, delay);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshCalendarDate();
+});
+refreshCalendarDate();
 
 // รีเฟรชข้อมูลจากฐานข้อมูลทุก 30 วินาที (ข้ามระหว่างเปิดหน้าต่างย่อยหรือกำลังพิมพ์)
 setInterval(() => {
@@ -73,19 +84,20 @@ setInterval(() => {
 
 /* ---------- เริ่มระบบ: ถามระบบหลังบ้านว่าใครเข้าสู่ระบบอยู่ ---------- */
 // 401 → ไปหน้าเข้าสู่ระบบของระบบกลาง · 403 → บัญชียังไม่ผูกกับพนักงาน · อื่น ๆ → เชื่อมต่อไม่ได้
-async function boot() {
-  watchTranslate();
-  const app = $('#app');
-  if (app) app.innerHTML = '<p class="boot">กำลังโหลดข้อมูล…</p>';
-  markReady();
+async function boot({ retry = false } = {}) {
+  view.loading = true;
+  view.accessPending = false;
+  renderApp();
+  if (retry) $('#session-loading')?.focus();
   let me;
   try { me = await api('/me'); }
   catch (error) {
     const details = error.details || {};
-    Object.assign(view, { signed: false, loginUrl: details.loginUrl || '', unlinked: error.code === 'ACCOUNT_NOT_LINKED',
+    Object.assign(view, { signed: false, loading: false, loginUrl: details.loginUrl || '', unlinked: error.code === 'ACCOUNT_NOT_LINKED',
       accessPending: error.code === 'ACCESS_PENDING', authMsg: error.message || 'เชื่อมต่อระบบหลังบ้านไม่สำเร็จ' });
     if (error.status === 401 && goToLogin(details.loginUrl)) return;
     renderApp();
+    if (retry) ($('[data-session-retry]') || $('#session-title'))?.focus();
     return;
   }
   if (me.actor.role !== 'ADMIN' && me.capabilities?.remotePilot !== true) {
@@ -94,9 +106,17 @@ async function boot() {
   }
   await enter({ ...me.actor, centralSwap: me.capabilities?.centralSwap === true, centralLeave: me.capabilities?.centralLeave === true,
     centralOT: me.capabilities?.centralOT === true,
+    centralHoliday: me.capabilities?.centralHoliday === true,
     swapPolicy: me.capabilities?.swapPolicy === true,
     hrClosedRoster: me.capabilities?.hrClosedRoster === true, monthClose: me.capabilities?.monthClose === true,
     remotePilot: me.capabilities?.remotePilot === true,
     peopleManagement: me.capabilities?.peopleManagement === true });
 }
+watchTranslate();
+markReady();
+$('#app')?.addEventListener('click', event => {
+  if (event.target instanceof Element && event.target.closest('[data-session-retry]') && !view.loading) {
+    void boot({ retry: true });
+  }
+});
 void boot();

@@ -8,17 +8,32 @@
                                 เก็บด้วย localStorage ภายใต้ LOCAL_KEY จนกว่าจะมี API รองรับ
    ========================================================================== */
 
-// "วันนี้" ตามเวลาไทย (เปิดด้วย ?today=2026-10-20 เพื่อดูระบบ ณ วันอื่นได้)
-function pickToday() {
-  try {
-    const q = new URLSearchParams(location.search).get('today');
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(q || '');
-    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  } catch { /* ใช้วันที่จริง */ }
-  const iso = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date());
+// ?today=2026-10-20 คงวันไว้สำหรับการทดสอบ ส่วนการใช้งานปกติอิงเวลาไทย
+const bangkokCalendar = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' });
+const dateOverride = /^(\d{4})-(\d{2})-(\d{2})$/.exec(new URLSearchParams(location.search).get('today') || '');
+function bangkokToday() {
+  const iso = bangkokCalendar.format(new Date());
   return new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
 }
-export const DEMO_TODAY = pickToday();
+export let DEMO_TODAY = dateOverride
+  ? new Date(Number(dateOverride[1]), Number(dateOverride[2]) - 1, Number(dateOverride[3]))
+  : bangkokToday();
+
+export function syncToday() {
+  if (dateOverride) return false;
+  const today = bangkokToday();
+  if (today.getTime() === DEMO_TODAY.getTime()) return false;
+  DEMO_TODAY = today;
+  state.currentDay = today.getDate();
+  return true;
+}
+
+export function nextBangkokMidnightDelay() {
+  if (dateOverride) return null;
+  // เที่ยงคืนของวันถัดไปในกรุงเทพฯ ตรงกับ 17:00 UTC ของวันนี้
+  const midnight = Date.UTC(DEMO_TODAY.getFullYear(), DEMO_TODAY.getMonth(), DEMO_TODAY.getDate(), 17);
+  return Math.max(0, midnight - Date.now());
+}
 
 export const LOCAL_KEY = 'shiftflow.web.demo.v1';
 // ฟิลด์ที่เก็บในเบราว์เซอร์ (เฉพาะส่วนที่ยังไม่มี API)

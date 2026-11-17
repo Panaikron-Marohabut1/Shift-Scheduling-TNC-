@@ -10,8 +10,22 @@ import { pageHead } from '../../shared/ui.js';
 import { codeClass, shownCode } from '../schedule/codes.js';
 import { localLeaveClosureStatus } from './leave-time.js';
 import { canCancelApproved, canUserReviewRequest, canWithdrawRequest, getVisibleRequests, hasOtherParticipants, isRequestOwner, managerCanAct, visibleRequestReason } from './permissions.js';
+import { holidayDateLabel, holidayDeadlineLabel } from './types/holiday.js';
 
 const employeeRequestGroups = { personal: 'คำขอเฉพาะฉัน', shared: 'คำขอร่วมกับผู้อื่น' };
+
+export const requestSectionLabels = {
+  inProgress: 'กำลังดำเนินการ',
+  recent: 'รายการล่าสุด',
+  recentStatuses: 'อนุมัติแล้ว · ไม่อนุมัติ · ยกเลิก · หมดอายุ'
+};
+
+export function withCurrentRequestStatus(request) {
+  const status = localLeaveClosureStatus(request);
+  return status ? { ...request, status } : request;
+}
+
+export const isRequestInProgress = request => request.status?.includes('รอ') ?? false;
 
 export function selectEmployeeRequestGroup(group) {
   if (state.activeRole !== 'Shift Employee' || !Object.hasOwn(employeeRequestGroups, group)) return;
@@ -68,10 +82,7 @@ export function selectRequestTab(tab) { if (['mine', 'all'].includes(tab)) view.
 
 export function requestsHtml(title) {
   const isEmp = state.activeRole === 'Shift Employee';
-  const visible = getVisibleRequests().map(request => {
-    const status = localLeaveClosureStatus(request);
-    return status ? { ...request, status } : request;
-  });
+  const visible = getVisibleRequests().map(withCurrentRequestStatus);
   const group = view.employeeRequestGroup;
   const me = currentEmp();
   const reviewer = !isEmp && (state.activeRole === 'Manager' || isSupervisorRoleName(state.activeRole));
@@ -79,28 +90,32 @@ export function requestsHtml(title) {
   const tab = reviewer ? (view.requestTab || (forMe.length ? 'mine' : 'all')) : 'all';
   const list = isEmp ? visible.filter(request => hasOtherParticipants(request) === (group === 'shared'))
     : tab === 'mine' ? forMe : visible;
-  const pendingN = visible.filter(r => r.status && r.status.includes('รอ')).length;
-  const right = [];
-  if (!state.actor?.remotePilot && state.localRequests.length) right.push('<button class="btn" data-click="resetTestcases()" title="ล้างรายการคำขอทดลองในเครื่องนี้ เพื่อเริ่มทดสอบใหม่">ล้างคิวคำขอ</button>');
-  if (isEmp) right.push('<button class="btn primary" data-click="SF.newRequest()">ยื่นคำขอ</button>');
+  const pendingN = visible.filter(isRequestInProgress).length;
+  const resetButton = !state.actor?.remotePilot && state.localRequests.length
+    ? '<button class="btn" data-click="resetTestcases()" title="ล้างรายการคำขอทดลองในเครื่องนี้ เพื่อเริ่มทดสอบใหม่">ล้างคิวคำขอ</button>'
+    : '';
   const nameOf = name => (me && name === me.name ? 'คุณ' : name);
   const tabs = isEmp
-    ? Object.entries(employeeRequestGroups).map(([key, label]) => [key, label, `SF.employeeRequestGroup(${js(key)})`, group === key, `employee-requests-${key}`])
-    : reviewer ? [['mine', `รอฉัน ${forMe.length}`, "SF.requestTab('mine')", tab === 'mine'], ['all', `ทั้งหมด ${visible.length}`, "SF.requestTab('all')", tab === 'all']] : [];
+    ? Object.entries(employeeRequestGroups).map(([key, label]) => [key, label, group === key, `employee-requests-${key}`])
+    : reviewer ? [['mine', `รอฉัน ${forMe.length}`, tab === 'mine'], ['all', `ทั้งหมด ${visible.length}`, tab === 'all']] : [];
   // คำขอที่ยังเดินอยู่ (สถานะขึ้นต้นด้วย "รอ") แยกไว้บนสุด ที่จบแล้วอยู่ล่างและจางลง
-  const isOpen = r => !!r.status && r.status.includes('รอ');
-  const openList = list.filter(isOpen), closedList = list.filter(r => !isOpen(r));
+  const openList = list.filter(isRequestInProgress), closedList = list.filter(r => !isRequestInProgress(r));
   const row = r => {
-    const swap = r.currentShift && r.currentShift !== '-';
+    const swap = r.kind !== 'holiday' && r.currentShift && r.currentShift !== '-';
     const reason = visibleRequestReason(r);
+    const holiday = r.kind === 'holiday' && r.holiday;
+    const holidayLines = holiday?.changes?.map(change => `
+      <p class="req-meta">${esc(holidayDateLabel(change.workDate))} · ${esc(change.before)} → ${esc(change.after === 'L' ? 'หยุดโดยใช้สิทธิ์นักขัตฤกษ์' : change.after)}</p>`).join('') || '';
     const people = r.targetPerson ? `<span>${esc(nameOf(r.person))}</span> <span class="req-pair"><span class="req-arrow">${r.kind === 'leave' ? 'ให้' : '↔'}</span> ${esc(nameOf(r.targetPerson))}${r.kind === 'leave' ? ' ทำแทน' : ''}</span>` : esc(nameOf(r.person));
     const meta = [`ยื่น ${r.submittedAt}`, !isEmp && r.roleCategory, r.quotaUsed && r.quotaUsed !== '-' && `โควตาเดือนนี้ ${r.quotaUsed}`].filter(Boolean).map(esc).join(' · ');
     const acts = reqActions(r);
     return `
-      <li class="req ${isOpen(r) ? 'open' : 'closed'}" data-click="openRequestDetails(${js(r.id)})">
+      <li class="req ${isRequestInProgress(r) ? 'open' : 'closed'}" data-click="openRequestDetails(${js(r.id)})">
         <div class="req-main">
           <button type="button" class="req-open" data-click="openRequestDetails(${js(r.id)})"><b>${esc(r.type)}</b><span class="req-date">${esc(r.date)}</span></button>
           <p class="req-people">${people}${swap ? `<span class="req-shift">${shiftChip(r.currentShift)}<span aria-label="เป็น">→</span>${shiftChip(r.targetShift)}</span>` : ''}</p>
+          ${holidayLines}
+          ${holiday?.deadline && isRequestInProgress(r) ? `<p class="req-meta">ต้องอนุมัติก่อน ${esc(holidayDeadlineLabel(holiday.deadline))} น.</p>` : ''}
           ${reason && !(swap && r.targetPerson) ? `<p class="req-reason">${esc(reason)}</p>` : ''}
           <p class="req-meta">${meta}</p>
           ${r.rejectReason ? `<p class="req-note err">ไม่อนุมัติเพราะ: ${esc(r.rejectReason)}</p>` : ''}
@@ -115,12 +130,12 @@ export function requestsHtml(title) {
   const empty = isEmp ? `ยังไม่มี${employeeRequestGroups[group]}`
     : tab === 'mine' ? `ไม่มีคำขอที่รอคุณตรวจ · ดูคำขอทั้งหมด ${visible.length} รายการได้ที่แท็บ "ทั้งหมด"` : 'ยังไม่มีคำขอ';
   return `
-    ${pageHead(esc(title), right.join(''))}
+    ${pageHead(esc(title), resetButton)}
     ${tabs.length ? `<div class="bar req-bar"><div class="seg" role="group" aria-label="${isEmp ? 'กลุ่มคำขอ' : 'แสดงคำขอ'}">
-      ${tabs.map(([key, label, click, on, id]) => `<button ${id ? `id="${id}"` : ''} type="button" class="${on ? 'on' : ''}" aria-pressed="${on}" data-click="${click}">${esc(label)}</button>`).join('')}
-    </div>${reviewer ? `<span class="muted small">รอดำเนินการทั้งหมด ${pendingN} รายการ</span>` : ''}</div>` : ''}
+      ${tabs.map(([key, label, on, id]) => `<button ${id ? `id="${id}"` : ''} type="button" class="${on ? 'on' : ''}" aria-pressed="${on}" ${isEmp ? `data-click="SF.employeeRequestGroup(${js(key)})"` : `data-click="SF.requestTab(${js(key)})"`}>${esc(label)}</button>`).join('')}
+    </div>${reviewer ? `<span class="muted small">${requestSectionLabels.inProgress}ทั้งหมด ${pendingN} รายการ</span>` : ''}</div>` : ''}
     ${list.length ? `
-      ${openList.length ? `<h2 class="req-group">กำลังดำเนินการ <span>${openList.length}</span></h2><ul class="req-list req-open-list">${openList.map(row).join('')}</ul>` : ''}
-      ${closedList.length ? `<h2 class="req-group closed">ปิดแล้ว <span>${closedList.length}</span><small>อนุมัติแล้ว · ไม่อนุมัติ · ยกเลิก · หมดอายุ</small></h2><ul class="req-list req-closed-list">${closedList.map(row).join('')}</ul>` : ''}`
+      ${openList.length ? `<h2 class="req-group">${requestSectionLabels.inProgress} <span>${openList.length}</span></h2><ul class="req-list req-open-list">${openList.map(row).join('')}</ul>` : ''}
+      ${closedList.length ? `<h2 class="req-group closed">${requestSectionLabels.recent} <span>${closedList.length}</span><small>${requestSectionLabels.recentStatuses}</small></h2><ul class="req-list req-closed-list">${closedList.map(row).join('')}</ul>` : ''}`
     : `<p class="empty">${esc(empty)}</p>`}`;
 }

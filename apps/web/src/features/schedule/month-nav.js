@@ -5,10 +5,10 @@
 import { state } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
-import { isYearPublished } from '../../shared/scheduling/annual.js';
+import { hasCentralHolidayCalendar, isYearPublished } from '../../shared/scheduling/annual.js';
 import { daysIn, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { currentEmp, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
-import { dataMonth, hasScheduleDataForMonth, isMonthLocked, isSchedulePublished } from '../../shared/scheduling/roster.js';
+import { dataMonth, hasPilotProjection, hasScheduleDataForMonth, isMonthLocked, isSchedulePublished } from '../../shared/scheduling/roster.js';
 import { hasClosedRosterAccess } from '../hr/closed-roster.js';
 import { holidaysOf } from './days.js';
 
@@ -29,7 +29,11 @@ export function monthNav(withPicker) {
             <button class="sq" data-click="jumpToScheduleMonth(${y + 1}, ${m})" aria-label="ปีถัดไป">${icon('right')}</button>
           </div>
           <div class="mpick-grid">
-            ${Array.from({ length: 12 }, (_, i) => `<button class="${i === m ? 'on' : ''} ${hasScheduleDataForMonth(y, i) ? 'has' : ''}" data-click="jumpToScheduleMonth(${y}, ${i})" title="${hasScheduleDataForMonth(y, i) ? 'มีข้อมูลตารางกะจริง' : 'ยังไม่มีข้อมูล'}">${esc(thaiMonthName(i, 'short'))}</button>`).join('')}
+            ${Array.from({ length: 12 }, (_, i) => {
+              const hasData = hasScheduleDataForMonth(y, i);
+              const hint = hasData ? 'มีข้อมูลตารางกะจริง' : hasPilotProjection(y, i) ? 'ตารางกะคาดการณ์' : 'ยังไม่มีข้อมูล';
+              return `<button class="${i === m ? 'on' : ''} ${hasData ? 'has' : ''}" data-click="jumpToScheduleMonth(${y}, ${i})" title="${hint}">${esc(thaiMonthName(i, 'short'))}</button>`;
+            }).join('')}
           </div>
           <button class="link mpick-go" data-click="jumpToScheduleMonth(${base.y}, ${base.m})">ไปเดือนที่มีข้อมูลจริง (${esc(thaiMonthName(base.m, 'long'))} ${base.y + 543})</button>
         </div>` : ''}
@@ -44,6 +48,7 @@ export function scheduleState() {
   return {
     y, m, n: daysIn(y, m), monthLocked, readOnly, published,
     hasData: hasScheduleDataForMonth(y, m),
+    projected: hasPilotProjection(y, m),
     canPublish: !state.actor?.remotePilot && state.activeRole === 'Manager' && !isYearPublished(y),
     canExport: !state.actor?.remotePilot && (state.activeRole === 'Manager' || (readOnly && !hasClosedRosterAccess())),
     canInteract: !monthLocked && !readOnly && published,
@@ -52,12 +57,16 @@ export function scheduleState() {
   };
 }
 // สถานะของเดือน (ใช้ร่วมกันระหว่างตารางกะและกะของฉัน)
-export function statusChips(S) {
+export function statusChips(S, { holidayOvertimePreview = false } = {}) {
+  const holidays = holidayOvertimePreview ? '<span class="st">OT นักขัตฤกษ์ · ผลคำนวณย้อนหลัง</span>'
+    : state.actor?.remotePilot && !hasCentralHolidayCalendar(S.y, S.m) && Object.keys(S.hol).some(key => key.startsWith(`${S.m}-`))
+    ? '<span class="st">วันหยุดนักขัตฤกษ์ · ข้อมูลทดสอบ</span>' : '';
+  if (S.projected) return '<span class="st warn">ตารางกะคาดการณ์ · ดูได้อย่างเดียว</span>' + holidays;
   const status = [];
   status.push(S.published ? '<span class="st ok">ประกาศใช้แล้ว</span>' : '<span class="st warn">ฉบับร่าง ยังไม่ประกาศใช้</span>');
   if (!S.hasData) status.push(`<span class="st warn">${state.actor?.remotePilot ? 'ยังไม่มีตารางกะในฐานทดสอบ' : 'ตารางคาดการณ์ ยังไม่มีข้อมูลจริง'}</span>`);
   if (S.readOnly) status.push('<span class="st">ดูข้อมูลอย่างเดียว</span>');
   else if (S.monthLocked) status.push('<span class="st">ข้อมูลถูกล็อก</span>');
   else if (S.published) status.push('<span class="st ok">ยื่นคำขอได้</span>');
-  return status.join('');
+  return status.join('') + holidays;
 }

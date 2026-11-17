@@ -23,6 +23,15 @@ export class RequestsController {
  @Post('ot-requests/validate') validateOT(@Req() req:ActorRequest,@Body() body:Record<string,unknown>) {
   return this.service.validateOT(req.actor,{assignmentId:id(body?.assignmentId),assignmentVersion:id(body?.assignmentVersion),otCode:body?.otCode});
  }
+ @Get('holiday-requests/options') holidayOptions(@Req() req:ActorRequest,@Query('month') month:string) {
+  return this.service.holidayOptions(req.actor,month);
+ }
+ @Post('holiday-requests/validate') validateHoliday(@Req() req:ActorRequest,@Body() body:Record<string,unknown>) {
+  return this.service.validateHoliday(req.actor,{holidayDate:body?.holidayDate,assignmentId:id(body?.assignmentId),assignmentVersion:id(body?.assignmentVersion)});
+ }
+ @Post('holiday-requests') createHoliday(@Req() req:ActorRequest,@Body() body:Record<string,unknown>,@Headers('idempotency-key') key:string) {
+  return this.service.createHoliday(req.actor,{holidayDate:body?.holidayDate,assignmentId:id(body?.assignmentId),assignmentVersion:id(body?.assignmentVersion)},body?.previewToken,key);
+ }
  @Get('requests') list(@Req() req:ActorRequest) { return this.service.list(req.actor); }
  @Post('requests/:requestId/cancel') cancel(@Req() req:ActorRequest,@Param('requestId') value:string,@Body() body:Record<string,unknown>,@Headers('idempotency-key') key:string) {
   return this.service.cancel(req.actor,pathId(value),id(body?.expectedVersion),key);

@@ -9,6 +9,8 @@ import { SwapQuotaService } from './swap-quota.service';
 import { bangkokWorkDate, pendingRequestClosure, requestApprovalDeadline, requireOpenSubmission, requireOpenApproval } from './request-time';
 import { AppliedSwapEvidence, cancellationConflict, cancellationDeadlineIssue, cancellationPlan, cancellationSlotsMatch } from './approved-swap-cancellation';
 import { leaveCoverCode, leaveReason, leaveShiftStart } from './leave-policy';
+import { isHolidayReplacementDate } from '../shared/holiday-roster-rules';
+import { holidayRequestWindow, isHolidayDate } from './holiday-request-policy';
 import { rosterRequestConflicts, staleSlots, swapSlots } from './roster-request-conflicts';
 import { restoredRosterVersions } from './restored-roster-versions';
 type SwapLeg={assignmentId:number;targetAssignmentId:number;assignmentVersion:number;targetVersion:number};
@@ -18,22 +20,40 @@ type AssignmentInput={assignmentId:number;assignmentVersion:number};
 type LeaveInput=AssignmentInput&{cover:{id:number;version:number}|null;leaveCode:unknown;reason:unknown};
 type OTCode='MT'|'NT';
 type OTInput=AssignmentInput&{otCode:unknown};
+type HolidayInput=AssignmentInput&{holidayDate:unknown};
+type HolidayCalendar=Awaited<ReturnType<SchedulesService['holidayRoster']>>;
+type HolidayChange={workDate:string;before:string;after:string};
+type HolidayPlan={source:Assignment;target:Assignment;overtime:Assignment;otCode:OTCode;deadline:Date;
+ deadlineReason:string;affectedShiftStart:Date;changes:HolidayChange[]};
 type RosterRequestDetail={kind:'leave';code:string;reason:string;cover:LeaveInput['cover']}|{kind:'ot';code:OTCode;cover:null};
 type LeaveRow={request_id:number;requester_id:number;version:number;status:string;submitted_at:Date;expires_at:Date;shift_starts_at:Date;
- source_snapshot:Assignment;cover_snapshot:Assignment|null;ot_code?:OTCode|null};
+ source_snapshot:Assignment;cover_snapshot:Assignment|null;ot_code?:OTCode|null;
+ holiday_date?:string|null;holiday_ot_snapshot?:Assignment|null;holiday_source_snapshot?:Assignment|null};
 const leaveSlots=(row:LeaveRow)=>row.cover_snapshot?[row.source_snapshot,row.cover_snapshot]:[row.source_snapshot];
 const leaveRole=(slot:Assignment)=>slot.position==='SUPERVISOR'?'SUPERVISOR':'EMPLOYEE';
 const leaveCoverShift=(a:Assignment,b:Assignment)=>leaveCoverCode(
  {role:leaveRole(a),teamId:a.team_id,shiftCode:a.shift_code},{role:leaveRole(b),teamId:b.team_id,shiftCode:b.shift_code});
 const leaveExpired=()=>new ConflictException({code:'LEAVE_EXPIRED',message:'คำขอลาหมดอายุแล้ว'});
-const leavePendingClosure=(request:Pick<LeaveRow,'submitted_at'|'expires_at'|'ot_code'>,now:Date)=>
- pendingRequestClosure(bangkokWorkDate(request.submitted_at),request.submitted_at,now,request.ot_code?'ot':'leave')
+const leavePendingClosure=(request:Pick<LeaveRow,'submitted_at'|'expires_at'|'ot_code'|'holiday_date'>,now:Date)=>
+ (request.holiday_date?null:pendingRequestClosure(bangkokWorkDate(request.submitted_at),request.submitted_at,now,request.ot_code?'ot':'leave'))
  ?? (now>=request.expires_at?{status:'EXPIRED',code:'REQUEST_EXPIRED',message:'คำขอลาหมดอายุแล้ว'}:null);
-function requireOpenLeave(request:Pick<LeaveRow,'submitted_at'|'expires_at'|'ot_code'>,now:Date) {
+function requireOpenLeave(request:Pick<LeaveRow,'submitted_at'|'expires_at'|'ot_code'|'holiday_date'>,now:Date) {
  const closure=leavePendingClosure(request,now);
  if(closure)throw new ConflictException({code:closure.code,message:closure.message});
 }
 const leaveChanged=()=>new ConflictException({code:'SCHEDULE_CHANGED',message:'ตารางกะเปลี่ยนไป กรุณาตรวจตารางล่าสุด'});
+const holidayDeadline=()=>new ConflictException({code:'HOLIDAY_DEADLINE_PASSED',message:'พ้นเวลายื่นหรืออนุมัติคำขอใช้สิทธิ์นักขัตฤกษ์แล้ว'});
+const holidayChanges=(target:Assignment,overtime:Assignment,otCode:OTCode):HolidayChange[]=>[
+ {workDate:target.work_date,before:target.assignment_id===overtime.assignment_id?otCode:target.shift_code,after:'L'},
+ ...(target.assignment_id===overtime.assignment_id?[]:[{workDate:overtime.work_date,before:otCode,after:overtime.shift_code}]),
+].sort((a,b)=>a.workDate.localeCompare(b.workDate));
+const holidaySlots=(plan:Pick<HolidayPlan,'target'|'overtime'>)=>
+ plan.target.assignment_id===plan.overtime.assignment_id?[plan.target]:[plan.target,plan.overtime];
+const assignmentRevision=(slot:Assignment)=>[slot.assignment_id,slot.version,slot.team_id,slot.position,slot.shift_type_id,slot.status];
+const sameAssignment=(a:Assignment,b:Assignment)=>JSON.stringify(assignmentRevision(a))===JSON.stringify(assignmentRevision(b));
+const holidayPreviewToken=(plan:HolidayPlan)=>hash(JSON.stringify([
+ assignmentRevision(plan.source),assignmentRevision(plan.target),assignmentRevision(plan.overtime),plan.otCode,plan.deadline,
+]));
 const demoTeam=(code:string)=>['A','B','C','D'].includes(code);
 const managerApproval=(snapshot:{approvalRoute?:string})=>snapshot.approvalRoute==='MANAGER';
 const parallelApprovals=(snapshot:{approvalRoute?:string})=>snapshot.approvalRoute==='TWO_SUPERVISORS';
@@ -65,6 +85,137 @@ export class RequestsService {
   if(!reason||reason.length>1000||typeof input.leaveCode!=='string'||!['V','S','B','VG'].includes(input.leaveCode))
    throw new BadRequestException({code:'INVALID_LEAVE',message:'กรุณาระบุประเภทและเหตุผลการลาไม่เกิน 1,000 ตัวอักษร'});
   return this.createRosterRequest(actor,input,key,{kind:'leave',code:input.leaveCode,reason,cover:input.cover});
+ }
+ private async requireHoliday(actor:Actor) {
+  if(!actor.employeeId||!['EMPLOYEE','SUPERVISOR'].includes(actor.role))this.denied();
+  if(!await this.schedules.holidayEnabled())throw new NotFoundException({code:'HOLIDAY_UNAVAILABLE',message:'ยังไม่เปิดรับคำขอใช้สิทธิ์นักขัตฤกษ์'});
+  return actor.employeeId;
+ }
+ private holidayDate(value:unknown) {
+  if(!isHolidayDate(value))throw new BadRequestException({code:'INVALID_HOLIDAY_DATE',message:'เลือกวันนักขัตฤกษ์ที่ต้องการใช้สิทธิ์'});
+  return value;
+ }
+ private async pendingHolidayDates(c:PoolClient,employeeId:number,month:string,now:Date,excludeId?:number) {
+  const {rows}=await c.query<{date:string}>(`SELECT l.holiday_date::text AS date
+   FROM shiftflow_policy.leave_requests l JOIN requests r USING(request_id)
+   WHERE r.requester_id=$1 AND r.status='PENDING' AND l.expires_at>$2
+    AND l.holiday_date >= $3::date AND l.holiday_date < $3::date+interval '1 month'
+    AND r.request_id IS DISTINCT FROM $4::int`,[employeeId,now,`${month}-01`,excludeId??null]);
+  return new Set(rows.map(row=>row.date));
+ }
+ private holidayTargetAllowed(target:Assignment,holidayDate:string) {
+  return target.status==='ACTIVE'&&['M','N'].includes(target.shift_code)
+   &&(target.work_date===holidayDate||isHolidayReplacementDate(holidayDate,target.work_date));
+ }
+ private holidayReservedForOther(calendar:HolidayCalendar,holidayDate:string,workDate:string) {
+  return calendar.allocations.some(item=>item.workDate===workDate&&item.holidayDate!==holidayDate
+   &&calendar.activeHolidayDates.has(item.holidayDate));
+ }
+ async holidayOptions(actor:Actor,month:string) {
+  const employeeId=await this.requireHoliday(actor);
+  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||!isHolidayDate(`${month}-01`)||month.startsWith('0000'))
+   throw new BadRequestException({code:'INVALID_MONTH',message:'เดือนต้องอยู่ในรูปแบบ YYYY-MM'});
+  const now=new Date();
+  return this.db.transaction(async c=>{
+   await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+   const {rows:[schedule]}=await c.query("SELECT schedule_id FROM schedules WHERE year=$1 AND month=$2 AND status='PUBLISHED'",month.split('-').map(Number));
+   if(!schedule||this.schedules.isClosed([],[`${month}-01`],now))return {holidays:[]};
+   const calendar=await this.schedules.holidayRoster(c,schedule.schedule_id,employeeId);
+   if(!calendar.activeHolidayDates.size)return {holidays:[]};
+   const pending=await this.pendingHolidayDates(c,employeeId,month,now);
+   const conflicts=await rosterRequestConflicts(c,calendar.assignments.map(slot=>slot.assignment_id),now,true);
+   const blocked=new Set(conflicts.map(conflict=>conflict.assignment_id));
+   const slots=new Map(calendar.assignments.map(slot=>[slot.work_date,slot]));
+   const holidays=calendar.holidays.flatMap(({date,name})=>{
+    if(!calendar.activeHolidayDates.has(date)||pending.has(date))return [];
+    const source=slots.get(date);
+    const allocated=calendar.allocations.find(item=>item.holidayDate===date);
+    const overtime=allocated&&slots.get(allocated.workDate);
+    if(!source||!allocated||!overtime||!demoTeam(source.team_code)||!demoTeam(overtime.team_code)
+     ||blocked.has(overtime.assignment_id))return [];
+    const choices=calendar.assignments.flatMap(target=>{
+     if(!demoTeam(target.team_code)||leaveRole(target)!==actor.role||!this.holidayTargetAllowed(target,date)||blocked.has(target.assignment_id)
+      ||this.holidayReservedForOther(calendar,date,target.work_date))return [];
+     const window=holidayRequestWindow(date,target,overtime);
+     return window&&now<window.deadline?[{assignmentId:target.assignment_id,assignmentVersion:target.version,
+      workDate:target.work_date,shiftCode:target.shift_code}]:[];
+    });
+    return choices.length?[{date,name,shiftCode:source.shift_code,overtimeDate:overtime.work_date,overtimeShiftCode:allocated.overtimeShiftCode,
+     canTakeDirect:choices.some(choice=>choice.workDate===date),choices}]:[];
+   });
+   return {holidays};
+  });
+ }
+ private async holidayPlan(c:PoolClient,target:Assignment,date:string,now:Date,lockSchedule=false,excludeId?:number):Promise<HolidayPlan> {
+  if(!this.holidayTargetAllowed(target,date))
+   throw new BadRequestException({code:'INVALID_HOLIDAY_ASSIGNMENT',message:'เลือกกะทำงานภายใน 7 วันก่อนหรือหลัง และในเดือนเดียวกับวันนักขัตฤกษ์'});
+  await this.requirePublishedRoster(c,target,lockSchedule);
+  this.schedules.requireWritable([],[target.work_date],now);
+  const calendar=await this.schedules.holidayRoster(c,target.schedule_id,target.employee_id);
+  if(!calendar.dates.includes(date))throw new NotFoundException({code:'HOLIDAY_UNAVAILABLE',message:'ไม่พบวันนักขัตฤกษ์ที่เปิดให้ใช้สิทธิ์'});
+  if(!calendar.activeHolidayDates.has(date)||(await this.pendingHolidayDates(c,target.employee_id,date.slice(0,7),now,excludeId)).has(date))
+   throw new ConflictException({code:'HOLIDAY_TAKEN',message:'สิทธิ์วันนักขัตฤกษ์นี้มีคำขอที่ยังมีผลอยู่'});
+  const source=calendar.assignments.find(slot=>slot.work_date===date);
+  const allocated=calendar.allocations.find(item=>item.holidayDate===date);
+  const overtime=allocated&&calendar.assignments.find(slot=>slot.work_date===allocated.workDate);
+  if(!source||!allocated||!overtime)throw new ConflictException({code:'HOLIDAY_UNAVAILABLE',message:'ไม่มี OT ที่ผูกกับสิทธิ์ในตารางกะปัจจุบัน'});
+  this.demoScope(source,overtime,target);
+  if(this.holidayReservedForOther(calendar,date,target.work_date))
+   throw new ConflictException({code:'HOLIDAY_OT_RESERVED',message:'วันที่เลือกเป็นกะ OT ของวันนักขัตฤกษ์อีกวัน กรุณาเลือกวันอื่น'});
+  const window=holidayRequestWindow(date,target,overtime);
+  if(!window)throw new ConflictException({code:'SHIFT_START_UNAVAILABLE',message:'ยังไม่มีเวลาเริ่มกะสำหรับวันที่เลือก'});
+  if(now>=window.deadline)throw holidayDeadline();
+  const plan={...window,source,target,overtime,otCode:allocated.overtimeShiftCode,changes:holidayChanges(target,overtime,allocated.overtimeShiftCode)};
+  const slots=holidaySlots(plan);
+  const [conflict]=await rosterRequestConflicts(c,slots.map(slot=>slot.assignment_id),now,true,excludeId);
+  if(conflict) {
+   const workDate=slots.find(slot=>slot.assignment_id===conflict.assignment_id)?.work_date;
+   throw new ConflictException({code:conflict.status==='APPROVED'?'APPROVED_REQUEST':'PENDING_REQUEST',
+    message:`วันที่ ${workDate} มีคำขอที่ยังมีผลอยู่ กรุณาตรวจคำขอเดิม`,workDate,
+    ...(conflict.requester_id===target.employee_id?{requestId:conflict.request_id}:{})});
+  }
+  return plan;
+ }
+ async validateHoliday(actor:Actor,input:HolidayInput) {
+  await this.requireHoliday(actor);
+  const date=this.holidayDate(input.holidayDate);
+  return this.db.transaction(async c=>{
+   await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+   const [slot]=await this.schedules.pair(c,[input.assignmentId]);
+   this.requireRosterSubmissionSlot(actor,slot,input.assignmentVersion);
+   const plan=await this.holidayPlan(c,slot,date,new Date());
+   await this.leaveReplacements(c,[slot],false);
+   return {holidayDate:date,deadline:plan.deadline.toISOString(),deadlineReason:plan.deadlineReason,
+    changes:plan.changes,previewToken:holidayPreviewToken(plan)};
+  });
+ }
+ async createHoliday(actor:Actor,input:HolidayInput,previewToken:unknown,key:string) {
+  const employeeId=await this.requireHoliday(actor);
+  const date=this.holidayDate(input.holidayDate);
+  if(typeof previewToken!=='string'||!/^[0-9a-f]{64}$/.test(previewToken))throw leaveChanged();
+  return this.operation(actor,key,{action:'CREATE_HOLIDAY',...input,previewToken},async(c,beforeCommit)=>{
+   const [slot]=await this.lockAssignments(c,[input.assignmentId],[employeeId]);
+   this.requireRosterSubmissionSlot(actor,slot,input.assignmentVersion);
+   const now=new Date();
+   const plan=await this.holidayPlan(c,slot,date,now,true);
+   if(holidayPreviewToken(plan)!==previewToken)throw leaveChanged();
+   await this.leaveReplacements(c,[slot],false);
+   const approvers=await this.approversFor(c,slot,null,actor.role==='SUPERVISOR');
+   const {rows:[{request_id:requestId}]}=await c.query(
+    "INSERT INTO requests(requester_id,request_type,status,submitted_at) VALUES($1,'LEAVE','PENDING',$2) RETURNING request_id",
+    [employeeId,now]);
+   await c.query(`INSERT INTO shiftflow_policy.leave_requests
+    (request_id,assignment_id,source_snapshot,shift_starts_at,expires_at,holiday_date,holiday_ot_snapshot,holiday_source_snapshot)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+   [requestId,slot.assignment_id,slot,plan.affectedShiftStart,plan.deadline,date,plan.overtime,plan.source]);
+   for(const [index,userId] of approvers.entries()) {
+    await c.query("INSERT INTO approvals(request_id,approver_id,approver_level,status) VALUES($1,$2,$3,'PENDING')",[requestId,userId,index+1]);
+    await this.notify(c,userId,requestId,'มีคำขอใหม่','เปิดรายการคำขอเพื่อตรวจสอบ');
+   }
+   await this.audit(c,actor,'REQUEST_SUBMITTED',requestId,null,{status:'PENDING',requestVersion:1,holidayDate:date,changes:plan.changes});
+   beforeCommit(()=>{if(new Date()>=plan.deadline)throw holidayDeadline();});
+   return {requestId,status:'PENDING',version:1};
+  });
  }
  private async requireOT(actor:Actor,code:unknown):Promise<OTCode> {
   if(!['EMPLOYEE','SUPERVISOR'].includes(actor.role))this.denied();
@@ -178,6 +329,32 @@ export class RequestsService {
   if(!leave)throw new NotFoundException({code:'NOT_FOUND',message:'ไม่พบคำขอ'});
   return {...request,...leave};
  }
+ private async recheckHoliday(c:PoolClient,request:LeaveRow) {
+  if(!request.holiday_date)return;
+  const [target]=await this.lockAssignments(c,[request.source_snapshot.assignment_id],[request.requester_id]);
+  if(!target||!sameAssignment(target,request.source_snapshot))throw leaveChanged();
+  const plan=await this.holidayPlan(c,target,request.holiday_date,new Date(),true,request.request_id);
+  if(!request.holiday_source_snapshot||!request.holiday_ot_snapshot
+   ||!sameAssignment(plan.source,request.holiday_source_snapshot)||!sameAssignment(plan.overtime,request.holiday_ot_snapshot)
+   ||plan.deadline.getTime()!==request.expires_at.getTime())throw leaveChanged();
+ }
+ private async recheckHolidayCancellation(c:PoolClient,request:LeaveRow) {
+  if(!request.holiday_date)return;
+  const overtime=request.holiday_ot_snapshot;
+  if(!overtime)throw leaveChanged();
+  const target=request.source_snapshot;
+  const live=await this.lockAssignments(c,[target.assignment_id,...(overtime.assignment_id===target.assignment_id?[]:[overtime.assignment_id])],
+   [request.requester_id]);
+  const liveOT=live.find(slot=>slot.assignment_id===overtime.assignment_id);
+  if(!liveOT||(overtime.assignment_id!==target.assignment_id&&!sameAssignment(liveOT,overtime)))throw leaveChanged();
+  const current=await this.schedules.holidayRoster(c,target.schedule_id,request.requester_id);
+  const calendar=await this.schedules.holidayRoster(c,target.schedule_id,request.requester_id,request.holiday_date);
+  const allocation=calendar.allocations.find(item=>item.holidayDate===request.holiday_date);
+  if(!allocation||allocation.workDate!==overtime.work_date||allocation.baseShiftCode!==overtime.shift_code)throw leaveChanged();
+  if(calendar.allocations.some(item=>item.holidayDate!==request.holiday_date
+    &&!current.allocations.some(previous=>previous.holidayDate===item.holidayDate&&previous.workDate===item.workDate))
+   ||calendar.allocations.length!==current.allocations.length+1)throw leaveChanged();
+ }
  private async leaveRoster(c:PoolClient,request:LeaveRow,reversing:boolean) {
   const slots=leaveSlots(request);
   const live=await this.lockAssignments(c,slots.map(a=>a.assignment_id),slots.map(a=>a.employee_id));
@@ -225,7 +402,11 @@ export class RequestsService {
    restoredFromVersion:slot.version,version:roster.before[index].version+1,
   }:evidence(slot));
   await this.audit(c,actor,`SCHEDULE_${request.ot_code?'OT':'LEAVE'}_${reversing?'REVERSED':'APPLIED'}`,request.request_id,
-   {assignments:roster.before.map(evidence)},{assignments:after});
+   {assignments:roster.before.map(evidence)},{assignments:after,...(request.holiday_date&&request.holiday_ot_snapshot?{
+    holidayDate:request.holiday_date,changes:holidayChanges(request.source_snapshot,request.holiday_ot_snapshot,
+     request.holiday_ot_snapshot.shift_code==='M'?'MT':'NT').map(change=>reversing
+      ? {...change,before:change.after,after:change.before}:change),
+   }:{})});
  }
  private async decideLeave(c:PoolClient,actor:Actor,request:LeaveRow,input:DecisionInput,approvals:ApprovalStep[],beforeCommit:(check:()=>void)=>void) {
   const step=approvals.find(item=>item.approver_id===actor.userId&&item.status==='PENDING');
@@ -239,6 +420,7 @@ export class RequestsService {
   const reject=input.decision==='REJECT';
   if(reject&&!input.reason.trim())throw new BadRequestException({code:'INVALID_REASON',message:'กรุณาระบุเหตุผลที่ไม่อนุมัติ'});
   const status=reject?'REJECTED':approvals.every(item=>item===step||item.status==='APPROVED')?'APPROVED':'PENDING';
+  if(!reject)await this.recheckHoliday(c,request);
   const roster=reject?null:await this.leaveRoster(c,request,false);
   if(status==='APPROVED'&&roster) {
    await this.requireFreeAssignments(c,leaveSlots(request).map(slot=>slot.assignment_id),new Date(),true,request.request_id);
@@ -269,6 +451,7 @@ export class RequestsService {
   const checkDeadline=(now:Date)=>{
    if(!approved)requireOpenLeave(request,now);
    else if(now>=request.shift_starts_at) {
+    if(request.holiday_date)throw holidayDeadline();
     if(!request.ot_code)throw leaveExpired();
     throw new ConflictException({code:'CANCELLATION_CLOSED',message:'กะ OT เริ่มแล้ว จึงยกเลิกไม่ได้'});
    }
@@ -276,6 +459,7 @@ export class RequestsService {
   checkDeadline(new Date());
   if(!approved&&(await c.query("SELECT 1 FROM approvals WHERE request_id=$1 AND status<>'PENDING'",[request.request_id])).rowCount)
    throw new ConflictException({code:'CANCELLATION_CLOSED',message:'คำขอผ่านการตรวจแล้ว'});
+  if(approved)await this.recheckHolidayCancellation(c,request);
   const roster=approved?await this.leaveRoster(c,request,true):null;
   if(roster)await this.writeLeaveRoster(c,actor,request,roster,true);
   await this.finishLeave(c,request,'CANCELLED',new Date());
@@ -626,6 +810,8 @@ export class RequestsService {
  private async listLeave(actor:Actor) {
   const {rows}=await this.db.query(`SELECT r.request_id,r.requester_id,r.request_type,r.version,r.submitted_at,r.status,
    l.source_snapshot,l.cover_snapshot,l.shift_starts_at,l.expires_at,to_jsonb(l)->>'ot_code' AS ot_code,
+   to_jsonb(l)->>'holiday_date' AS holiday_date,to_jsonb(l)->'holiday_ot_snapshot' AS holiday_ot_snapshot,
+   (to_jsonb(l)->'holiday_source_snapshot'->>'version')::int AS holiday_source_version,
    CASE WHEN (COALESCE(l.finished_at,l.expires_at) AT TIME ZONE 'Asia/Bangkok')+interval '12 months'
       > $4::timestamptz AT TIME ZONE 'Asia/Bangkok' THEN l.leave_code END AS leave_code,
    CASE WHEN (COALESCE(l.finished_at,l.expires_at) AT TIME ZONE 'Asia/Bangkok')+interval '12 months'
@@ -633,10 +819,13 @@ export class RequestsService {
    CASE WHEN (COALESCE(l.finished_at,l.expires_at) AT TIME ZONE 'Asia/Bangkok')+interval '12 months'
       > $4::timestamptz AT TIME ZONE 'Asia/Bangkok' THEN l.rejection_reason END AS rejection_reason,
    a.version AS live_version,a.shift_type_id AS live_shift_type,
-   b.version AS live_cover_version,b.shift_type_id AS live_cover_shift_type
+   b.version AS live_cover_version,b.shift_type_id AS live_cover_shift_type,
+   ot.version AS live_holiday_ot_version,hs.version AS live_holiday_source_version
    FROM requests r JOIN shiftflow_policy.leave_requests l USING(request_id)
    JOIN shift_assignments a ON a.assignment_id=l.assignment_id
    LEFT JOIN shift_assignments b ON b.assignment_id=l.cover_assignment_id
+   LEFT JOIN shift_assignments ot ON ot.assignment_id=(to_jsonb(l)->'holiday_ot_snapshot'->>'assignment_id')::int
+   LEFT JOIN shift_assignments hs ON hs.assignment_id=(to_jsonb(l)->'holiday_source_snapshot'->>'assignment_id')::int
    WHERE r.requester_id=$1 OR l.cover_employee_id=$1
     OR ($2 IN ('MANAGER','SUPERVISOR') AND EXISTS(SELECT 1 FROM approvals ap WHERE ap.request_id=r.request_id AND ap.approver_id=$3))`,
    [actor.employeeId,actor.role,actor.userId,new Date()]);
@@ -659,7 +848,9 @@ export class RequestsService {
    const changed=shifts.some(({assignment_id,version},i)=>{
     const liveVersion=i===0?row.live_version:row.live_cover_version;
     return liveVersion!==version+offset&&(!offset||restored.get(assignment_id)!==version+offset);
-   });
+   })||Boolean(row.holiday_ot_snapshot&&row.holiday_ot_snapshot.assignment_id!==row.source_snapshot.assignment_id
+    &&row.live_holiday_ot_version!==row.holiday_ot_snapshot.version)
+    ||Boolean(row.holiday_date&&row.status==='PENDING'&&row.live_holiday_source_version!==row.holiday_source_version);
    if(row.status==='PENDING')row.status=leavePendingClosure(row,now)?.status??(closed?'MONTH_CLOSED':'PENDING');
    row.approvals=approvals;
    const supervisor=leaveRole(shifts[0])==='SUPERVISOR';
@@ -680,6 +871,11 @@ export class RequestsService {
     }
    }
    row.coverOtCode=shifts[1]?leaveCoverShift(shifts[0],shifts[1]):null;
+   if(row.holiday_date&&row.holiday_ot_snapshot) {
+    const overtimeShiftCode=row.holiday_ot_snapshot.shift_code==='M'?'MT':'NT';
+    row.holiday={date:row.holiday_date,deadline:row.expires_at.toISOString(),overtimeDate:row.holiday_ot_snapshot.work_date,
+     overtimeShiftCode,changes:holidayChanges(shifts[0],row.holiday_ot_snapshot,overtimeShiftCode)};
+   }
    row.snapshot={source:row.source_snapshot,target:row.cover_snapshot,
     approvalRoute:leaveRole(shifts[0])==='SUPERVISOR'?'MANAGER':shifts[1]?'TWO_SUPERVISORS':'ONE_SUPERVISOR'};
    delete row.source_snapshot;
@@ -688,6 +884,11 @@ export class RequestsService {
    delete row.live_shift_type;
    delete row.live_cover_version;
    delete row.live_cover_shift_type;
+   delete row.holiday_date;
+   delete row.holiday_ot_snapshot;
+   delete row.live_holiday_ot_version;
+   delete row.live_holiday_source_version;
+   delete row.holiday_source_version;
   }
   return rows;
  }

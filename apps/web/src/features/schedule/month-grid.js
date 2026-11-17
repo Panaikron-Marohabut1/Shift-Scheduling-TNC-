@@ -4,9 +4,9 @@
 
 import { state } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
-import { TH_DW, thaiMonthName } from '../../shared/scheduling/dates.js';
+import { isoOf, TH_DW, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { getAllEmployees } from '../../shared/scheduling/employees.js';
-import { getShiftCodeForDate, getTeamForDate } from '../../shared/scheduling/roster.js';
+import { getCalendarShiftCode, getShiftCodeForDate, getTeamForDate } from '../../shared/scheduling/roster.js';
 import { cellText, changeNote, codeClass, famOf } from './codes.js';
 import { dayClass } from './days.js';
 import { matchQ, teamSections } from './page.js';
@@ -32,7 +32,7 @@ export function gridHtml(S) {
     <tr class="team"><th class="nm" scope="rowgroup">${esc(sec.name.replace(/"/g, ''))}</th><td colspan="${n + 3}" class="team-note">${esc(sec.thaiName)} · ${sec.employees.length} ตำแหน่ง</td></tr>
     ${list.map(emp => {
       const isSup = emp.id === sec.supervisorId || emp.roleCategory === 'Shift Supervisor';
-      const codes = days.map(d => getTeamForDate(emp, y, m, d) === emp.teamForDisplay ? getShiftCodeForDate(emp, y, m, d) : null);
+      const codes = days.map(d => getTeamForDate(emp, y, m, d) === emp.teamForDisplay ? getCalendarShiftCode(emp, y, m, d) : null);
       const sum = { work: 0, ot: 0, leave: 0 };
       codes.forEach(c => { const def = state.shiftDefs[c] || {}; if (!c || c === 'O') return; if (def.leave) sum.leave += def.half ? 0.5 : 1; else { sum.work++; if (def.ot) sum.ot++; } });
       const me = S.viewer && S.viewer.id === emp.id;
@@ -42,8 +42,9 @@ export function gridHtml(S) {
           ${codes.map((code, i) => {
             if (code === null) return `<td class="${cls[i]}" aria-label="อยู่ทีมอื่นในวันนี้"></td>`;
             const d = i + 1, def = state.shiftDefs[code] || state.shiftDefs.O;
-            const chg = changeNote(emp, y, m, d, code);
-            const tip = `${emp.name} ${d} ${thaiMonthName(m, 'short')} · ${def.label}${chg ? ` · ${chg}` : ''}${hol[`${m}-${d}`] ? ` · ${hol[`${m}-${d}`]}` : ''}${!S.hasData ? ' · คาดการณ์' : ''}`;
+            const chg = changeNote(emp, y, m, d, getShiftCodeForDate(emp, y, m, d));
+            const holidayOT = state.apiAssign[emp.id]?.[isoOf(y, m, d)]?.holidayOvertime;
+            const tip = `${emp.name} ${d} ${thaiMonthName(m, 'short')} · ${def.label}${chg ? ` · ${chg}` : ''}${holidayOT ? ` · OT นักขัตฤกษ์จากวันที่ ${Number(holidayOT.holidayDate.slice(-2))}` : ''}${hol[`${m}-${d}`] ? ` · ${hol[`${m}-${d}`]}` : ''}${!S.hasData ? ' · คาดการณ์' : ''}`;
             return `<td class="${codeClass(code)} ${chg ? 'chg' : ''} ${cls[i]} ${!S.hasData ? 'proj' : ''}"><button data-click="SF.cell(${js(emp.id)}, ${d})" title="${esc(tip)}">${cellText(code)}</button></td>`;
           }).join('')}
           <td class="sm">${sum.work}</td><td class="sm">${sum.ot || ''}</td><td class="sm">${sum.leave || ''}</td>

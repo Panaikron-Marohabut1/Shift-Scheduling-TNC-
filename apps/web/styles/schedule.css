@@ -120,20 +120,19 @@
 .roster thead th.tdy span, .roster thead th.tdy b { color: #fff; }
 /* ตารางรวมไฮไลต์เสาร์–อาทิตย์และนักขัตฤกษ์ในช่องว่าง; คงสีรหัสกะ */
 .roster td.c-O.we, .roster td.we:empty { background: var(--we-bg); }
-.roster tfoot td.we { background: #f8d6d4; }
+.roster tfoot td.we { background: color-mix(in srgb, var(--we-bg) 80%, var(--we-marker)); }
 .roster td.c-O.hol, .roster td.hol:empty { background: var(--hol-bg); }
-.roster tfoot td.hol { background: #efcbe0; }
+.roster tfoot td.hol { background: color-mix(in srgb, var(--hol-bg) 80%, var(--hol-marker)); }
 /* Day-kind underline overlays shift fills without replacing them or the
    existing today/own-row strokes. It also avoids OT/comment pseudo-elements. */
-.roster { --weekend-marker: #e6a09a; --holiday-marker: #d48cb7; }
 .roster tbody tr:not(.team) td:is(.we, .hol):not(.c-O):has(button, span):not(:empty) {
   background-image: linear-gradient(var(--day-kind-marker), var(--day-kind-marker));
   background-size: 100% 3px;
   background-position: left bottom;
   background-repeat: no-repeat;
 }
-.roster td.we { --day-kind-marker: var(--weekend-marker); }
-.roster td.hol { --day-kind-marker: var(--holiday-marker); }
+.roster td.we { --day-kind-marker: var(--we-marker); }
+.roster td.hol { --day-kind-marker: var(--hol-marker); }
 .roster tr.team td { background-image: none; }
 
 .roster td.tdy {
@@ -145,7 +144,7 @@
 .roster th.wk, .roster td.wk { box-shadow: inset 1px 0 0 var(--wk-line); }
 .lg-day { display: inline-block; width: 14px; height: 14px; border-radius: 4px; }
 .lg-day.we { background: var(--we-bg); box-shadow: inset 0 0 0 1px var(--we-ink); }
-.lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px #ef9a9a; }
+.lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px var(--hol-ink); }
 
 /* รายวัน */
 .dnav-days button.we:not(.on) b, .dnav-days button.we:not(.on) span { color: var(--we-ink); }
@@ -190,7 +189,7 @@
 .codes-note { margin-top: 12px; font-size: 0.9rem; color: var(--ink-2); line-height: 1.8; }
 .codes-note .lg-day { vertical-align: -2px; }
 .lg-day.we { background: var(--we-bg); box-shadow: inset 0 0 0 1px var(--we-ink); }
-.lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px #ef9a9a; }
+.lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px var(--hol-ink); }
 @media (max-width: 760px) {
   .sched-bar { gap: 8px; }
   .sched-bar .mnav { flex: 1; }
@@ -272,8 +271,8 @@
   .roster-sheet { padding: 0; border-radius: 0; }
 }
 
-.legend .day-line-key.lg-we { border-bottom: 3px solid #e6a09a; }
-.legend .day-line-key.lg-hol { border-bottom: 3px solid #d48cb7; }
+.legend .day-line-key.lg-we { border-bottom: 3px solid var(--we-marker); }
+.legend .day-line-key.lg-hol { border-bottom: 3px solid var(--hol-marker); }
 
 /* Keep related legend entries together when the footer wraps. */
 .legend-grouped { align-items: start; gap: 16px 28px; }

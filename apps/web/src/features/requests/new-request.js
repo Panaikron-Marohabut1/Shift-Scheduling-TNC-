@@ -7,7 +7,7 @@ import { esc, js } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
 import { openModal } from '../../shared/modal.js';
 import { isYearPublished } from '../../shared/scheduling/annual.js';
-import { daysIn } from '../../shared/scheduling/dates.js';
+import { daysIn, monthKey } from '../../shared/scheduling/dates.js';
 import { isMonthLocked, isSchedulePublished } from '../../shared/scheduling/roster.js';
 import { draftNote, isToday } from '../schedule/days.js';
 
@@ -17,11 +17,20 @@ export const KINDS = [
   { k: 'swap', label: 'ขอสลับกะ', hint: 'เลือกเพื่อนต่างทีมและวันที่ต้องการสลับกะ' },
   { k: 'leave', label: 'ขอลา', hint: 'เลือกรูปแบบการลาแบบมีหรือไม่มีคนทำแทน' },
   { k: 'ot', label: 'ขอทำงานล่วงเวลา (OT)', hint: 'ขอทำ OT เต็มกะเช้าหรือกะดึกในวันหยุดของคุณ' },
+  { k: 'holiday', label: 'ใช้สิทธิ์วันหยุดนักขัตฤกษ์', hint: 'หยุดตรงวันนักขัตฤกษ์หรือเลือกวันหยุดแทนตามสิทธิ์', central: true },
   { k: 'dayoff', label: 'ขอย้ายวันหยุดนักขัตฤกษ์', hint: 'เลือกไปทำงานในวันหยุดเดิม แล้วระบุวันที่จะหยุดแทน' }
 ];
+export function holidayRequestsAvailable(y = state.currentYear, m = state.currentMonth) {
+  return !!state.actor?.centralHoliday && isSchedulePublished(y, m) && !isMonthLocked(y, m)
+    && !!state.apiMonths[monthKey(y, m)]?.holidays?.length;
+}
 // ทุกบทบาทที่มีกะ (พนักงานและหัวหน้ากะ) เปลี่ยนตารางได้ผ่านคำขอเท่านั้น
 export function kindsAllowed() {
-  const kinds = KINDS.filter(kind => kind.k !== 'ot' || state.actor?.centralOT).map(kind => {
+  const kinds = KINDS.filter(({ k }) => {
+    if (k === 'ot') return state.actor?.centralOT;
+    if (k === 'holiday') return holidayRequestsAvailable();
+    return k !== 'dayoff' || !state.actor?.centralHoliday;
+  }).map(kind => {
     if (kind.k === 'swap' && state.actor?.centralSwap) return { ...kind, hint: 'แลกกะกับเพื่อนในวันเดียวกัน หรือทำกะแทนกันคนละวัน', central: true };
     if (kind.k === 'leave' && state.actor?.centralLeave) return { ...kind, central: true };
     if (kind.k === 'ot') return { ...kind, central: true };
@@ -48,13 +57,17 @@ export const LOCKED_NOTE = 'เดือนนี้ถูกล็อกข้�
 export const PAST_DATE_NOTE = 'วันที่ผ่านมาแล้ว ดูรายละเอียดได้อย่างเดียว';
 export function draftBlocked(kind) {
   if (kind === 'ot' && !state.actor?.centralOT) return true;
+  if (kind === 'holiday' && !holidayRequestsAvailable()) {
+    openModal('ยังยื่นคำขอไม่ได้', '<p>ไม่พบสิทธิ์วันหยุดนักขัตฤกษ์ที่เลือกได้ในเดือนนี้</p>', '<button class="btn" data-click="closeModal()">ปิด</button>');
+    return true;
+  }
   if (state.actor?.remotePilot && !kindsAllowed().some(option => !kind || option.k === kind)) {
     openModal('ยังยื่นคำขอไม่ได้', '<p>คำขอนี้ยังไม่เปิดใช้ในระบบส่วนกลาง</p>', '<button class="btn" data-click="closeModal()">ปิด</button>');
     return true;
   }
   const y = state.currentYear, m = state.currentMonth;
   const central = (state.actor?.centralSwap && (!kind || kind === 'swap')) || (kind === 'leave' && state.actor?.centralLeave)
-    || (kind === 'ot' && state.actor?.centralOT);
+    || (kind === 'ot' && state.actor?.centralOT) || ((!kind || kind === 'holiday') && state.actor?.centralHoliday);
   const published = central ? isSchedulePublished(y, m) : isYearPublished(y);
   if (published && !isMonthLocked(y, m)) return false;
   const message = published ? LOCKED_NOTE : central ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(y);

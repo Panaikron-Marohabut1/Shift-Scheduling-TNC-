@@ -8,7 +8,7 @@ for(const file of [...files(resolve(root,'apps/web/src')),...files(resolve(root,
  const result=spawnSync(process.execPath,['--input-type=module','--check'],{input:readFileSync(file,'utf8'),encoding:'utf8',windowsHide:true});
  if(result.status!==0)throw new Error(`${file}: ${result.stderr}`);
 }
-const documents=['README.md','AGENTS.md','CLAUDE.md','.docs/02-design/prototype/alpha-demo.md','.docs/02-design/prototype/index.md','.docs/06-development/project-structure.md','prototypes/legacy-static/README.md'];
+const documents=['README.md','AGENTS.md','CLAUDE.md','.docs/02-design/prototype/alpha-demo.md','.docs/02-design/prototype/index.md','.docs/06-development/project-structure.md'];
 for(const file of documents) {
  const text=readFileSync(resolve(root,file),'utf8'),fences=text.split('\n').filter(l=>/^```/.test(l));
  if(fences.length%2!==0)throw new Error(`${file}: unclosed Markdown code fence.`);

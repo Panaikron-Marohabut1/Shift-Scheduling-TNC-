@@ -6,7 +6,8 @@ import { state, view } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
 import { TH_DW } from '../../shared/scheduling/dates.js';
-import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
+import { hasCentralHolidayCalendar } from '../../shared/scheduling/annual.js';
+import { getCalendarShiftCode } from '../../shared/scheduling/roster.js';
 import { telOf } from '../../shared/ui.js';
 import { codeClass, famOf } from './codes.js';
 import { dayClass, isToday } from './days.js';
@@ -33,7 +34,7 @@ export function dayViewHtml(S) {
   const groups = { 'c-M': [], 'c-N': [], 'c-D': [], 'c-X': [], 'c-L': [], 'c-O': [] };
   const people = teamSections(y, m, d).flatMap(section => section.employees).filter(matchQ);
   people.forEach(e => {
-    const c = getShiftCodeForDate(e, y, m, d);
+    const c = getCalendarShiftCode(e, y, m, d);
     let f = famOf(c);
     if (f === 'c-H') f = 'c-L';
     const def = state.shiftDefs[c] || {};
@@ -57,8 +58,8 @@ export function dayViewHtml(S) {
     <div class="daytitle">
       <h2>${esc(dt.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</h2>
       ${isToday(y, m, d) ? '<span class="st ok">วันนี้</span>' : ''}
-      ${hol[`${m}-${d}`] ? `<span class="st bad">${esc(hol[`${m}-${d}`])}</span>` : ''}
-      ${!S.hasData ? '<span class="st warn">ตารางคาดการณ์</span>' : ''}
+      ${hol[`${m}-${d}`] ? `<span class="st bad">${esc(hol[`${m}-${d}`])}${state.actor?.remotePilot && !hasCentralHolidayCalendar(y, m) ? ' · ข้อมูลทดสอบ' : ''}</span>` : ''}
+      ${!S.hasData ? `<span class="st warn">ตารางกะคาดการณ์${S.projected ? ' · ดูได้อย่างเดียว' : ''}</span>` : ''}
     </div>
     <div class="daycols">
       ${col('c-M', 'กะเช้า', (t.M || '').split(' ')[0])}

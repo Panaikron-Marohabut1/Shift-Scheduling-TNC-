@@ -4,14 +4,13 @@
 
 ใช้ [กฎและ Checklist ของระบบสำหรับ Manager](.docs/01-requirements/01-spec/2026-11-04-01-business-rules-master.md) เป็นไฟล์หลักสำหรับตรวจความเข้าใจ แก้กฎ และบันทึกคำตอบค้าง แยกการยืนยันกฎออกจากผลทดสอบโค้ด ก่อนเริ่มพัฒนารอบถัดไป
 
-Alpha Demo วันที่ 7 ตุลาคม 2026: แอปสลับกะข้ามทีมบนเครื่อง ใช้ NestJS + TypeScript, PostgreSQL และ Vanilla JavaScript modules ข้อมูลทุกคนเป็นข้อมูลสมมติ ใช้สีและรูปแบบจากต้นแบบเดิมใน `prototypes/legacy-static/` ซึ่งยังเก็บไว้เป็นแหล่งอ้างอิง
+Alpha Demo วันที่ 7 ตุลาคม 2026 เป็นแอปสลับกะข้ามทีมบนเครื่องที่ใช้ NestJS, TypeScript, PostgreSQL และ Vanilla JavaScript modules ข้อมูลทุกคนเป็นข้อมูลสมมติ แนวทางออกแบบปัจจุบันอยู่ใน [ShiftFlow design](DESIGN.md)
 
 ## โครงสร้าง Project
 
 - `apps/web/` — Frontend: หน้าจอเว็บจัดกะ
 - `apps/api/` — Backend หลัก: ตรวจสิทธิ์ จัดการตารางกะ คำขอ และฐานข้อมูล
 - `apps/auth/` — Backend สำหรับเข้าสู่ระบบ: เชื่อม Supabase Auth (เดิมอยู่ `shift/Backend/`)
-- `prototypes/legacy-static/` — ต้นแบบเก่า พร้อมเอกสารออกแบบและรายงานตรวจเดิม
 - `.docs/` — Requirements, design และคู่มือพัฒนา
 - `scripts/` — เครื่องมือรันและตรวจ Project
 - `.agents/`, `.codex/`, `.claude/` — Skills และการตั้งค่าของเครื่องมือ Agent

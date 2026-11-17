@@ -22,13 +22,13 @@ export function checksList(title, results) {
       <span>${c.statusText ? `<small class="check-status">${esc(c.statusText)}</small>` : ''}${c.rule ? `<b>${esc(c.rule)}</b>` : ''} ${esc(c.msg)}</span>
     </li>`).join('')}</ul></div>`;
 }
-export function changesTable(rows) {
+export function changesTable(rows, heading = 'ผลที่จะเกิดในตารางกะเมื่ออนุมัติครบ') {
   if (!rows.length) return '';
   return `
-    <h3>ผลที่จะเกิดในตารางกะเมื่ออนุมัติครบ</h3>
+    <h3>${esc(heading)}</h3>
     <table class="tbl chg${rows.some(row => row.targetCodeOnly) ? ' leave-preview' : ''}">
       <thead><tr><th>พนักงาน</th><th>วันที่</th><th>เดิม</th><th>เปลี่ยนเป็น</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${esc(r.e.name)}</td><td class="nowrap">${esc(r.date)}</td><td>${codeLabel(r.from)}</td><td>${r.targetCodeOnly ? `<b>${esc(r.to)}</b>` : codeLabel(r.to)}</td></tr>`).join('')}</tbody>
+      <tbody>${rows.map(r => `<tr><td>${esc(r.e.name)}</td><td class="nowrap">${esc(r.date)}</td><td>${codeLabel(r.from)}</td><td>${r.targetLabel ? esc(r.targetLabel) : r.targetCodeOnly ? `<b>${esc(r.to)}</b>` : codeLabel(r.to)}</td></tr>`).join('')}</tbody>
     </table>`;
 }
 export const approversList = (roles, heading = 'ลำดับผู้อนุมัติ') => `<h3>${esc(heading)}</h3><ol class="steps">${roles.map(r => `<li><b>${esc(r)}</b></li>`).join('')}</ol>`;

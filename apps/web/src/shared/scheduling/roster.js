@@ -40,6 +40,12 @@ export function dataMonth() {
 }
 export function hasAnyScheduleData() { return Object.values(state.apiMonths).some(r => r.assignments && r.assignments.length); }
 
+export function hasPilotProjection(year, month) {
+  if (!state.actor?.remotePilot || hasScheduleDataForMonth(year, month)) return false;
+  const schedule = state.apiMonths[monthKey(year, month)]?.schedule;
+  return (schedule === null || schedule?.status === 'DRAFT') && hasAnyScheduleData();
+}
+
 /* ---------- ค่าคาดการณ์ (รอบ 8 วัน: เช้า 2 หยุด 2 ดึก 2 หยุด 2) ---------- */
 const ROTATION_CYCLE_DAYS = 8;
 export const LEAVE = new Set(['L', 'V', 'B', 'S', 'H', 'VG', 'VGh']);
@@ -118,10 +124,27 @@ export function getShiftCodeForDate(emp, year, month, day) {
   if (nat && yr && nat !== yr) code = code === 'M' ? 'N' : code === 'N' ? 'M' : code;
   return code;
 }
+export function getCalendarShiftCode(emp, year, month, day) {
+  const slot = state.apiAssign[emp?.id]?.[isoOf(year, month, day)];
+  if (slot?.holidayLeave) return 'H';
+  return slot?.holidayOvertime?.shiftCode || getShiftCodeForDate(emp, year, month, day);
+}
 export function getTeamForDate(emp, year, month, day) {
-  if (state.actor?.swapPolicy || state.actor?.monthClose || state.actor?.peopleManagement) {
-    const team = state.apiAssign[emp.id]?.[isoOf(year, month, day)]?.team_code;
+  if (state.actor?.remotePilot || state.actor?.swapPolicy || state.actor?.monthClose || state.actor?.peopleManagement) {
+    const date = isoOf(year, month, day);
+    const assignments = state.apiAssign[emp.id];
+    const team = assignments?.[date]?.team_code;
     if (team) return `Shift ${team}`;
+    if (assignments && hasPilotProjection(year, month)) {
+      let previous, first;
+      for (const slot of Object.values(assignments)) {
+        if (!slot.team_code) continue;
+        if (!first || slot.work_date < first.work_date) first = slot;
+        if (slot.work_date < date && (!previous || slot.work_date > previous.work_date)) previous = slot;
+      }
+      const projectedTeam = (previous || first)?.team_code;
+      if (projectedTeam) return `Shift ${projectedTeam}`;
+    }
   }
   return emp.shiftType;
 }

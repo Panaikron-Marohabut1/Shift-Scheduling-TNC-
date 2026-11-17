@@ -1,6 +1,6 @@
 # Shift schedule TNC — Alpha Demo implementation
 
-วันที่ 6 ตุลาคม 2026 อ้างอิงแผน implementation ที่ผู้ใช้อนุมัติ, schema DBML ที่ผู้ใช้ให้, ต้นแบบ `prototypes/legacy-static/app.js`, `prototypes/legacy-static/index.html`, `prototypes/legacy-static/app.css` (เดิมอยู่ `shift/`), baseline `.docs/01-requirements/rule.md` และ spec/backlog ปัจจุบัน เอกสารนี้บันทึกขอบเขต prototype ไม่แก้หรือถือว่าข้อกำหนดบริษัทได้รับการยืนยันแล้ว
+วันที่ 6 ตุลาคม 2026 อ้างอิงแผน implementation ที่ผู้ใช้อนุมัติ, schema DBML ที่ผู้ใช้ให้, ต้นแบบ static เดิมในประวัติ Git, baseline `.docs/01-requirements/rule.md` และ spec/backlog ปัจจุบัน เอกสารนี้บันทึกขอบเขต prototype ไม่แก้หรือถือว่าข้อกำหนดบริษัทได้รับการยืนยันแล้ว
 
 อัปเดต 7 ตุลาคม 2026 ตามคำยืนยันผู้ใช้: เปิดสลับข้ามทีมครบ A–D เพิ่มเฉพาะ Supervisor C/D เป็น 9 บัญชี บัญชีพนักงานยังมี A/B และคงกฎตรวจความปลอดภัยเดิม ขอบเขตนี้แทนข้อจำกัด A/B ของเดโมก่อนหน้า ไม่ใช่การยืนยันกฎบริษัทเพิ่มเติม
 

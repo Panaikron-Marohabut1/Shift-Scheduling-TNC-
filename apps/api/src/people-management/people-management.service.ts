@@ -124,13 +124,15 @@ export class PeopleManagementService {
    .map(({requestId,status,workDate})=>({requestId,status,workDate}));
   const available=(await c.query("SELECT to_regclass('shiftflow_policy.leave_requests') IS NOT NULL AS installed")).rows[0].installed;
   if(!available)return swaps;
-  const leaves=await c.query<Pick<RelatedRequest,'requestId'|'status'|'workDate'>>(`SELECT r.request_id AS "requestId",r.status,a.work_date AS "workDate"
+  const leaves=await c.query<Pick<RelatedRequest,'requestId'|'status'|'workDate'>>(`SELECT DISTINCT r.request_id AS "requestId",r.status,d.work_date AS "workDate"
    FROM requests r JOIN shiftflow_policy.leave_requests l USING(request_id)
    JOIN shift_assignments a ON a.assignment_id=l.assignment_id
-   WHERE (r.status='PENDING' AND l.expires_at>$4 AND ($3 OR a.work_date>=$2::date)
+   CROSS JOIN LATERAL (VALUES (a.work_date), ((to_jsonb(l)#>>'{holiday_ot_snapshot,work_date}')::date),
+     ((to_jsonb(l)->>'holiday_date')::date)) d(work_date)
+   WHERE d.work_date IS NOT NULL AND ((r.status='PENDING' AND l.expires_at>$4 AND ($3 OR d.work_date>=$2::date)
        AND ($1 IN (r.requester_id,l.cover_employee_id) OR EXISTS(SELECT 1 FROM approvals ap
         WHERE ap.request_id=r.request_id AND ap.approver_id=$5 AND ap.status='PENDING')))
-    OR (r.status='APPROVED' AND a.work_date>=$2::date AND $1 IN (r.requester_id,l.cover_employee_id))`,
+    OR (r.status='APPROVED' AND d.work_date>=$2::date AND $1 IN (r.requester_id,l.cover_employee_id)))`,
    [person.employeeId,transferDate,changesAccess,now,person.userId]);
   return [...swaps,...leaves.rows].sort((a,b)=>a.workDate.localeCompare(b.workDate)||a.requestId-b.requestId);
  }

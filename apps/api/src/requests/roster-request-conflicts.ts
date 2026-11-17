@@ -21,10 +21,12 @@ type ConflictRow = {
  submitted_at: Date;
  quota_month: string | null;
  expires_at: Date | null;
+ is_holiday: boolean;
 };
 
 function pendingExpiresAt(row: ConflictRow) {
  if (row.status !== 'PENDING') return null;
+ if (row.is_holiday) return row.expires_at;
  if (row.expires_at) {
   const deadline = requestApprovalDeadline(bangkokWorkDate(row.submitted_at), row.submitted_at);
   return row.expires_at < deadline ? row.expires_at : deadline;
@@ -41,22 +43,28 @@ export async function rosterRequestConflicts(
  if (!assignmentIds.length) return [];
  const { rows } = await client.query<ConflictRow>(`
   SELECT slots.assignment_id, r.request_id, r.requester_id, r.request_type, r.status, r.submitted_at, to_jsonb(r)->>'quota_month' AS quota_month,
-   NULL::timestamptz AS expires_at, r.updated_at
+   NULL::timestamptz AS expires_at, false AS is_holiday, r.updated_at
   FROM requests r JOIN change_requests ch USING(request_id)
   CROSS JOIN LATERAL ${swapSlots}
   WHERE slots.assignment_id=ANY($1::int[]) AND r.request_id IS DISTINCT FROM $2::int
     AND (r.status='APPROVED' OR (r.status='PENDING' AND NOT ${staleSlots}))
   ${includeLeave ? `
   UNION ALL
-  SELECT slots.assignment_id, r.request_id, r.requester_id, r.request_type, r.status, r.submitted_at, NULL::text, l.expires_at, r.updated_at
+  SELECT slots.assignment_id, r.request_id, r.requester_id, r.request_type, r.status, r.submitted_at, NULL::text, l.expires_at,
+   h.evidence IS NOT NULL AS is_holiday, r.updated_at
   FROM requests r JOIN shiftflow_policy.leave_requests l USING(request_id)
-  CROSS JOIN LATERAL (VALUES (l.assignment_id), (l.cover_assignment_id)) AS slots(assignment_id)
+  LEFT JOIN LATERAL (SELECT to_jsonb(l)->'holiday_ot_snapshot' AS evidence
+   WHERE to_jsonb(l)->>'holiday_date' IS NOT NULL) h ON true
+  CROSS JOIN LATERAL (VALUES (l.assignment_id), (l.cover_assignment_id),
+   (NULLIF((h.evidence->>'assignment_id')::int,l.assignment_id))) AS slots(assignment_id)
   WHERE slots.assignment_id=ANY($1::int[]) AND r.request_id IS DISTINCT FROM $2::int
     AND (r.status='APPROVED' OR (r.status='PENDING' AND l.expires_at>$3
       AND EXISTS (SELECT 1 FROM shift_assignments a
        WHERE a.assignment_id=l.assignment_id AND a.version=(l.source_snapshot->>'version')::int)
       AND (l.cover_assignment_id IS NULL OR EXISTS (SELECT 1 FROM shift_assignments a
-       WHERE a.assignment_id=l.cover_assignment_id AND a.version=(l.cover_snapshot->>'version')::int))))
+       WHERE a.assignment_id=l.cover_assignment_id AND a.version=(l.cover_snapshot->>'version')::int))
+      AND (h.evidence IS NULL OR EXISTS (SELECT 1 FROM shift_assignments a
+       WHERE a.assignment_id=(h.evidence->>'assignment_id')::int AND a.version=(h.evidence->>'version')::int))))
   ` : ''}
   ORDER BY status, updated_at DESC NULLS LAST, request_id DESC
  `, includeLeave ? [assignmentIds, excludeRequestId, checkedAt] : [assignmentIds, excludeRequestId]);

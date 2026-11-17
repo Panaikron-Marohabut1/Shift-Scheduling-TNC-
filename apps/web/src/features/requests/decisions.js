@@ -225,6 +225,7 @@ export function promptCancelApproved(reqId) {
     const copy = {
       leave: ['ยกเลิกคำลาที่อนุมัติแล้ว', 'ระบบจะคืนกะเดิมของคุณและคนที่มาทำแทนตามคำขอ', 'วันที่ลา'],
       ot: ['ยกเลิกคำขอ OT ที่อนุมัติแล้ว', 'ระบบจะคืนวันหยุดเดิมในตารางของคุณ', 'วันที่ทำ OT'],
+      holiday: ['ยกเลิกการใช้สิทธิ์ที่อนุมัติแล้ว', 'ระบบจะคืนกะเดิมและ OT อัตโนมัติที่ผูกกับสิทธิ์นักขัตฤกษ์ครั้งนี้', 'วันที่ขอหยุด'],
       swap: ['ยกเลิกการสลับกะที่อนุมัติแล้ว', 'ระบบจะคืนกะเดิมของคุณและคู่สลับครบทุกวันที่เกี่ยวข้อง พร้อมคืนโควตา 1 สิทธิ์ให้คุณในเดือนเดิม', 'วันที่สลับกะ']
     };
     const [title, message, dateLabel] = copy[req.kind] || copy.swap;
@@ -288,7 +289,8 @@ async function cancelApprovedSwap(req) {
     if (button?.isConnected) closeModal();
     approvedCancelAttempts.delete(req.id);
     showToast(req.kind === 'ot' ? 'ยกเลิก OT และคืนวันหยุดเดิมแล้ว'
-      : req.kind === 'leave' ? 'ยกเลิกคำลาและคืนกะเดิมแล้ว' : 'ยกเลิกการสลับกะและคืนโควตา 1 สิทธิ์แล้ว');
+      : req.kind === 'holiday' ? 'ยกเลิกการใช้สิทธิ์และคืนตารางแล้ว'
+        : req.kind === 'leave' ? 'ยกเลิกคำลาและคืนกะเดิมแล้ว' : 'ยกเลิกการสลับกะและคืนโควตา 1 สิทธิ์แล้ว');
   } catch (error) {
     if (error.code !== 'NETWORK_ERROR') approvedCancelAttempts.delete(req.id);
     const message = error.message || 'ยกเลิกคำขอไม่สำเร็จ';

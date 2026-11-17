@@ -10,9 +10,10 @@
 import { state, view } from '../../app/state.js';
 import { $, esc, js } from '../../shared/dom.js';
 import { openModal } from '../../shared/modal.js';
-import { isoOf, shortDate } from '../../shared/scheduling/dates.js';
+import { isoOf, monthKey, shortDate } from '../../shared/scheduling/dates.js';
+import { hasCentralHolidayCalendar } from '../../shared/scheduling/annual.js';
 import { currentEmp, findEmployeeById, getEmployeeFacingShiftLabel, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
-import { getShiftCodeForDate, getTeamForDate, hasScheduleDataForMonth, isMonthLocked, isPastScheduleDate, isSchedulePublished } from '../../shared/scheduling/roster.js';
+import { getCalendarShiftCode, getShiftCodeForDate, getTeamForDate, hasScheduleDataForMonth, isMonthLocked, isPastScheduleDate, isSchedulePublished } from '../../shared/scheduling/roster.js';
 import { getEligibleSwapColleagues, validateSwapBothSides } from '../../shared/scheduling/rules.js';
 import { telOf } from '../../shared/ui.js';
 import { kindsAllowed, requestOptions } from '../requests/new-request.js';
@@ -22,7 +23,10 @@ import { changeInfoRows, changeSource } from './change-info.js';
 import { changeNote, famOf } from './codes.js';
 import { draftNote, holidaysOf } from './days.js';
 
-export function openCell(empId, day) { view.cell = { empId: String(empId), day }; renderCell(); }
+export function openCell(empId, day, context) {
+  view.cell = { empId: String(empId), day, context };
+  renderCell();
+}
 
 export function renderCell() {
   const c = view.cell;
@@ -45,6 +49,13 @@ export function renderCell() {
   const date = isoOf(y, m, d);
   const ownAssignment = state.apiAssign[me?.id]?.[date];
   const selectedAssignment = state.apiAssign[emp.id]?.[date];
+  const holidayOvertime = selectedAssignment?.holidayOvertime;
+  const holidayLeave = selectedAssignment?.holidayLeave;
+  const previewOvertime = c.context === 'holiday-preview' && isMine && past
+    ? state.apiMonths[monthKey(y, m)]?.holidayOvertimePreview?.find(item => item.workDate === date)
+    : null;
+  const displayCode = previewOvertime?.shiftCode || getCalendarShiftCode(emp, y, m, d);
+  const shownTime = holidayLeave ? '' : holidayOvertime || previewOvertime ? def.time?.split(' (')[0] : def.time;
   const canSwapHere = me && (state.actor?.centralSwap
     ? ownAssignment?.status === 'ACTIVE' && selectedAssignment?.status === 'ACTIVE'
       && ownAssignment.team_id !== selectedAssignment.team_id && ownAssignment.position === selectedAssignment.position
@@ -61,17 +72,19 @@ export function renderCell() {
     : locked ? 'เดือนนี้ถูกล็อกข้อมูลแล้ว ดูได้อย่างเดียว' : '';
   const dateText = new Date(y, m, d).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   let body = `
-    <div class="cellinfo ${famOf(code)} ${chg ? 'chg' : ''}">
-      <b>${esc(getEmployeeFacingShiftLabel(code.split('/').length === 2 ? code.split('/')[0] : code))}</b>
-      <span>${esc(dateText)}${def.time ? ` · ${esc(def.time)}` : ''}</span>
-      <i>${esc(code)}</i>
+    <div class="cellinfo ${famOf(displayCode)} ${chg ? 'chg' : ''}">
+      <b>${holidayLeave ? 'หยุดโดยใช้สิทธิ์นักขัตฤกษ์' : previewOvertime ? 'OT นักขัตฤกษ์ · ผลคำนวณย้อนหลัง' : holidayOvertime ? 'OT นักขัตฤกษ์' : esc(getEmployeeFacingShiftLabel(code.split('/').length === 2 ? code.split('/')[0] : code))}</b>
+      <span>${esc(dateText)}${shownTime ? ` · ${esc(shownTime)}` : ''}</span>
+      <i>${esc(displayCode)}</i>
     </div>
     <dl class="facts plain">
       <div><dt>พนักงาน</dt><dd>${esc(emp.name)} (${esc(emp.id)}) · ${esc(emp.position || '')} · ${esc(getTeamForDate(emp, y, m, d))}</dd></div>
       <div><dt>โทรศัพท์</dt><dd>${telOf(emp.phone)}</dd></div>
       ${chg ? `<div><dt>การเปลี่ยนแปลง</dt><dd>${esc(chg)}</dd></div>` : ''}
       ${source ? changeInfoRows(source, emp, y, m, d) : ''}
-      ${hol ? `<div><dt>วันหยุด</dt><dd>${esc(hol)}</dd></div>` : ''}
+      ${hol ? `<div><dt>วันหยุด${state.actor?.remotePilot && !hasCentralHolidayCalendar(y, m) ? ' (ข้อมูลทดสอบ)' : ''}</dt><dd>${esc(hol)}</dd></div>` : ''}
+      ${holidayOvertime || holidayLeave ? `<div><dt>สิทธิ์นักขัตฤกษ์</dt><dd>${esc(shortDate(y, m, Number((holidayOvertime || holidayLeave).holidayDate.slice(-2))))}</dd></div>` : ''}
+      ${previewOvertime ? `<div><dt>วันนักขัตฤกษ์ที่ใช้คำนวณ</dt><dd>${esc(shortDate(y, m, Number(previewOvertime.holidayDate.slice(-2))))}</dd></div>` : ''}
       ${!hasScheduleDataForMonth(y, m) ? '<div><dt>ที่มา</dt><dd>คาดการณ์ตามรอบกะปกติ</dd></div>' : ''}
     </dl>`;
   if (!past || !requestRole) {
@@ -93,6 +106,7 @@ export function renderCell() {
       else kinds = ['swap', 'leave'];
       if (selectedAssignment?.status === 'ACTIVE' && selectedAssignment.is_working === false && ['O', '-'].includes(selectedAssignment.shift_code)) kinds.push('ot');
       if (state.actor?.centralSwap && selectedAssignment?.status === 'ACTIVE') kinds.push('swap');
+      if (state.actor?.centralHoliday && hol) kinds.push('holiday');
       if (state.actor?.remotePilot && selectedAssignment?.status !== 'ACTIVE') kinds = [];
       const list = kindsAllowed().filter(x => kinds.includes(x.k));
       body += requestOptions(list, d, { fromCell: true, emptyMessage: def.leave ? 'ตารางระบุว่าเป็นวันลาแล้ว' : undefined });

@@ -3,7 +3,8 @@
    ========================================================================== */
 
 import { DEMO_TODAY, state } from '../../app/state.js';
-import { pad2, parseThaiDate } from './dates.js';
+import { monthKey, pad2, parseThaiDate, thaiMonthName } from './dates.js';
+import demoHolidays from './demo-holidays.json' with { type: 'json' };
 import { naturalFamily } from './roster.js';
 
 export const ANNUAL_SCHEDULE_TEAMS = ['Shift A', 'Shift B', 'Shift C', 'Shift D'];
@@ -14,17 +15,19 @@ export function getAnnualConfig(year) {
   if (!cfg.teamFamily) cfg.teamFamily = {};
   return cfg;
 }
-export function getHolidaysForYear(year) { return getAnnualConfig(year).holidays; }
+export function getHolidaysForYear(year) {
+  if (state.actor?.remotePilot) return HOLIDAYS[year] || [];
+  return getAnnualConfig(year).holidays;
+}
 export function getTeamFamilyForYear(team, year) { return getAnnualConfig(year).teamFamily[team] || naturalFamily(team) || 'M'; }
 
-// วันหยุดราชการไทย ปี 2569 ตามประกาศคณะรัฐมนตรี (ผู้จัดการแก้ไขได้ในหน้า "ตารางรายปี")
-const HOLIDAYS = {
-  2026: ['01 ม.ค. 2569 (วันขึ้นปีใหม่)', '02 ม.ค. 2569 (วันหยุดพิเศษ)', '03 มี.ค. 2569 (วันมาฆบูชา)', '06 เม.ย. 2569 (วันจักรี)', '13–15 เม.ย. 2569 (วันสงกรานต์)',
-    '01 พ.ค. 2569 (วันแรงงานแห่งชาติ)', '04 พ.ค. 2569 (วันฉัตรมงคล)', '13 พ.ค. 2569 (วันพืชมงคล)', '31 พ.ค. 2569 (วันวิสาขบูชา)', '01 มิ.ย. 2569 (ชดเชยวันวิสาขบูชา)',
-    '03 มิ.ย. 2569 (วันเฉลิมพระชนมพรรษา พระราชินี)', '28 ก.ค. 2569 (วันเฉลิมพระชนมพรรษา ร.10)', '29 ก.ค. 2569 (วันอาสาฬหบูชา)', '30 ก.ค. 2569 (วันเข้าพรรษา)',
-    '12 ส.ค. 2569 (วันแม่แห่งชาติ)', '13 ต.ค. 2569 (วันนวมินทรมหาราช)', '23 ต.ค. 2569 (วันปิยมหาราช)', '05 ธ.ค. 2569 (วันพ่อแห่งชาติ)', '07 ธ.ค. 2569 (ชดเชยวันพ่อแห่งชาติ)',
-    '10 ธ.ค. 2569 (วันรัฐธรรมนูญ)', '31 ธ.ค. 2569 (วันสิ้นปี)']
-};
+// ข้อมูลเดโมชุดเดียวกับที่ใช้แสดงผลคำนวณย้อนหลัง
+const HOLIDAYS = {};
+for (const { date, through, name } of demoHolidays) {
+  const [year, month, day] = date.split('-');
+  const days = through ? `${day}–${through.slice(-2)}` : day;
+  (HOLIDAYS[year] ??= []).push(`${days} ${thaiMonthName(Number(month) - 1, 'short')} ${Number(year) + 543} (${name})`);
+}
 export function seedYearData() {
   Object.keys(HOLIDAYS).forEach(y => {
     const cfg = state.annualScheduleConfig[y];
@@ -41,6 +44,10 @@ export function isYearPublished(y) {
   return true;
 }
 
+export function hasCentralHolidayCalendar(year, month) {
+  return !!state.apiMonths[monthKey(year, month)]?.holidays?.length;
+}
+
 export function holidayDates(year) {
   const out = {};
   (getHolidaysForYear(year) || []).forEach(text => {
@@ -49,5 +56,11 @@ export function holidayDates(year) {
     const name = (/\(([^)]+)\)/.exec(text) || [])[1] || 'วันหยุดนักขัตฤกษ์';
     p.days.forEach(d => { out[`${p.m}-${d}`] = name; });
   });
+  for (let month = 0; month < 12; month++) {
+    if (!hasCentralHolidayCalendar(year, month)) continue;
+    const central = state.apiMonths[monthKey(year, month)].holidays;
+    for (const key of Object.keys(out)) if (key.startsWith(`${month}-`)) delete out[key];
+    for (const holiday of central) out[`${month}-${Number(holiday.date.slice(-2))}`] = holiday.name;
+  }
   return out;
 }

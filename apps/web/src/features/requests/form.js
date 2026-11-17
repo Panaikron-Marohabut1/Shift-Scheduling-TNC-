@@ -12,6 +12,7 @@ import { getShiftCodeForDate, isPastScheduleDate } from '../../shared/scheduling
 import { approversList, changesTable, routeApprovers } from './form-parts.js';
 import { draftBlocked, kindLabel, PAST_DATE_NOTE } from './new-request.js';
 import { dayoffForm } from './types/dayoff.js';
+import { holidayForm, loadHolidayOptions, retryHolidayPreview, validateHolidayPreview } from './types/holiday.js';
 import { leaveForm } from './types/leave.js';
 import { otForm, validateOTPreview } from './types/ot.js';
 import { swapForm } from './types/swap.js';
@@ -42,7 +43,7 @@ export function openForm(k, day, origin = 'menu') {
 }
 
 // แต่ละประเภทคำขอมีไฟล์ของตัวเองใน types/ (ช่องกรอก + ผลตรวจกฎ + การส่งคำขอ)
-const FORMS = { swap: swapForm, leave: leaveForm, dayoff: dayoffForm, ot: otForm };
+const FORMS = { swap: swapForm, leave: leaveForm, dayoff: dayoffForm, holiday: holidayForm, ot: otForm };
 
 export function renderForm() {
   const f = view.rq;
@@ -59,17 +60,17 @@ export function renderForm() {
         <dd>${esc(emp.name)} (${esc(emp.id)}) ${esc(getEmployeeFacingRoleLabel(emp.roleCategory))} ${esc(emp.shiftType)}</dd>
       </div>
     </dl>
-    <div class="form">${fields.join('')}</div>
+    <div class="form" ${f.k === 'holiday' ? 'id="holidayForm"' : ''}>${fields.join('')}</div>
     ${note}
     ${changesTable(rows)}
     ${checks}
     ${approvers.length ? approversList(central ? approvers : routeApprovers(emp, approvers), central ? 'ผู้อนุมัติ' : undefined) : ''}`;
   const box = $('#modalRoot .modal-body');
   const top = box ? box.scrollTop : 0;
-  const focusedId = (central || f.k === 'leave' || f.k === 'ot') && box?.contains(document.activeElement) ? document.activeElement.id : '';
+  const focusedId = (central || ['leave', 'ot', 'holiday'].includes(f.k)) && box?.contains(document.activeElement) ? document.activeElement.id : '';
   const leave = f.k === 'leave';
   openModal(kindLabel(f.k), body,
-    `<button class="btn" data-click="SF.backRequestForm()" ${f.submitting ? 'disabled' : ''}>ย้อนกลับ</button><button class="btn primary" ${leave ? 'id="leaveSubmit"' : f.k === 'ot' ? 'id="otSubmit"' : ''} ${ready && submit ? `data-click="${submit}"` : 'disabled'} ${leave && !f.reason.trim() ? 'disabled' : ''}>ส่งคำขอ</button>`);
+    `<button class="btn" data-click="SF.backRequestForm()" ${f.submitting ? 'disabled' : ''}>ย้อนกลับ</button><button class="btn primary" ${leave ? 'id="leaveSubmit"' : f.k === 'ot' ? 'id="otSubmit"' : ''} ${ready && submit ? `data-click="${submit}"` : 'disabled'} ${leave && !f.reason.trim() ? 'disabled' : ''}>${f.k === 'holiday' && f.submitting ? 'กำลังส่งคำขอ…' : f.holidayPreview?.submitError ? 'ลองส่งอีกครั้ง' : 'ส่งคำขอ'}</button>`);
   const nb = $('#modalRoot .modal-body');
   if (nb) nb.scrollTop = top;
   const nextFocus = focusedId && document.getElementById(focusedId);
@@ -88,5 +89,14 @@ export function renderForm() {
       renderForm();
     });
     void validateOTPreview(f, renderForm);
+  }
+  if (f.k === 'holiday') {
+    $('#holidayOptionsRetry')?.addEventListener('click', () => {
+      f.holidayOptions.error = '';
+      renderForm();
+    });
+    $('#holidayPreviewRetry')?.addEventListener('click', () => retryHolidayPreview(f, renderForm));
+    void loadHolidayOptions(f, renderForm);
+    void validateHolidayPreview(f, renderForm);
   }
 }

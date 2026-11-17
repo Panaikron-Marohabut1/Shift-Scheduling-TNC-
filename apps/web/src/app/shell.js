@@ -99,7 +99,7 @@ export function shellHtml(content) {
       <aside class="side" id="sideMenu">
         <div class="side-brand">
           <img class="brand-mark" src="/assets/tnc-logo.png" alt="TNC" width="32" height="32">
-          <div class="side-brand-text side-fade"><b>ShiftFlow</b><span>${state.actor?.remotePilot ? 'รอบทดสอบสลับกะ' : 'ฝ่ายผลิต'}</span></div>
+          <div class="side-brand-text side-fade"><b>ShiftFlow</b>${state.actor?.remotePilot ? '' : '<span>ฝ่ายผลิต</span>'}</div>
         </div>
         <button class="side-toggle" data-click="SF.side()" aria-controls="sideMenu" aria-expanded="${view.sideOpen}">${icon(view.sideOpen ? 'x' : 'sidebar')}<span>${toggleLabel}</span></button>
         <nav class="side-nav" aria-label="เมนูหลัก">${items.map(btn).join('')}</nav>

@@ -51,7 +51,6 @@ export async function logout() {
   try { result = await api('/auth/logout', { method: 'POST' }); }
   catch (error) { showToast(error.message || 'ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง', 'alert'); return; }
   leave(result.loginUrl, 'ออกจากระบบแล้ว');
-  goToLogin(result.loginUrl);
 }
 export function leave(loginUrl = view.loginUrl, message = '') {
   Object.assign(view, { signed: false, loading: false, authMsg: message, loginUrl: loginUrl || '', unlinked: false, accessPending: false });
@@ -64,6 +63,8 @@ export function leave(loginUrl = view.loginUrl, message = '') {
   resetData();
   Object.keys(pendingYears).forEach(y => { delete pendingYears[y]; });
   merge();
+  view.loading = goToLogin(view.loginUrl, { replace: true });
+  if (!view.loading) view.loginUrl = '';
   renderApp();
 }
 

@@ -1,13 +1,26 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { centralSchedulingEnabled } from '../config';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { centralSchedulingEnabled, isLocalSchedulingDatabase, isSharedDemoDatabase, projectRoot } from '../config';
 import { Database } from '../database/database.service';
 import { Actor, Assignment } from '../shared/types';
+import { allocateHolidayOvertime } from '../shared/holiday-roster-rules';
 import { bangkokWorkDate } from '../requests/request-time';
 import { rosterRequestConflicts } from '../requests/roster-request-conflicts';
 import { restoredRosterVersions } from '../requests/restored-roster-versions';
 type ClosedRosterRow={employeeCode:string;team:string;workDate:string;shiftCode:string};
 type SchedulePeriod={year:number;month:number};
+type CalendarHoliday={date:string;name:string;is_active:boolean};
+type DemoHoliday={date:string;through?:string};
+type UsedHoliday={employee_id:number;assignment_id:number;holiday_date:string;base_code:string;ot_work_date:string};
+const demoHolidays: DemoHoliday[]=JSON.parse(readFileSync(resolve(projectRoot,'apps/web/src/shared/scheduling/demo-holidays.json'),'utf8'));
+function demoHolidayDates(month:string) {
+ return demoHolidays.filter(holiday=>holiday.date.startsWith(`${month}-`)).flatMap(({date,through})=>{
+  const first=Number(date.slice(-2)), last=through ? Number(through.slice(-2)) : first;
+  return Array.from({length:last-first+1},(_,index)=>`${month}-${String(first+index).padStart(2,'0')}`);
+ });
+}
 const monthKey=(period:SchedulePeriod)=>`${period.year}-${String(period.month).padStart(2,'0')}`;
 function previousMonth(current:string) {
  const [year,month]=current.split('-').map(Number);
@@ -28,6 +41,59 @@ export class SchedulesService {
   if(!this.effectiveTeamsEnabled())return false;
   const {rows:[row]}=await (c??this.db).query("SELECT to_regclass('shiftflow_policy.leave_requests') IS NOT NULL AS available");
   return row.available as boolean;
+ }
+ async holidayEnabled(c?:PoolClient) {
+  if(!this.effectiveTeamsEnabled())return false;
+  return ((await (c??this.db).query(
+   "SELECT 1 FROM schema_migrations WHERE name='015_public_holiday_requests.sql'")).rowCount === 1);
+ }
+ private async calendarHolidayRecords(c:PoolClient,year:number,month:number) {
+  return (await c.query<CalendarHoliday>(`
+   SELECT holiday_date::text AS date,holiday_name AS name,is_active FROM public.holidays
+   WHERE holiday_date >= make_date(NULLIF($1,0),$2,1)
+    AND holiday_date < make_date(NULLIF($1,0),$2,1)+interval '1 month'
+   ORDER BY holiday_date
+  `,[year,month])).rows;
+ }
+ private async usedHolidays(c:PoolClient,scheduleId:number,employeeId:number|null=null) {
+  return (await c.query<UsedHoliday>(`
+   SELECT r.requester_id AS employee_id,l.assignment_id,l.holiday_date::text,
+    l.source_snapshot->>'shift_code' AS base_code,l.holiday_ot_snapshot->>'work_date' AS ot_work_date
+   FROM shiftflow_policy.leave_requests l JOIN requests r USING(request_id)
+   JOIN shift_assignments a ON a.assignment_id=l.assignment_id
+   WHERE a.schedule_id=$1 AND l.holiday_date IS NOT NULL AND r.status='APPROVED'
+    AND ($2::int IS NULL OR r.requester_id=$2)
+  `,[scheduleId,employeeId])).rows;
+ }
+ private holidayAllocations(dates:string[],assignments:Assignment[],used:UsedHoliday[],restoring?:UsedHoliday) {
+  const usedDates=new Set(used.map(row=>row.holiday_date));
+  return allocateHolidayOvertime(dates.filter(date=>!usedDates.has(date)),assignments.filter(slot=>slot.status==='ACTIVE').map(slot=>({
+   workDate:slot.work_date,
+   shiftCode:slot.assignment_id===restoring?.assignment_id ? restoring.base_code : slot.shift_code,
+  })),used.map(row=>row.ot_work_date));
+ }
+ private historicalHolidayOvertime(actor:Actor,month:string,assignments:Assignment[]) {
+  if(!['EMPLOYEE','SUPERVISOR'].includes(actor.role) || actor.employeeId===null ||
+   month>=bangkokWorkDate(new Date()).slice(0,7)) return [];
+  const database=new URL(this.db.pool.options.connectionString!);
+  if(!isSharedDemoDatabase(database) && !isLocalSchedulingDatabase(database)) return [];
+  const dates=demoHolidayDates(month);
+  if(!dates.length) return [];
+  return this.holidayAllocations(dates,assignments.filter(slot=>slot.employee_id===actor.employeeId),[])
+   .map(({workDate,holidayDate,overtimeShiftCode})=>({workDate,holidayDate,shiftCode:overtimeShiftCode}));
+ }
+ async holidayRoster(c:PoolClient,scheduleId:number,employeeId:number,restoreHolidayDate?:string) {
+  const {rows:[period]}=await c.query<SchedulePeriod>('SELECT year,month FROM schedules WHERE schedule_id=$1',[scheduleId]);
+  const records=period ? await this.calendarHolidayRecords(c,period.year,period.month) : [];
+  const holidays=records.filter(holiday=>holiday.is_active).map(({date,name})=>({date,name}));
+  const dates=holidays.map(holiday=>holiday.date);
+  const assignments=(await c.query<Assignment>(`${this.assignmentSelect()} WHERE a.schedule_id=$1 AND a.employee_id=$2 ORDER BY a.work_date`,[scheduleId,employeeId])).rows;
+  const allUsed=await this.usedHolidays(c,scheduleId,employeeId);
+  const restoring=allUsed.find(row=>row.holiday_date===restoreHolidayDate);
+  const used=allUsed.filter(row=>row!==restoring);
+  const usedDates=new Set(used.map(row=>row.holiday_date));
+  return {dates,holidays,assignments,allocations:this.holidayAllocations(dates,assignments,used,restoring),
+   activeHolidayDates:new Set(dates.filter(date=>!usedDates.has(date)))};
  }
  async otEnabled() {
   return this.effectiveTeamsEnabled() && (await this.db.query(
@@ -100,6 +166,16 @@ export class SchedulesService {
   const assignments=(await c.query<Assignment>(`${this.assignmentSelect()} WHERE a.schedule_id IN
    (SELECT schedule_id FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')) ORDER BY e.employee_id,a.work_date`,[year,number,actor.role])).rows;
   const schedule=(await c.query("SELECT schedule_id,month,year,status,version,updated_at FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')",[year,number,actor.role])).rows[0]??null;
+  const holidayRecords=await this.calendarHolidayRecords(c,year,number);
+  const holidays=holidayRecords.filter(holiday=>holiday.is_active).map(({date,name})=>({date,name}));
+  const holidayCalendarActive=await this.holidayEnabled(c);
+  if(schedule?.status==='PUBLISHED' && holidayCalendarActive) {
+   const used=await this.usedHolidays(c,schedule.schedule_id);
+   this.attachHolidayOvertime(holidays.map(holiday=>holiday.date),assignments,used);
+  }
+  const holidayOvertimePreview=schedule?.status==='PUBLISHED' && !holidayRecords.length
+   ? this.historicalHolidayOvertime(actor,month,assignments)
+   : [];
   await this.attachAppliedSwaps(c,assignments);
   if(schedule?.status==='PUBLISHED'&&['EMPLOYEE','SUPERVISOR'].includes(actor.role)) {
    const conflicts=await rosterRequestConflicts(c,assignments.map(slot=>slot.assignment_id),new Date(),await this.leaveEnabled(c));
@@ -119,8 +195,33 @@ export class SchedulesService {
    }
   }
   await c.query("INSERT INTO audit_logs(user_id,action,entity_type,entity_id,new_value) VALUES($1,'SCHEDULE_VIEWED','USER',$1,$2)",[actor.userId,JSON.stringify({month,scope:'ORGANIZATION',teamId:actor.teamId,scheduleVersion:schedule?.version??null})]);
-  return {month,schedule,assignments,scope:'ORGANIZATION',dataSource:'SYNTHETIC'};
+  return {month,schedule,assignments,holidays,holidayOvertimePreview,scope:'ORGANIZATION',dataSource:'SYNTHETIC'};
   });
+ }
+ private attachHolidayOvertime(holidayDates:string[],assignments:Assignment[],used:UsedHoliday[]) {
+  const usedBySlot=new Map(used.map(row=>[row.assignment_id,row]));
+  const usedByEmployee=new Map<number,UsedHoliday[]>();
+  for(const row of used) {
+   const forEmployee=usedByEmployee.get(row.employee_id)??[];
+   forEmployee.push(row);
+   usedByEmployee.set(row.employee_id,forEmployee);
+  }
+  const employeeSlots=new Map<number,Map<string,Assignment>>();
+  for(const slot of assignments) {
+   if(slot.status!=='ACTIVE')continue;
+   const consumed=usedBySlot.get(slot.assignment_id);
+   if(consumed && slot.shift_code==='L')slot.holidayLeave={holidayDate:consumed.holiday_date};
+   if(!holidayDates.length)continue;
+   let slots=employeeSlots.get(slot.employee_id);
+   if(!slots) employeeSlots.set(slot.employee_id,slots=new Map());
+   slots.set(slot.work_date,slot);
+  }
+  for(const [employeeId,slots] of employeeSlots) {
+   const consumed=usedByEmployee.get(employeeId)??[];
+   for(const overtime of this.holidayAllocations(holidayDates,[...slots.values()],consumed)) {
+    slots.get(overtime.workDate)!.holidayOvertime={holidayDate:overtime.holidayDate,shiftCode:overtime.overtimeShiftCode};
+   }
+  }
  }
  private async attachAppliedSwaps(c:PoolClient,assignments:Assignment[]) {
   if(!assignments.length)return;

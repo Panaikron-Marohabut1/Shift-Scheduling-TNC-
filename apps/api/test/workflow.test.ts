@@ -140,6 +140,63 @@ test('unauthenticated reads and cross-origin commands are blocked',async()=>{
  assert.equal(cross.status,403);
  const forged=await request('worker','/requests','POST',{...await swapInput('2026-10-08'),assignmentId:1},randomUUID());assert.ok([403,404].includes(forged.status));
 });
+test('monthly schedules include only active holidays in the requested month',async()=>{
+ const dates=['2026-10-13','2026-10-22','2026-11-01'];
+ await admin.query(`INSERT INTO holidays(holiday_date,holiday_name,is_active,created_by)
+  SELECT day, label, active, $4 FROM (VALUES ($1::date,'October holiday',true),
+  ($2::date,'Inactive holiday',false),($3::date,'November holiday',true)) AS fixture(day,label,active)`,
+  [...dates,accounts.manager.userId]);
+ try {
+  const october=await request('worker','/schedules?month=2026-10');
+  assert.equal(october.status,200);
+  assert.deepEqual(october.body.holidays,[{date:dates[0],name:'October holiday'}]);
+  assert.deepEqual(october.body.holidayOvertimePreview,[]);
+  const marked=october.body.assignments.filter((slot:any)=>slot.holidayOvertime);
+  assert.equal(marked.length,new Set(october.body.assignments.map((slot:any)=>slot.employee_id)).size);
+  for(const slot of marked) {
+   assert.equal(slot.holidayOvertime.holidayDate,dates[0]);
+   assert.ok(['M','N'].includes(slot.shift_code));
+   assert.equal(slot.holidayOvertime.shiftCode,`${slot.shift_code}T`);
+  }
+  assert.deepEqual((await request('worker','/schedules?month=2026-11')).body.holidays,[{date:dates[2],name:'November holiday'}]);
+  assert.deepEqual((await request('worker','/schedules?month=2026-12')).body.holidays,[]);
+ } finally {
+  await admin.query('DELETE FROM holidays WHERE holiday_date=ANY($1::date[])',[dates]);
+ }
+});
+
+test('past demo months calculate personal holiday OT without changing published assignments or leave options',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-17T05:00:00Z')});
+ const month='/schedules?month=2026-10';
+ const storedRoster=()=>admin.query(`
+  SELECT assignment_id,shift_type_id,version FROM shift_assignments
+  WHERE work_date BETWEEN '2026-10-01' AND '2026-10-31' ORDER BY assignment_id
+ `).then(result=>result.rows);
+ const before=await storedRoster();
+ const result=await request('worker',month);
+ assert.equal(result.status,200);
+ assert.deepEqual(result.body.holidays,[]);
+ assert.deepEqual(result.body.holidayOvertimePreview,[
+  {holidayDate:'2026-10-13',workDate:'2026-10-15',shiftCode:'NT'},
+  {holidayDate:'2026-10-23',workDate:'2026-10-23',shiftCode:'NT'},
+ ]);
+ for(const [date,code] of [['2026-10-13','O'],['2026-10-15','N'],['2026-10-23','N']]){
+  const slot=result.body.assignments.find((row:any)=>row.employee_id===accounts.worker.employeeId&&row.work_date===date);
+  assert.equal(slot.shift_code,code);
+  assert.equal(slot.holidayOvertime,undefined);
+ }
+ assert.deepEqual((await request('target',month)).body.holidayOvertimePreview,[
+  {holidayDate:'2026-10-13',workDate:'2026-10-15',shiftCode:'MT'},
+  {holidayDate:'2026-10-23',workDate:'2026-10-23',shiftCode:'MT'},
+ ]);
+ assert.deepEqual((await request('hr',month)).body.holidayOvertimePreview,[]);
+ assert.deepEqual((await request('worker','/schedules?month=2026-09')).body.holidayOvertimePreview,[]);
+ assert.deepEqual((await request('worker','/holiday-requests/options?month=2026-10')).body,{holidays:[]});
+ assert.deepEqual(await storedRoster(),before);
+ t.mock.timers.setTime(Date.parse('2026-09-30T17:00:00Z'));
+ assert.deepEqual((await request('worker',month)).body.holidayOvertimePreview,[]);
+});
+
 test('only a Manager can schedule a company-wide swap quota for the next Bangkok month',async()=>{
  const path='/settings/swap-quota';
  assert.equal((await request(undefined,path)).status,401);
@@ -660,7 +717,7 @@ test('the local scheduling default enables central swap and HR month close witho
   process.env.ENABLE_LOCAL_MONTH_CLOSE='false';
  });
  assert.deepEqual((await request('worker','/me')).body.capabilities,
-  {centralSwap:true,centralLeave:true,centralOT:true,swapPolicy:true,hrClosedRoster:false,monthClose:true});
+  {centralSwap:true,centralLeave:true,centralOT:true,centralHoliday:true,swapPolicy:true,hrClosedRoster:false,monthClose:true});
  assert.equal((await request('hr','/me')).body.capabilities.hrClosedRoster,true);
  assert.equal((await request('hr','/hr/closed-roster?month=2026-10')).status,200);
  assert.match((await request('a','/requests')).body.find((row:any)=>row.request_id===legacy.requestId).approvalBlockReason,/ยื่นคำขอใหม่/);
@@ -2006,4 +2063,215 @@ test('the demo roster repair fills August, corrects an untouched slot, and prese
   await c.query('ROLLBACK');
   c.release();
  }
+});
+
+async function seedHolidayRoster(month:string, days:readonly string[], shifts:readonly (readonly [string,string,string])[]) {
+ const [year,number]=month.split('-').map(Number);
+ const {rows:[schedule]}=await admin.query(
+  "INSERT INTO schedules(month,year,status,created_by) VALUES($1,$2,'PUBLISHED',$3) RETURNING schedule_id",
+  [number,year,accounts.a.userId]);
+ for(const day of days) {
+  await admin.query("INSERT INTO holidays(holiday_date,holiday_name,created_by) VALUES($1,'วันหยุดทดสอบ',$2)",
+   [day,accounts.manager.userId]);
+ }
+ for(const [person,date,code] of shifts) {
+  const result=await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+   SELECT $1,$2,shift_type_id,$3,'ACTIVE',$4 FROM shift_types WHERE shift_code=$5`,
+   [schedule.schedule_id,accounts[person].employeeId,date,accounts.a.userId,code]);
+  assert.equal(result.rowCount,1);
+ }
+}
+
+async function holidayInput(role:string,holidayDate:string,workDate:string) {
+ const rows=await assignments(role,workDate.slice(0,7));
+ const slot=rows.find((row:any)=>row.employee_id===accounts[role].employeeId&&row.work_date===workDate);
+ assert.ok(slot,`Missing ${role} roster assignment on ${workDate}`);
+ return {holidayDate,assignmentId:slot.assignment_id,assignmentVersion:slot.version};
+}
+
+const previewHoliday=(role:string,input:Awaited<ReturnType<typeof holidayInput>>)=>
+ request(role,'/holiday-requests/validate','POST',input);
+const submitHoliday=(role:string,input:Awaited<ReturnType<typeof holidayInput>>,previewToken:string,key=randomUUID())=>
+ request(role,'/holiday-requests','POST',{...input,previewToken},key);
+
+test('holiday use follows leave approvals, releases only its reserved OT and restores the roster on cancellation',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2088-06-02T00:00:00Z')});
+ const month='2088-06';
+ const firstHoliday='2088-06-15',secondHoliday='2088-06-16';
+ const autoOT='2088-06-18',otherAutoOT='2088-06-19',dayOff='2088-06-22';
+ await seedHolidayRoster(month,[firstHoliday,secondHoliday],[
+  ['worker','2088-06-07','M'],['worker','2088-06-08','M'],
+  ['worker',firstHoliday,'O'],['worker',secondHoliday,'O'],['worker','2088-06-17','O'],
+  ['worker',autoOT,'M'],['worker',otherAutoOT,'M'],['worker','2088-06-21','O'],['worker',dayOff,'N'],['worker','2088-06-23','N'],
+  ['target',autoOT,'O'],['target',dayOff,'O'],['a',firstHoliday,'M']
+ ]);
+ const optionPath=`/holiday-requests/options?month=${month}`;
+ const ownOptions=await request('worker',optionPath);
+ assert.equal(ownOptions.status,200,JSON.stringify(ownOptions.body));
+ const first=ownOptions.body.holidays.find((holiday:any)=>holiday.date===firstHoliday);
+ assert.deepEqual([first.shiftCode,first.overtimeDate,first.overtimeShiftCode,first.canTakeDirect],['O',autoOT,'MT',false]);
+ const second=ownOptions.body.holidays.find((holiday:any)=>holiday.date===secondHoliday);
+ assert.equal(second.overtimeDate,otherAutoOT);
+ const choices=first.choices.map((choice:any)=>choice.workDate);
+ assert.ok(choices.includes('2088-06-08'),'The seventh day before the holiday is eligible');
+ assert.ok(choices.includes(dayOff),'The seventh day after the holiday is eligible');
+ assert.ok(!choices.includes('2088-06-07'));
+ assert.ok(!choices.includes('2088-06-17'),'An existing off day cannot consume a holiday right');
+ assert.ok(!choices.includes('2088-06-23'));
+ assert.ok(!choices.includes(otherAutoOT),'The selected leave must preserve a separate holiday’s OT');
+ const reserved=await previewHoliday('worker',await holidayInput('worker',firstHoliday,otherAutoOT));
+ assert.equal(reserved.status,409,JSON.stringify(reserved.body));
+ assert.equal(reserved.body.code,'HOLIDAY_OT_RESERVED');
+ const outside=await previewHoliday('worker',await holidayInput('worker',firstHoliday,'2088-06-23'));
+ assert.ok(outside.status>=400,JSON.stringify(outside.body));
+ const directOff=await previewHoliday('worker',await holidayInput('worker',firstHoliday,firstHoliday));
+ assert.ok(directOff.status>=400,JSON.stringify(directOff.body));
+
+ const ownRoster=async()=> (await assignments('worker',month,true)).filter((row:any)=>row.employee_id===accounts.worker.employeeId);
+ const slot=async(date:string)=>(await ownRoster()).find((row:any)=>row.work_date===date);
+ const readCodes=async()=>Promise.all([autoOT,otherAutoOT,dayOff].map(async(date)=>{
+  const row=await slot(date);
+  return [row.shift_code,row.holidayOvertime?.holidayDate??null,row.holidayLeave?.holidayDate??null];
+ }));
+ const initial=[['M',firstHoliday,null],['M',secondHoliday,null],['N',null,null]];
+ assert.deepEqual(await readCodes(),initial);
+ const input=await holidayInput('worker',firstHoliday,dayOff);
+ const preview=await previewHoliday('worker',input);
+ assert.equal(preview.status,201,JSON.stringify(preview.body));
+ assert.equal(preview.body.holidayDate,firstHoliday);
+ assert.equal(preview.body.deadline,'2088-06-14T17:00:00.000Z');
+ const previewChanges=(preview.body.changes as any[])
+  .map(({workDate,before,after})=>[workDate,before,after]).sort((a,b)=>a[0].localeCompare(b[0]));
+ assert.deepEqual(previewChanges,[[autoOT,'MT','M'],[dayOff,'N','L']]);
+ assert.deepEqual(await readCodes(),initial,'Preview must not change the published schedule');
+
+ const cover=await swapInput(dayOff);
+ const leaveInput={assignmentId:cover.assignmentId,assignmentVersion:cover.assignmentVersion,leaveCode:'B',reason:'ทดสอบ'};
+ const otherLeave=await request('worker','/leave-requests','POST',leaveInput,randomUUID());
+ assert.equal(otherLeave.status,201,JSON.stringify(otherLeave.body));
+ const conflicting=await submitHoliday('worker',input,preview.body.previewToken);
+ assert.equal(conflicting.status,409,JSON.stringify(conflicting.body));
+ const approvedLeave=await approve('a',otherLeave.body);
+ assert.equal(approvedLeave.body.status,'APPROVED',JSON.stringify(approvedLeave.body));
+ const conflictingAfterApproval=await submitHoliday('worker',input,preview.body.previewToken);
+ assert.equal(conflictingAfterApproval.status,409);
+ const cancelledLeave=await cancel('worker',approvedLeave.body);
+ assert.equal(cancelledLeave.body.status,'CANCELLED',JSON.stringify(cancelledLeave.body));
+ assert.deepEqual(await readCodes(),initial);
+
+ const manualDay='2088-06-21';
+ const {assignmentId,assignmentVersion}=await holidayInput('worker',firstHoliday,manualDay);
+ const manual=await request('worker','/ot-requests','POST',{assignmentId,assignmentVersion,otCode:'MT'},randomUUID());
+ assert.equal(manual.status,201,JSON.stringify(manual.body));
+ const manualApproved=await approve('a',manual.body);
+ assert.equal(manualApproved.body.status,'APPROVED',JSON.stringify(manualApproved.body));
+ const overlapWithManual=await previewHoliday('worker',await holidayInput('worker',firstHoliday,manualDay));
+ assert.ok(overlapWithManual.status>=400,JSON.stringify(overlapWithManual.body));
+ assert.equal((await slot(manualDay)).shift_code,'MT','Holiday preview must preserve approved manual OT');
+ assert.equal((await slot(manualDay)).holidayOvertime,undefined);
+
+ const refreshed=await holidayInput('worker',firstHoliday,dayOff);
+ const beforeSourceChange=await previewHoliday('worker',refreshed);
+ assert.equal(beforeSourceChange.status,201,JSON.stringify(beforeSourceChange.body));
+ const sourceSlot=await slot(autoOT);
+ await admin.query('UPDATE shift_assignments SET version=version+1 WHERE assignment_id=$1',[sourceSlot.assignment_id]);
+ const stalePreview=await submitHoliday('worker',refreshed,beforeSourceChange.body.previewToken);
+ assert.equal(stalePreview.status,409,JSON.stringify(stalePreview.body));
+ assert.deepEqual(await readCodes(),initial);
+ const checked=await previewHoliday('worker',refreshed);
+ assert.equal(checked.status,201,JSON.stringify(checked.body));
+ const alternate=await holidayInput('worker',firstHoliday,'2088-06-08');
+ const alternatePreview=await previewHoliday('worker',alternate);
+ assert.equal(alternatePreview.status,201,JSON.stringify(alternatePreview.body));
+ const key=randomUUID();
+ const held=await submitHoliday('worker',refreshed,checked.body.previewToken,key);
+ assert.equal(held.status,201,JSON.stringify(held.body));
+ assert.equal(held.body.status,'PENDING');
+ assert.deepEqual((await submitHoliday('worker',refreshed,checked.body.previewToken,key)).body,held.body);
+ const duplicate=await submitHoliday('worker',alternate,alternatePreview.body.previewToken);
+ assert.equal(duplicate.status,409,'One holiday right cannot be held for two different leave dates');
+ assert.equal(duplicate.body.code,'HOLIDAY_TAKEN');
+ assert.deepEqual(await readCodes(),initial,'Pending leave must not change the published schedule');
+
+ const automaticAssignment=await swapInput(autoOT);
+ const swapConflict=await request('worker','/swap/validate','POST',automaticAssignment);
+ assert.equal(swapConflict.status,409,JSON.stringify(swapConflict.body));
+ assert.equal(swapConflict.body.code,'PENDING_REQUEST');
+ assert.equal((await approve('b',held.body)).status,403);
+ const pendingRow=(await request('a','/requests')).body.find((row:any)=>row.request_id===held.body.requestId);
+ assert.equal(pendingRow?.request_type,'LEAVE');
+ assert.equal(pendingRow?.holiday.date,firstHoliday);
+ assert.equal(pendingRow?.canDecide,true);
+
+ // Holiday approval stays open until its displayed cutoff, even after 24 hours.
+ t.mock.timers.setTime(Date.parse('2088-06-05T00:00:00Z'));
+ const approved=await approve('a',held.body);
+ assert.equal(approved.body.status,'APPROVED',JSON.stringify(approved.body));
+ assert.deepEqual(await readCodes(),[['M',null,null],['M',secondHoliday,null],['L',null,firstHoliday]]);
+ const audit=(await request('worker','/audit?view=personal')).body;
+ const applied=audit.find((row:any)=>row.entity_id===held.body.requestId&&row.action==='SCHEDULE_LEAVE_APPLIED');
+ assert.equal(applied?.holiday_request,true);
+ assert.ok(applied.new_value.changes.some((entry:any)=>entry.workDate===autoOT && entry.from==='MT' && entry.to==='M'));
+ assert.equal((await cancel('target',approved.body)).status,403);
+ const cancelled=await cancel('worker',approved.body);
+ assert.equal(cancelled.body.status,'CANCELLED',JSON.stringify(cancelled.body));
+ assert.deepEqual(await readCodes(),initial,'Cancellation restores only this holiday effect');
+
+ const direct=await holidayInput('a',firstHoliday,firstHoliday);
+ const directPreview=await previewHoliday('a',direct);
+ assert.equal(directPreview.status,201,JSON.stringify(directPreview.body));
+ assert.deepEqual(directPreview.body.changes.map(({workDate,before,after}:any)=>[workDate,before,after]),
+  [[firstHoliday,'MT','L']]);
+ const supervisorRequest=await submitHoliday('a',direct,directPreview.body.previewToken);
+ assert.equal(supervisorRequest.status,201,JSON.stringify(supervisorRequest.body));
+ assert.equal((await approve('b',supervisorRequest.body)).status,403);
+ assert.equal((await approve('manager',supervisorRequest.body)).body.status,'APPROVED');
+});
+
+test('holiday approvals close at Thai midnight, the selected shift, or an earlier month-end OT shift',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2088-07-01T01:00:00Z')});
+ const month='2088-07';
+ const middle='2088-07-15',end='2088-07-31';
+ const early='2088-07-08',late='2088-07-22',fallbackOT='2088-07-30';
+ await seedHolidayRoster(month,[middle,end],[
+  ['worker',early,'M'],['worker',middle,'O'],['worker','2088-07-18','M'],['worker',late,'M'],
+  ['worker',fallbackOT,'N'],['worker',end,'O']
+ ]);
+ await seedHolidayRoster('2088-08',[],[['worker','2088-08-01','M']]);
+ const emptyMonth=await request('worker','/holiday-requests/options?month=2088-08');
+ assert.equal(emptyMonth.status,200);
+ assert.deepEqual(emptyMonth.body,{holidays:[]});
+ const crossMonth=await previewHoliday('worker',await holidayInput('worker',end,'2088-08-01'));
+ assert.ok(crossMonth.status>=400,JSON.stringify(crossMonth.body));
+ const deadlineCases=[
+  [middle,early,'2088-07-08T00:30:00.000Z'],
+  [middle,late,'2088-07-14T17:00:00.000Z'],
+  [end,'2088-07-24','2088-07-24T12:30:00.000Z']
+ ];
+ // A working shift on July 24 is an eligible replacement exactly seven days before the holiday.
+ await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT schedule_id,$1,shift_type_id,'2088-07-24','ACTIVE',$2 FROM schedules CROSS JOIN shift_types
+  WHERE year=2088 AND month=7 AND shift_code='N'`,[accounts.worker.employeeId,accounts.a.userId]);
+ for(const [holidayDate,workDate,deadline] of deadlineCases) {
+  const input=await holidayInput('worker',holidayDate,workDate);
+  t.mock.timers.setTime(Date.parse(deadline)-60_000);
+  const preview=await previewHoliday('worker',input);
+  assert.equal(preview.status,201,JSON.stringify(preview.body));
+  assert.equal(preview.body.deadline,deadline);
+  const before=await assignments('worker',month);
+  const pending=await submitHoliday('worker',input,preview.body.previewToken);
+  assert.equal(pending.status,201,JSON.stringify(pending.body));
+  t.mock.timers.setTime(Date.parse(deadline));
+  const decision=await approve('a',pending.body);
+  assert.equal(decision.status,409,JSON.stringify(decision.body));
+  assert.deepEqual(await assignments('worker',month),before);
+  assert.ok((await submitHoliday('worker',input,preview.body.previewToken)).status>=400);
+ }
+ const monthEndInput=await holidayInput('worker',end,fallbackOT);
+ t.mock.timers.setTime(Date.parse('2088-07-30T12:29:00Z'));
+ const preview=await previewHoliday('worker',monthEndInput);
+ assert.equal(preview.status,201,JSON.stringify(preview.body));
+ assert.equal(preview.body.deadline,'2088-07-30T12:30:00.000Z');
+ assert.deepEqual(preview.body.changes.map(({workDate,before,after}:any)=>[workDate,before,after]),
+  [[fallbackOT,'NT','L']]);
 });

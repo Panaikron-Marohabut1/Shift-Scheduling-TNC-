@@ -16,12 +16,13 @@ export class AuthController {
   const centralSwap=['EMPLOYEE','SUPERVISOR'].includes(req.actor.role)&&swapPolicy;
   const centralLeave=['EMPLOYEE','SUPERVISOR'].includes(req.actor.role)&&await this.schedules.leaveEnabled();
   const centralOT=['EMPLOYEE','SUPERVISOR'].includes(req.actor.role)&&await this.schedules.otEnabled();
+  const centralHoliday=centralLeave&&await this.schedules.holidayEnabled();
   const monthClose=this.schedules.localMonthCloseEnabled();
   const hrClosedRoster=req.actor.role==='HR'&&monthClose;
   const peopleManagement=this.auth.allowsDemoPeople(req.actor);
   const {mode,remotePilot,sharedDemo}=settings();
   return {actor:req.actor,mode,integrations:integrationReadiness,
-   capabilities:{centralSwap,centralLeave,centralOT,swapPolicy,hrClosedRoster,monthClose,...(peopleManagement?{peopleManagement}: {}),...(remotePilot||sharedDemo?{remotePilot:true}: {})}};
+   capabilities:{centralSwap,centralLeave,centralOT,centralHoliday,swapPolicy,hrClosedRoster,monthClose,...(peopleManagement?{peopleManagement}: {}),...(remotePilot||sharedDemo?{remotePilot:true}: {})}};
  }
  // Public so a signed-in but not yet linked account can still sign out (host and origin checks still apply).
  @Public() @Post('auth/logout') async logout(@Req() req:ActorRequest,@Res({passthrough:true}) res:Response) {

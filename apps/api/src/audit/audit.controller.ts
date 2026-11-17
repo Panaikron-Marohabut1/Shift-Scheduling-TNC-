@@ -9,11 +9,13 @@ type SwapEvidence = {
  secondSwap?: { source?: ShiftEvidence; target?: ShiftEvidence };
  assignments?: ShiftEvidence[];
  level?: number;
+ changes?: {workDate:string;before:string;after:string}[];
 };
 type EmployeeHistoryRow = {
  audit_id: number; user_id: number; entity_type: string; entity_id: number; action: string;
  actor_name: string; created_at: Date; old_value: SwapEvidence | null; new_value: SwapEvidence | null;
  request_type: string;
+ holiday_request:boolean;
 };
 
 function swapShifts(value: SwapEvidence | null) {
@@ -37,8 +39,11 @@ export class AuditController {
   const actor=req.actor;
   if(actor.role==='EXTERNAL')throw new ForbiddenException({code:'ACTION_DENIED',message:'บัญชีนี้ไม่มีสิทธิ์อ่านประวัติภายใน'});
   if(view==='personal'&&actor.role==='EMPLOYEE')return this.employeeHistory(actor.employeeId);
+  const leaveEnabled=await this.schedules.leaveEnabled();
   return (await this.db.query(`SELECT al.*,COALESCE(e.first_name||' '||e.last_name,u.demo_display_name) AS actor_name,
-   CASE WHEN al.entity_type='REQUEST' THEN (SELECT r.request_type FROM requests r WHERE r.request_id=al.entity_id) END AS request_type
+   CASE WHEN al.entity_type='REQUEST' THEN (SELECT r.request_type FROM requests r WHERE r.request_id=al.entity_id) END AS request_type,
+   ${leaveEnabled?`al.entity_type='REQUEST' AND EXISTS (SELECT 1 FROM shiftflow_policy.leave_requests l
+    WHERE l.request_id=al.entity_id AND to_jsonb(l)->>'holiday_date' IS NOT NULL)`:'false'} AS holiday_request
    FROM audit_logs al JOIN users u ON u.user_id=al.user_id LEFT JOIN employees e USING(employee_id)
    WHERE (al.user_id=$1 OR (al.entity_type='REQUEST' AND EXISTS(SELECT 1 FROM requests r WHERE r.request_id=al.entity_id AND
     (r.requester_id=$2 OR ($3='SUPERVISOR' AND EXISTS(SELECT 1 FROM approvals ap WHERE ap.request_id=r.request_id AND ap.approver_id=$1))))))
@@ -51,6 +56,7 @@ export class AuditController {
   const leaveEnabled=await this.schedules.leaveEnabled();
   const rows: EmployeeHistoryRow[]=(await this.db.query(
    `SELECT al.audit_id,al.user_id,al.entity_type,al.entity_id,al.action,al.created_at,al.old_value,al.new_value,r.request_type,
+   ${leaveEnabled?"to_jsonb(l)->>'holiday_date' IS NOT NULL":'false'} AS holiday_request,
    COALESCE(e.first_name||' '||e.last_name,u.demo_display_name) AS actor_name
    FROM audit_logs al JOIN requests r ON al.entity_type='REQUEST' AND r.request_id=al.entity_id
    LEFT JOIN change_requests ch USING(request_id)
@@ -64,7 +70,10 @@ export class AuditController {
    ORDER BY al.audit_id DESC LIMIT 100`,[employeeId])).rows;
   return rows.map(({old_value,new_value,...event})=>{
    if(/^SCHEDULE_(SWAP|LEAVE|OT)_(APPLIED|REVERSED)$/.test(event.action)) {
-    return {...event,new_value:{changes:ownShiftChanges(old_value,new_value,employeeId)}};
+    const changes=event.holiday_request && new_value?.changes
+     ? new_value.changes.map(({workDate,before,after})=>({workDate,from:before,to:after}))
+     : ownShiftChanges(old_value,new_value,employeeId);
+    return {...event,new_value:{changes}};
    }
    return {...event,new_value:event.action==='REQUEST_APPROVED'?{level:new_value?.level}:{}};
   });

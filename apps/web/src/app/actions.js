@@ -8,7 +8,7 @@
 import { renderApp } from './render.js';
 import { logout } from './session.js';
 import { DATA_LABEL } from './shell.js';
-import { clearLocal, DEMO_TODAY, state, view } from './state.js';
+import { clearLocal, DEMO_TODAY, state, syncToday, view } from './state.js';
 import { $, esc } from '../shared/dom.js';
 import { register } from '../shared/events.js';
 import { openModal } from '../shared/modal.js';
@@ -36,6 +36,7 @@ import { openRequestDetails } from '../features/requests/detail.js';
 import { openForm, renderForm } from '../features/requests/form.js';
 import { LOCKED_NOTE, newRequestModal } from '../features/requests/new-request.js';
 import { submitDayOffChangeRequest } from '../features/requests/types/dayoff.js';
+import { submitHolidayRequest } from '../features/requests/types/holiday.js';
 import { submitLeaveRequest } from '../features/requests/types/leave.js';
 import { selectEmployeeRequestGroup, selectRequestTab } from '../features/requests/list.js';
 import { submitOTRequest } from '../features/requests/types/ot.js';
@@ -146,7 +147,11 @@ const SF = {
     renderForm();
   },
   mode(v) { view.mode = v; if (v === 'day' && !(state.currentYear === DEMO_TODAY.getFullYear() && state.currentMonth === DEMO_TODAY.getMonth())) view.day = 1; renderApp(); },
-  today() { view.day = DEMO_TODAY.getDate(); jumpToScheduleMonth(DEMO_TODAY.getFullYear(), DEMO_TODAY.getMonth()); },
+  today() {
+    syncToday();
+    view.day = DEMO_TODAY.getDate();
+    jumpToScheduleMonth(DEMO_TODAY.getFullYear(), DEMO_TODAY.getMonth());
+  },
   search(v) { view.q = v; renderApp(); },
   filters() { view.filtersOpen = !view.filtersOpen; renderApp(); if (view.filtersOpen) document.querySelector('#schedFilters .seg button')?.focus(); },
   pickDay(d) { view.day = d; renderApp(); },
@@ -160,7 +165,6 @@ const SF = {
   },
   whoToday() { view.mode = 'day'; view.day = DEMO_TODAY.getDate(); state.currentYear = DEMO_TODAY.getFullYear(); state.currentMonth = DEMO_TODAY.getMonth(); SF.nav('schedule'); },
   toLogin() { goToLogin(); renderApp(); },
-  retry() { window.location.reload(); },
   account() {
     const role = state.roles[state.activeRole] || {};
     const remotePilot = state.actor?.remotePilot;
@@ -196,6 +200,7 @@ register({
   openRequestDetails, approveRequest, promptRejectRequest, confirmRejectRequest, withdrawRequest, resetTestcases,
   submitColleagueSwapRequest: localDemoOnly(submitColleagueSwapRequest), submitCentralSwap: () => submitCentralSwap(renderForm),
   submitLeaveRequest, submitDayOffChangeRequest: localDemoOnly(submitDayOffChangeRequest),
+  submitHolidayRequest: () => submitHolidayRequest(renderForm),
   submitOTRequest: () => submitOTRequest(renderForm), promptCancelApproved, confirmCancelApproved,
   filterEmployeeTeam, filterEmployeeSearch, openEmployeeForm: localDemoOnly(openEmployeeForm), saveEmployeeProfile: localDemoOnly(saveEmployeeProfile),
   loadAdminAccess: () => loadAdminAccess(renderApp), assignAdminRole: (id, form) => assignAdminRole(id, form, renderApp), updateAdminRole,

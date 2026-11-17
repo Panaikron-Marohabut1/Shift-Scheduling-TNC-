@@ -59,9 +59,9 @@ export function scheduleHtml() {
           <input class="inp q" id="schedQ" type="search" placeholder="ค้นหาชื่อหรือรหัส" value="${esc(view.q)}" data-input="SF.search(this.value)" autocomplete="off"></div>
       </div>
     </div>
-    ${state.actor?.remotePilot && !S.hasData ? '<p class="empty">ยังไม่มีตารางกะในฐานทดสอบสำหรับเดือนนี้</p>' : view.mode === 'month' ? `
+    ${state.actor?.remotePilot && !S.hasData && !S.projected ? '<p class="empty">ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</p>' : view.mode === 'month' ? `
       <div class="mstatus">${statusChips(S)}</div>
-      ${!S.published ? `<p class="note warn proj-note">${state.actor?.remotePilot ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(S.y)}</p>` : !S.hasData ? `<p class="note warn proj-note">${esc(monthLabel(S.y, S.m))} ยังไม่มีตารางกะจริง ระบบคาดการณ์จากรอบ 2 วันสลับ 2 วันของเดือน${esc(thaiMonthName(base.m, 'long'))} ${base.y + 543} ${S.monthLocked ? 'เดือนนี้ถูกล็อก ดูได้อย่างเดียว' : 'กดช่องกะเพื่อยื่นคำขอได้ตามปกติ'}</p>` : ''}
+      ${S.projected ? '' : !S.published ? `<p class="note warn proj-note">${state.actor?.remotePilot ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(S.y)}</p>` : !S.hasData ? `<p class="note warn proj-note">${esc(monthLabel(S.y, S.m))} ยังไม่มีตารางกะจริง ระบบคาดการณ์จากรอบ 2 วันสลับ 2 วันของเดือน${esc(thaiMonthName(base.m, 'long'))} ${base.y + 543} ${S.monthLocked ? 'เดือนนี้ถูกล็อก ดูได้อย่างเดียว' : 'กดช่องกะเพื่อยื่นคำขอได้ตามปกติ'}</p>` : ''}
       ${gridHtml(S)}
       ${legendHtml()}` : dayViewHtml(S)}
     ${view.mode === 'month' ? '</section>' : ''}`;
@@ -93,7 +93,7 @@ function legendHtml() {
       </section>
       <section class="legend-group" aria-label="วันตามปฏิทิน">
         <h3>วันตามปฏิทิน</h3><div class="legend-group-items">
-          <span><i class="chip lg-we day-line-key" aria-hidden="true"></i>เสาร์-อาทิตย์</span>
+          <span><i class="chip lg-we day-line-key" aria-hidden="true"></i>เสาร์–อาทิตย์</span>
           <span><i class="chip lg-hol day-line-key" aria-hidden="true"></i>วันหยุดนักขัตฤกษ์</span>
         </div>
       </section>
@@ -131,5 +131,5 @@ export function codesModal() {
         </tbody>` : '';
       }).join('')}
     </table>
-    <p class="codes-note"><span class="chip lg-we" aria-hidden="true"></span> คอลัมน์แดงอ่อน = เสาร์–อาทิตย์ · <span class="chip lg-hol" aria-hidden="true"></span> คอลัมน์ชมพู = วันหยุดนักขัตฤกษ์ · <i class="mk-corner"></i> ขีดใต้ช่อง = วันหยุดตามสีคอลัมน์ (ช่องที่ทำงานคงสีกะ) · มุมแดง = เปลี่ยนจากตารางเดิม · ช่อง · = วันหยุดประจำ</p>`, '<button class="btn" data-click="closeModal()">ปิด</button>');
+    <p class="codes-note"><span class="chip lg-we" aria-hidden="true"></span> สีแดงอ่อน = เสาร์–อาทิตย์ · <span class="chip lg-hol" aria-hidden="true"></span> สีชมพูเข้ม = วันหยุดนักขัตฤกษ์ · <i class="mk-corner"></i> ขีดใต้ช่อง = ประเภทวันตามสีคอลัมน์ (ช่องที่ทำงานคงสีกะ) · มุมแดง = เปลี่ยนจากตารางเดิม · ช่อง · = วันหยุดประจำ</p>`, '<button class="btn" data-click="closeModal()">ปิด</button>');
 }

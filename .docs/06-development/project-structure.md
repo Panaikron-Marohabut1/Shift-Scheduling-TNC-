@@ -2,7 +2,7 @@
 
 จัดโครงสร้างวันที่ 6 ตุลาคม 2026 สำหรับ **Shift schedule TNC** โดยแยกแอปปัจจุบัน ต้นแบบเก่า เอกสาร และเครื่องมือพัฒนา
 
-## Application and prototype
+## Application
 
 แก้แอปปัจจุบันตามหน้าที่:
 
@@ -14,7 +14,7 @@
 
 ติดตั้งแพ็กเกจทั้ง API และ Auth ด้วย `pnpm deps` แล้วเปิดฐานข้อมูล เว็บ/API ที่พอร์ต 3000 และ Auth ที่พอร์ต 3001 พร้อมกันด้วย `pnpm dev` ใน Terminal เดียว กด Ctrl+C เพื่อหยุดบริการที่คำสั่งเปิดให้ หากต้องการแยก Terminal ใช้ `pnpm dev:api` และ `pnpm dev:auth` โดยเปิดฐานข้อมูลก่อน เครื่องมือ setup, database และ verification อยู่ `scripts/` คำสั่งเริ่มจาก root ตาม `README.md`
 
-ต้นแบบเก่าอยู่ `prototypes/legacy-static/` พร้อมเอกสารใน `docs/` และรายงานใน `reviews/` ไม่ลบหรือแก้พฤติกรรมแอปเดิม ย้ายไฟล์จาก `shift/` รวม `.vscode` ไว้ครบ และคงเนื้อหาเอกสารเก่าไว้ อ้างอิง path เดิมในเอกสารเก่าได้ตามคำอธิบายใน README ของต้นแบบ
+ต้นแบบ static เดิมและเอกสารประกอบดูได้จากประวัติ Git
 
 Requirements, backlog และ baseline กฎหมายยังอยู่ `.docs/01-requirements/` ไม่มีการเปลี่ยน requirement IDs หรือ business decisions ในการจัดโครงสร้างครั้งนี้
 

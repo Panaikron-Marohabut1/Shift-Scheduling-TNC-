@@ -41,8 +41,11 @@ function ensureYears() {
 export function renderApp() {
   const app = $('#app');
   if (!app || !appReady) return;
+  if (view.loading) {
+    app.innerHTML = '<p id="session-loading" class="boot" role="status" tabindex="-1">กำลังโหลดข้อมูล…</p>';
+    return;
+  }
   if (!view.signed) { app.innerHTML = loginHtml(); return; }
-  if (view.loading) { app.innerHTML = '<p class="boot">กำลังโหลดข้อมูล…</p>'; return; }
   ensureYears();
   navBadges();
   const k = capture();

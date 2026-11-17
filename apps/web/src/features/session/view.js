@@ -10,33 +10,41 @@ import { view } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
 
 // ไปหน้าเข้าสู่ระบบของระบบกลาง (URL มาจากระบบหลังบ้านเท่านั้น)
-export function goToLogin(loginUrl) {
+export function goToLogin(loginUrl, { replace = false } = {}) {
   let url = null;
   try { url = new URL(loginUrl || view.loginUrl); } catch { url = null; }
   if (!url || !['http:', 'https:'].includes(url.protocol)) { view.authMsg = 'ไม่พบที่อยู่ของระบบเข้าสู่ระบบ'; return false; }
   view.authMsg = 'กำลังไปหน้าเข้าสู่ระบบ…';
-  window.location.assign(url.toString());
+  if (replace) window.location.replace(url.toString());
+  else window.location.assign(url.toString());
   return true;
 }
 
 export function loginHtml() {
+  const needsAccess = view.unlinked || view.accessPending;
+  const title = view.accessPending ? 'รอกำหนดบทบาท'
+    : view.unlinked ? 'บัญชีนี้ยังเข้าใช้งานไม่ได้'
+    : view.loginUrl ? 'เข้าสู่ระบบ'
+    : 'เชื่อมต่อไม่สำเร็จ';
   const actions = [
-    view.loginUrl ? '<button class="btn primary block" type="button" data-click="SF.toLogin()">เข้าสู่ระบบ</button>' : '',
-    view.accessPending ? '<button class="btn primary block" type="button" data-click="SF.retry()">ตรวจสอบสิทธิ์อีกครั้ง</button>' : '',
-    view.unlinked || view.accessPending ? '<button class="btn block" type="button" data-click="SF.logout()">ออกจากระบบ / ใช้บัญชีอื่น</button>' : '',
-    !view.loginUrl && !view.unlinked && !view.accessPending && view.authMsg ? '<button class="btn primary block" type="button" data-click="SF.retry()">ลองอีกครั้ง</button>' : ''
+    view.loginUrl ? '<button class="btn primary" type="button" data-click="SF.toLogin()">เข้าสู่ระบบ</button>' : '',
+    view.accessPending ? '<button class="btn primary" type="button" data-session-retry>ตรวจสอบสิทธิ์อีกครั้ง</button>' : '',
+    needsAccess ? '<button class="btn" type="button" data-click="SF.logout()">ใช้บัญชีอื่น</button>' : '',
+    !view.loginUrl && !needsAccess ? '<button class="btn primary" type="button" data-session-retry>ลองอีกครั้ง</button>' : ''
   ].join('');
+  const message = needsAccess || view.loginUrl
+    ? view.authMsg
+    : 'ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง หากยังเข้าไม่ได้ให้ติดต่อผู้ดูแลระบบ';
   return `
-    <div class="login">
-      <section class="login-side">
-        <div class="login-brand"><b>ShiftFlow</b><span>ระบบตารางกะฝ่ายผลิต</span></div>
+    <main class="session-shell">
+      <header class="session-brand">
+        <img src="/assets/tnc-logo.png" alt="TNC" width="36" height="36">
+        <div><b>ShiftFlow</b><span>ตารางกะฝ่ายผลิต</span></div>
+      </header>
+      <section class="session-card session-status" aria-labelledby="session-title">
+        <h1 id="session-title" tabindex="-1">${esc(title)}</h1>
+        ${message ? `<p class="session-description">${esc(message)}</p>` : ''}
+        <div class="session-actions">${actions}</div>
       </section>
-      <section class="login-main">
-        <div class="login-form">
-          <h1>${view.accessPending ? 'รอกำหนดบทบาท' : 'เข้าสู่ระบบ'}</h1>
-          <p${view.unlinked ? ' class="form-err" role="alert"' : ''}>${esc(view.authMsg || 'กำลังตรวจสอบการเข้าสู่ระบบ…')}</p>
-          ${actions}
-        </div>
-      </section>
-    </div>`;
+    </main>`;
 }

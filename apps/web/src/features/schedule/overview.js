@@ -9,19 +9,12 @@ import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
 import { pageHead } from '../../shared/ui.js';
 import { famOf } from './codes.js';
 
-// กะของทีมในวันนี้: ดูจากหัวหน้ากะ ถ้าวันนี้หยุดให้บอกกะถัดไปของรอบ
-function teamToday(team) {
-  const sup = team.employees.find(e => e.id === team.supervisorId) || team.employees[0];
-  if (!sup) return { fam: 'c-M', working: false };
+// ดูกะของหัวหน้าทีมวันนี้ หรือใช้สมาชิกคนแรกเมื่อยังไม่มีหัวหน้าทีม
+function teamShiftToday(employee) {
+  if (!employee) return 'O';
   const y = DEMO_TODAY.getFullYear(), m = DEMO_TODAY.getMonth(), d = DEMO_TODAY.getDate();
-  const today = famOf(getShiftCodeForDate(sup, y, m, d));
-  if (today === 'c-M' || today === 'c-N') return { fam: today, working: true };
-  for (let i = 1; i <= 8; i++) {
-    const dt = new Date(y, m, d + i);
-    const f = famOf(getShiftCodeForDate(sup, dt.getFullYear(), dt.getMonth(), dt.getDate()));
-    if (f === 'c-M' || f === 'c-N') return { fam: f, working: false };
-  }
-  return { fam: 'c-M', working: false };
+  const family = famOf(getShiftCodeForDate(employee, y, m, d));
+  return family === 'c-M' ? 'M' : family === 'c-N' ? 'N' : 'O';
 }
 
 export function overviewHtml() {
@@ -31,17 +24,18 @@ export function overviewHtml() {
   const cross = state.requests.filter(r => r.isCrossShift && r.status.includes('รอ')).length;
   const t = state.managerConfig.shiftTimes;
   const time = code => (t[code] || '').split(' ')[0];
+  const shiftLabels = { M: 'กะเช้า', N: 'กะดึก', O: 'วันหยุด' };
+  const shiftOrder = { M: 0, N: 1, O: 2 };
   const teams = TEAM_KEYS.map((k, i) => {
     const team = state.shiftsData[k];
     const sup = team.employees.find(e => e.id === team.supervisorId);
-    const now = teamToday(team);
-    const night = now.fam === 'c-N';
-    const status = !now.working ? 'พักตามรอบ' : night ? `เริ่ม ${time('N').split('–')[0]} น.` : 'กำลังเข้ากะ';
-    return { name: String(team.name).replace(/"/g, ''), shift: night ? 'กะดึก' : 'กะเช้า', hours: night ? time('N') : time('M'), sup: sup ? sup.name : '-', size: sizes[i], status, fam: now.fam, live: now.working && !night };
+    const code = teamShiftToday(sup || team.employees[0]);
+    const hours = code === 'O' ? '' : time(code);
+    const status = code === 'O' ? 'พักตามรอบ' : code === 'N' ? `เริ่ม ${hours.split('–')[0]} น.` : 'กำลังเข้ากะ';
+    return { name: String(team.name).replace(/"/g, ''), code, hours, sup: sup ? sup.name : '-', size: sizes[i], status, live: code === 'M' };
   });
   // ทีมที่กำลังเข้ากะอยู่ขึ้นก่อน แล้วตามด้วยทีมที่จะเริ่มกะดึก
-  const order = r => (r.live ? 0 : r.fam === 'c-N' && r.status.startsWith('เริ่ม') ? 1 : 2);
-  const rows = [...teams].sort((a, b) => order(a) - order(b));
+  const rows = teams.sort((a, b) => shiftOrder[a.code] - shiftOrder[b.code]);
   return `
     ${pageHead('ภาพรวมกำลังพล', `<span class="muted">${esc(DEMO_TODAY.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</span>`)}
     <section class="panel flush ov-now">
@@ -50,7 +44,7 @@ export function overviewHtml() {
       <ul class="ov-teams">
         ${rows.map(r => `<li class="${r.live ? 'live' : ''}">
           <b class="ov-name">${esc(r.name)}</b>
-          <span class="ov-shift"><span class="chip ${r.fam}">${r.fam === 'c-N' ? 'N' : 'M'}</span>${esc(r.shift)} ${esc(r.hours)}</span>
+          <span class="ov-shift"><span class="chip ${famOf(r.code)}">${r.code}</span>${shiftLabels[r.code]}${r.hours ? ` ${esc(r.hours)}` : ''}</span>
           <span class="ov-sup"><span class="sr">หัวหน้ากะ </span>${esc(r.sup)}</span>
           <span class="ov-size"><b>${r.size}</b> คน</span>
           <span class="ov-status st ${r.live ? 'ok' : ''}">${esc(r.status)}</span>

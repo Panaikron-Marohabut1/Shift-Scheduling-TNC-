@@ -2,15 +2,9 @@
    พื้นฐาน: ฟอนต์ สี ตัวแปร ปุ่ม ช่องกรอก สถานะ รหัสกะ ตารางข้อมูล ข้อความแจ้งผล
    ========================================================================== */
 
-@font-face { font-family: 'Sarabun'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-400.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
-@font-face { font-family: 'Sarabun'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-500.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
-@font-face { font-family: 'Sarabun'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-600.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
-@font-face { font-family: 'Sarabun'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/sarabun-thai-700.woff2') format('woff2'); unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }
-@font-face { font-family: 'Sarabun'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-400.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: 'Sarabun'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-500.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: 'Sarabun'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-600.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: 'Sarabun'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/sarabun-latin-700.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215, U+FEFF, U+FFFD; }
-:root { color-scheme: light; /* เมนูซ้าย: ชั้นพื้นที่สองสีเทาอ่อน */ --side-bg: #f3f4f6; --side-hover: #e7e9ed; --navy: #1b2533; --side-ink: #b9c6da; --side-dim: #8095b4; /* พื้นและตัวอักษร (สมุดเวร: กระดาษขาว หมึกเข้ม เส้นบาง) */ --bg: #f3f4f6; --surface: #ffffff; --soft: #f5f6f8; --ink: #141b24; --ink-2: #3b4553; --muted: #677181; --line: #e4e7eb; --line-2: #cbd1d8; /* สีหลัก: ใช้กับปุ่มหลักและสิ่งที่เลือกอยู่เท่านั้น */ --primary: #1f4f99; --primary-dark: #173d78; --primary-tint: #eaf0f9; /* สถานะ */ --ok: #1d7a4c; --warn: #a35f00; --bad: #c0392b; --bad-tint: #fdecea; /* ชนิดกะ (สีมีไว้ให้รหัสกะ) */ --m-bg: #fff1c4;  --m-ink: #775300; --n-bg: #dde8fb;  --n-ink: #1e3e7a; --d-bg: #daf0e6;  --d-ink: #16604a; --l-bg: #eceff4;  --l-ink: #4b5768; --h-bg: #fbe1e7;  --h-ink: #8b1f3e; --x-bg: #fde4d2;  --x-ink: #8a3b0a; --ot: #e8590c; --font: 'Sarabun', 'Leelawadee UI', 'Noto Sans Thai', Tahoma, sans-serif; --row: 34px; --card-shadow: none; --hover-ring: #b9c1cc; }
+@import './sarabun.css';
+
+:root { color-scheme: light; /* เมนูซ้าย: ชั้นพื้นที่สองสีเทาอ่อน */ --side-bg: #f3f4f6; --side-hover: #e7e9ed; --navy: #1b2533; --side-ink: #b9c6da; --side-dim: #8095b4; /* พื้นและตัวอักษร (สมุดเวร: กระดาษขาว หมึกเข้ม เส้นบาง) */ --bg: #f3f4f6; --surface: #ffffff; --soft: #f5f6f8; --ink: #141b24; --ink-2: #3b4553; --muted: #677181; --line: #e4e7eb; --line-2: #cbd1d8; /* สีหลัก: ใช้กับปุ่มหลักและสิ่งที่เลือกอยู่เท่านั้น */ --primary: #1f4f99; --primary-dark: #173d78; --primary-tint: #eaf0f9; /* สถานะ */ --ok: #1d7a4c; --warn: #a35f00; --bad: #c0392b; --bad-tint: #fdecea; /* ชนิดกะ (สีมีไว้ให้รหัสกะ) */ --m-bg: #fff1c4;  --m-ink: #775300; --n-bg: #dde8fb;  --n-ink: #1e3e7a; --d-bg: #daf0e6;  --d-ink: #16604a; --l-bg: #eceff4;  --l-ink: #4b5768; --h-bg: #fbe1e7;  --h-ink: #8b1f3e; --x-bg: #fde4d2;  --x-ink: #8a3b0a; --ot: #e8590c; --row: 34px; --card-shadow: none; --hover-ring: #b9c1cc; }
 *, *::before, *::after { box-sizing: border-box; }
 html { font-family: var(--font); font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); min-height: 100vh; }
@@ -186,7 +180,15 @@ html { font-size: 16px; }
   .seg button { height: 42px; padding: 0 12px; }
 }
 #toastRoot .toast:nth-last-child(n+4) { display: none; }
-:root { /* ตารางรวมไฮไลต์เสาร์–อาทิตย์แดงอ่อน; นักขัตฤกษ์ชมพู */ --we-bg: #fde8e7; --we-ink: #c0352b; --hol-bg: #f6dcec; --hol-ink: #9c1f5e; --wk-line: #c9cfd7; }
+:root {
+  --we-bg: #fff0ee;
+  --we-ink: #c0352b;
+  --we-marker: #e6a8a0;
+  --hol-bg: #f0c9df;
+  --hol-ink: #9c1f5e;
+  --hol-marker: #b3437f;
+  --wk-line: #c9cfd7;
+}
 .formrow.tight { margin-top: 0; }
 .seg button:disabled { opacity: .5; }
 /* ข้อความแจ้งผลบนจอกว้าง: มุมขวาล่าง ไม่ทับแถบคำอธิบายหรือปุ่มกลางหน้า */

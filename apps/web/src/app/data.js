@@ -106,6 +106,7 @@ function mapRequest(r) {
   const a = r.snapshot.source, b = r.snapshot.target;
   const leave = r.request_type === 'LEAVE';
   const ot = r.request_type === 'OT';
+  const holiday = r.holiday;
   const requestedCode = ot ? r.ot_code : leave ? 'L' : b.shift_code;
   const second = r.snapshot.secondSwap;
   const managerApproval = r.snapshot.approvalRoute === 'MANAGER';
@@ -132,15 +133,16 @@ function mapRequest(r) {
     approvalBlockReason: r.approvalBlockReason,
     cancelBlockReason: state.actor?.employeeId === a.employee_id ? r.cancelBlockReason : null,
     cancelledAfterApproval: r.status === 'CANCELLED' && approvals.length > 0 && approvals.every(s => s.status === 'APPROVED'),
-    kind: ot ? 'ot' : leave ? 'leave' : 'swap',
-    type: ot ? 'ขอทำ OT' : leave ? (r.leave_code ? `ขอลา (${r.leave_code})` : 'ขอลา') : 'สลับกะข้ามทีม',
+    kind: holiday ? 'holiday' : ot ? 'ot' : leave ? 'leave' : 'swap',
+    type: holiday ? 'ใช้สิทธิ์วันหยุดนักขัตฤกษ์' : ot ? 'ขอทำ OT' : leave ? (r.leave_code ? `ขอลา (${r.leave_code})` : 'ขอลา') : 'สลับกะข้ามทีม',
+    holiday,
     person: a.name, requesterId: requester ? requester.id : a.employee_code, targetPerson: b?.name, targetId: target?.id || b?.employee_code,
     day: d, y, m, aNewCode: requestedCode, bNewCode: leave ? r.coverOtCode : a.shift_code, initials: a.name.slice(0, 2),
     roleCategory: requester ? requester.roleCategory : 'Shift Employee', targetRole: target ? target.roleCategory : 'Shift Employee',
     date: `${second ? `${d} และ ${Number(second.source.work_date.slice(-2))}` : d} ${thaiMonthName(m, 'long')} ${y + 543}`,
     currentShift: second ? '-' : a.shift_code, targetShift: second ? '-' : requestedCode,
     coverOtCode: r.coverOtCode,
-    reason: ot ? '' : leave ? r.reason : `สลับกะกับ ${b.name} (${a.shift_code} ↔ ${b.shift_code})${second ? ` · วันที่ ${Number(second.source.work_date.slice(-2))} (${second.source.shift_code} ↔ ${second.target.shift_code})` : ''}`,
+    reason: ot || holiday ? '' : leave ? r.reason : `สลับกะกับ ${b.name} (${a.shift_code} ↔ ${b.shift_code})${second ? ` · วันที่ ${Number(second.source.work_date.slice(-2))} (${second.source.shift_code} ↔ ${second.target.shift_code})` : ''}`,
     isCrossShift: true, approvers, status, parallelApproval: r.snapshot.approvalRoute === 'TWO_SUPERVISORS',
     submittedAt: fmtTime(r.submitted_at), quotaUsed: '-', rejectReason: leave ? r.rejection_reason : rejected ? rejected.comment || '' : ''
   };
@@ -163,15 +165,18 @@ const ACTION_LABEL = {
 function mapLog(l) {
   const v = l.new_value || {};
   const requestId = l.entity_type === 'REQUEST' ? l.entity_id : null;
-  const requestLabel = l.request_type === 'LEAVE' ? 'คำขอลา' : l.request_type === 'OT' ? 'คำขอ OT' : '';
+  const requestLabel = l.holiday_request ? 'คำขอใช้สิทธิ์วันหยุดนักขัตฤกษ์' : l.request_type === 'LEAVE' ? 'คำขอลา' : l.request_type === 'OT' ? 'คำขอ OT' : '';
   const actionVerbs = { REQUEST_SUBMITTED: 'ยื่น', REQUEST_APPROVED: 'อนุมัติ', REQUEST_REJECTED: 'ไม่อนุมัติ', REQUEST_CANCELLED: 'ยกเลิก' };
-  const label = Array.isArray(v.changes)
+  const changes = l.holiday_request && Array.isArray(v.changes)
+    ? v.changes.map(row => ({ workDate: row.workDate, from: row.from ?? row.before, to: row.to ?? row.after }))
+    : v.changes;
+  const label = Array.isArray(changes) && !actionVerbs[l.action]
     ? (l.action.endsWith('_REVERSED') ? 'คืนกะเดิมของคุณแล้ว' : 'กะของคุณเปลี่ยนแล้ว')
     : (requestLabel && actionVerbs[l.action] ? actionVerbs[l.action] + requestLabel : ACTION_LABEL[l.action]) || l.action;
   const detail = v.workDate ? ` วันที่ ${new Date(`${v.workDate}T12:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}` : '';
   const reason = v.reason ? ` (เหตุผล: ${v.reason})` : '';
   const level = l.action === 'REQUEST_APPROVED' && v.level ? ` ขั้นที่ ${v.level}` : '';
-  return { id: `api-${l.audit_id || l.id || l.created_at}`, api: true, requestId, changes: v.changes,
+  return { id: `api-${l.audit_id || l.id || l.created_at}`, api: true, requestId, changes,
     at: l.created_at, actor: l.actor_name || 'ระบบ', userId: l.user_id, action: `${label}${level}${detail}${reason}`, time: fmtTime(l.created_at) };
 }
 export async function loadLogs() {
