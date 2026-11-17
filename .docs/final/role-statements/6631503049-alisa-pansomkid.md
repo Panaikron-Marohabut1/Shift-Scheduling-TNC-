@@ -10,7 +10,7 @@ As QA / Test lead, I owned the test plan and the integration and end-to-end test
 
 ## 2. What I did
 
-I wrote the TNC Shift Schedule test plan: 8 unit, 7 integration, 3 E2E cases and 7 UAT scenarios, with exit criteria and before/after measures. I ran the integration and E2E tests on 2 November 2026; all passed, including the core workflow cases IT-03, E2E-01, E2E-02, and E2E-03. The plan checks each business rule three times — as a unit test, through the system, and with real users in UAT07 — so a rule cannot pass in code but fail for users. Earlier, I drew the use case, activity, system context, and architecture diagrams, and later refined the scheduling UI and responsive layouts.
+I wrote the TNC Shift Schedule test plan: 8 unit, 7 integration, 3 E2E cases and 7 UAT scenarios, with exit criteria and before/after measures. I ran the integration and E2E tests on 2 November 2026 on the demo version: 9 of 10 passed, including the core workflow cases IT-03, E2E-01, E2E-02, and E2E-03, while IT-01 failed because the demo cannot sign in with a company account. The plan checks each business rule three times — as a unit test, through the system, and with real users in UAT07 — so a rule cannot pass in code but fail for users. Earlier, I drew the use case, activity, system context, and architecture diagrams, and later refined the scheduling UI and responsive layouts.
 
 ## 3. What I learned
 

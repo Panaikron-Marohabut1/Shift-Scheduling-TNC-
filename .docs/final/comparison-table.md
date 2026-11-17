@@ -19,7 +19,7 @@ All 42 P0 stories from [backlog.md](../01-requirements/backlog.md). Stories cove
 
 | Item | Before | After | Change | Measured with | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| US-001 — User Login | Not measured | IT-01 passed (company account sign-in) | — | Test case | [UAT results §2](../Test_plan/2026-11-03-uat-results.md) |
+| US-001 — User Login | Not measured | IT-01 failed: the demo version cannot sign in with a company account | — | Test case | [UAT results §2](../Test_plan/2026-11-03-uat-results.md), [ISS-05](../Test_plan/issue-log.md) |
 | US-002 — Role-Based Access Control | Not measured | Not measured | — | Outside the UAT scope, which covered the shift swap workflow only | [Test plan §1](../Test_plan/TNC%20Shift%20Schedule_test-plan.md) |
 | US-004 — Data Visibility by Role | Not measured | Not measured | — | Outside the UAT scope, which covered the shift swap workflow only | [Test plan §1](../Test_plan/TNC%20Shift%20Schedule_test-plan.md) |
 | US-005 — Employee Profile | Not measured | Not measured | — | Outside the UAT scope, which covered the shift swap workflow only | [Test plan §1](../Test_plan/TNC%20Shift%20Schedule_test-plan.md) |

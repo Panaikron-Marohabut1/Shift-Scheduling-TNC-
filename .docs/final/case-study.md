@@ -71,7 +71,7 @@ Automated results as of 2026-11-01 ([release check](../06-development/2026-11-01
 
 Manual test execution ([UAT results](../Test_plan/2026-11-03-uat-results.md)):
 
-- 2 November 2026: 18 unit, integration, and E2E cases, all passed.
+- 2 November 2026: 17 of 18 unit, integration, and E2E cases passed. IT-01 (company-account login) failed because testing used the demo version, which cannot sign in with a company account; IT-02 passed against demo data only.
 - 3 November 2026: UAT with 10 real users — 8 employees (U01–U08) and 2 shift supervisors (U09–U10), 20 sessions. All 7 UAT scenarios passed.
 - Issues raised by participants are tracked in the [issue log](../Test_plan/issue-log.md).
 
@@ -102,9 +102,9 @@ These times are self-reported estimates, and the SUS form was missing item 10; s
 - Supervisors see pending requests and approve or reject them; the schedule updates only after both required approvals.
 - The monthly swap limit and the six-consecutive-day limit block invalid requests before they are created.
 - Approved changes are recorded in the audit trail.
-- Users sign in through the central login service (Supabase Auth, with Microsoft 365).
+- Users sign in through the central login service (Supabase Auth). Company-account sign-in was not verified: IT-01 failed on the demo version.
 
-All of the above passed in testing on 2–3 November 2026.
+Everything above passed in testing on 2–3 November 2026, except company-account sign-in.
 
 ### 3.3 Limitations
 

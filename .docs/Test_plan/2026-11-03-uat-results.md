@@ -9,7 +9,7 @@
 
 | Item | Result |
 | --- | --- |
-| Unit, integration, and E2E cases | 18/18 passed (executed 2 November 2026) |
+| Unit, integration, and E2E cases | 17/18 passed, 1 failed: IT-01 company-account login (executed 2 November 2026 on the demo version) |
 | UAT scenarios | 7/7 passed (sessions on 3 November 2026) |
 | UAT participants | 10 real users: 8 employees (U01–U08), 2 shift supervisors (U09–U10) |
 | UAT sessions completed | 20 (2 per participant) |
@@ -22,8 +22,8 @@ Exit criteria from the test plan (§6.3):
 | --- | --- |
 | All planned cases executed | Met |
 | Core workflow cases IT-03, E2E-01, E2E-02, E2E-03 passed | Met |
-| At least 90% of unit, integration, and E2E cases passed | Met (100%) |
-| No open critical defect | Met (no defects found by the test cases; see [issue-log.md](issue-log.md)) |
+| At least 90% of unit, integration, and E2E cases passed | Met (94%, 17 of 18) |
+| No open critical defect | Met: IT-01 failed (ISS-05) but does not stop a swap request from being submitted or approved, so it is not critical by the plan’s definition; see [issue-log.md](issue-log.md) |
 | At least 10 UAT sessions with records | Met (20 sessions) |
 | Task results and a SUS score from every participant | Partly met: task times recorded for all 8 employees; SUS item 10 is missing from every form (see §5) |
 
@@ -31,13 +31,19 @@ Exit criteria from the test plan (§6.3):
 
 Executed 2 November 2026. Test data uses 5 November as the swap date. Full case tables with actual results are in the [test plan](TNC%20Shift%20Schedule_test-plan.md), §3.
 
+Integration tests ran on the demo version, which cannot sign in with a company account:
+
+- **IT-01 Company Account Login — failed.** The tester signed in with the demo account of Employee A instead, which does not verify company-account login. Rerun when company sign-in is available in the test environment.
+- **IT-02 Employee Information Availability — passed against demo data only.** The demo has no company source data, so the employee ID, name, and team were compared with the demo seed data.
+- **IT-03 to IT-07** passed using demo accounts.
+
 | Level | Cases | Passed | Failed |
 | --- | --- | --- | --- |
 | Unit (UT-01 to UT-08) | 8 | 8 | 0 |
-| Integration (IT-01 to IT-07) | 7 | 7 | 0 |
+| Integration (IT-01 to IT-07) | 7 | 6 | 1 |
 | End-to-end (E2E-01 to E2E-03) | 3 | 3 | 0 |
 | UAT scenarios (UAT01 to UAT07) | 7 | 7 | 0 |
-| **Total** | **25** | **25** | **0** |
+| **Total** | **25** | **24** | **1** |
 
 ## 3. Participants and sessions
 
