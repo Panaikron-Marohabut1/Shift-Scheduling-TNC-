@@ -4,9 +4,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { centralSchedulingEnabled, isLocalSchedulingDatabase, isSharedDemoDatabase, projectRoot } from '../config';
 import { Database } from '../database/database.service';
-import { Actor, Assignment } from '../shared/types';
+import { Actor, Assignment, ShiftAbsence } from '../shared/types';
 import { allocateHolidayOvertime } from '../shared/holiday-roster-rules';
 import { bangkokWorkDate } from '../requests/request-time';
+import { isHolidayDate } from '../requests/holiday-request-policy';
 import { rosterRequestConflicts } from '../requests/roster-request-conflicts';
 import { restoredRosterVersions } from '../requests/restored-roster-versions';
 type ClosedRosterRow={employeeCode:string;team:string;workDate:string;shiftCode:string};
@@ -14,6 +15,34 @@ type SchedulePeriod={year:number;month:number};
 type CalendarHoliday={date:string;name:string;is_active:boolean};
 type DemoHoliday={date:string;through?:string};
 type UsedHoliday={employee_id:number;assignment_id:number;holiday_date:string;base_code:string;ot_work_date:string};
+type AbsenceRow={assignment_id:number;absence_id:number;shift_code:string;start_time:string;end_time:string;holiday_date:string|null};
+type AbsenceInput={active:boolean;version:number;absenceId:number|null;holidayDate:string|null};
+const absenceTable='shiftflow_policy.shift_absences';
+const absenceFields='assignment_id,absence_id,shift_code,start_time,end_time,holiday_date';
+const absenceCutoff=(timestamp:string)=>`(((${timestamp}::timestamptz AT TIME ZONE 'Asia/Bangkok') - interval '12 months') AT TIME ZONE 'Asia/Bangkok')`;
+const validId=(value:unknown):value is number=>typeof value==='number'&&Number.isInteger(value)&&value>0&&value<=2147483647;
+const absenceConflict=()=>new ConflictException({code:'ABSENCE_CHANGED',message:'ข้อมูลขาดงานเปลี่ยนแล้ว กรุณาโหลดตารางล่าสุด'});
+function absenceView(row:AbsenceRow):ShiftAbsence {
+ return {id:row.absence_id,shiftCode:row.shift_code,startTime:row.start_time,endTime:row.end_time,
+  ...(row.holiday_date?{holidayDate:row.holiday_date}:{})};
+}
+const minuteMicros=60_000_000;
+const dayMicros=1440*minuteMicros;
+function clockMicros(time:string|null) {
+ if(!time)return null;
+ const clock=/^(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?)?$/.exec(time);
+ if(!clock)return null;
+ const [,hours,minutes,seconds='0',fraction='']=clock;
+ const hour=Number(hours),minute=Number(minutes),second=Number(seconds);
+ const micros=((hour*60+minute)*60+second)*1_000_000+Number(fraction.padEnd(6,'0'));
+ return minute<60&&second<60&&micros<=dayMicros?micros:null;
+}
+function scheduledMinutes(start:string|null,end:string|null) {
+ const from=clockMicros(start),to=clockMicros(end);
+ if(from===null||to===null)return null;
+ const elapsed=(to-from+dayMicros)%dayMicros;
+ return elapsed>0&&elapsed%minuteMicros===0?elapsed/minuteMicros:null;
+}
 const demoHolidays: DemoHoliday[]=JSON.parse(readFileSync(resolve(projectRoot,'apps/web/src/shared/scheduling/demo-holidays.json'),'utf8'));
 function demoHolidayDates(month:string) {
  return demoHolidays.filter(holiday=>holiday.date.startsWith(`${month}-`)).flatMap(({date,through})=>{
@@ -99,6 +128,88 @@ export class SchedulesService {
   return this.effectiveTeamsEnabled() && (await this.db.query(
    "SELECT 1 FROM schema_migrations WHERE name='012_individual_ot_requests.sql'")).rowCount === 1;
  }
+ async absenceEnabled(c?:PoolClient) {
+  return this.effectiveTeamsEnabled() && (await (c??this.db).query(
+   "SELECT 1 FROM schema_migrations WHERE name='016_shift_absences.sql'")).rowCount===1;
+ }
+ private requireAbsenceManager(isManager:boolean):void {
+  if(!isManager) throw new ForbiddenException({code:'ACTION_DENIED',message:'เฉพาะผู้จัดการที่บันทึกหรือยกเลิกการขาดงานได้'});
+ }
+ async setAbsence(actor:Actor,assignmentId:string,key:string,body:unknown) {
+  this.requireAbsenceManager(actor.role==='MANAGER');
+  if(!await this.absenceEnabled()) throw new NotFoundException({code:'ABSENCE_UNAVAILABLE',message:'ยังไม่เปิดการบันทึกขาดงาน'});
+  const id=Number(assignmentId);
+  const fields=body&&typeof body==='object'?body as Partial<AbsenceInput>:{};
+  const absenceId=fields.absenceId??null;
+  if(!/^\d+$/.test(assignmentId)||!validId(id)||typeof fields.active!=='boolean'||!validId(fields.version)
+   ||(fields.active?(absenceId!==null||!(fields.holidayDate===null||isHolidayDate(fields.holidayDate))):!validId(absenceId))) {
+   throw new BadRequestException({code:'INVALID_ABSENCE_INPUT',message:'กรุณาเลือกกะและโหลดข้อมูลล่าสุดก่อนบันทึก'});
+  }
+  if(!key||!/^[a-zA-Z0-9-]{8,100}$/.test(key)) {
+   throw new BadRequestException({code:'IDEMPOTENCY_REQUIRED',message:'คำสั่งไม่มีรหัสป้องกันรายการซ้ำ กรุณาโหลดหน้าใหม่'});
+  }
+  return this.db.transaction(async c=>{
+   await c.query('SELECT pg_advisory_xact_lock(811,hashtext($1))',[`absence:${actor.userId}:${key}`]);
+   await c.query('SELECT pg_advisory_xact_lock_shared(814,1)');
+   const manager=await c.query(`SELECT 1 FROM users u JOIN roles r USING(role_id)
+    WHERE u.user_id=$1 AND u.is_active AND r.role_name='MANAGER'`,[actor.userId]);
+   this.requireAbsenceManager(Boolean(manager.rowCount));
+   const {rows:[owner]}=await c.query<{employee_id:number}>('SELECT employee_id FROM shift_assignments WHERE assignment_id=$1',[id]);
+   if(!owner) throw new NotFoundException({code:'ASSIGNMENT_NOT_FOUND',message:'ไม่พบกะที่ระบุ'});
+   await c.query('SELECT pg_advisory_xact_lock(810,$1)',[owner.employee_id]);
+   await c.query('SELECT employee_id FROM employees WHERE employee_id=$1 FOR SHARE',[owner.employee_id]);
+   const [slot]=await this.pair(c,[id],true);
+   if(!slot) throw new NotFoundException({code:'ASSIGNMENT_NOT_FOUND',message:'ไม่พบกะที่ระบุ'});
+   const {rows:[period]}=await c.query<SchedulePeriod & {status:string}>(
+    'SELECT year,month,status FROM schedules WHERE schedule_id=$1 FOR UPDATE',[slot.schedule_id]);
+   if(!period||period.status!=='PUBLISHED' || slot.work_date.slice(0,7)!==monthKey(period)) {
+    throw new ConflictException({code:'SCHEDULE_NOT_PUBLISHED',message:'บันทึกได้เฉพาะกะจากตารางที่ประกาศแล้ว'});
+   }
+   const checkedAt=new Date();
+   this.requireWritable([period],[slot.work_date],checkedAt);
+   const {rows:[current]}=await c.query<AbsenceRow & {fresh:boolean}>(`SELECT ${absenceFields},
+    recorded_at > ${absenceCutoff('$2')} AS fresh FROM ${absenceTable}
+    WHERE assignment_id=$1 AND cancelled_at IS NULL`,[id,checkedAt]);
+   const {rows:[receipt]}=await c.query<{assignment_id:number;absence_id:number;active:boolean;version:number;holiday_date:string|null;fresh:boolean}>(`
+    SELECT assignment_id,absence_id,holiday_date,(recorded_by=$1 AND record_key=$2) AS active,
+     CASE WHEN recorded_by=$1 AND record_key=$2 THEN recorded_version ELSE cancelled_version END AS version,
+     COALESCE(cancelled_at,recorded_at) > ${absenceCutoff('$3')} AS fresh FROM ${absenceTable}
+    WHERE (recorded_by=$1 AND record_key=$2) OR (cancelled_by=$1 AND cancel_key=$2)`,[actor.userId,key,checkedAt]);
+   if((current&&!current.fresh)||(receipt&&!receipt.fresh)) {
+    throw new ConflictException({code:'ABSENCE_EXPIRED',message:'รายการขาดงานหมดอายุแล้ว กรุณาโหลดตารางล่าสุด'});
+   }
+   if(receipt) {
+    if(receipt.assignment_id!==id||receipt.active!==fields.active||receipt.version!==fields.version
+     ||(fields.active?receipt.holiday_date!==fields.holidayDate:receipt.absence_id!==absenceId)) {
+     throw new ConflictException({code:'KEY_REUSED',message:'รหัสรายการถูกใช้กับคำสั่งอื่นแล้ว'});
+    }
+    return {absence:current?absenceView(current):null};
+   }
+   if(slot.version!==fields.version) throw absenceConflict();
+   if(fields.active) {
+    if(current)throw absenceConflict();
+    if(slot.status!=='ACTIVE'||!slot.is_working||!scheduledMinutes(slot.start_time,slot.end_time)) {
+     throw new ConflictException({code:'ABSENCE_SHIFT_INELIGIBLE',message:'เลือกกะทำงานที่มีเวลาเริ่มและสิ้นสุดครบถ้วน'});
+    }
+    const holiday=await this.holidayEnabled(c)
+     ? (await this.holidayRoster(c,slot.schedule_id,slot.employee_id)).allocations.find(row=>row.workDate===slot.work_date)
+     : null;
+    const holidayDate=holiday?.holidayDate??null;
+    if(holidayDate!==fields.holidayDate)throw absenceConflict();
+    const {rows:[saved]}=await c.query<AbsenceRow>(`INSERT INTO ${absenceTable}
+     (assignment_id,shift_code,start_time,end_time,holiday_date,recorded_by,recorded_at,record_key,recorded_version)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING ${absenceFields}`,
+    [id,holiday?.overtimeShiftCode??slot.shift_code,slot.start_time,slot.end_time,holidayDate,actor.userId,checkedAt,key,slot.version]);
+    this.requireWritable([period],[slot.work_date],new Date());
+    return {absence:absenceView(saved)};
+   }
+   if(!current||current.absence_id!==absenceId)throw absenceConflict();
+   await c.query(`UPDATE ${absenceTable} SET cancelled_by=$2,cancelled_at=$3,cancel_key=$4,cancelled_version=$5 WHERE absence_id=$1`,
+    [absenceId,actor.userId,checkedAt,key,slot.version]);
+   this.requireWritable([period],[slot.work_date],new Date());
+   return {absence:null};
+  });
+ }
  assignmentTeamJoin() {
   return this.effectiveTeamsEnabled()
    ? 'JOIN teams t ON t.team_id=shiftflow_policy.employee_team_on(e.employee_id,e.team_id,a.work_date)'
@@ -177,8 +288,11 @@ export class SchedulesService {
    ? this.historicalHolidayOvertime(actor,month,assignments)
    : [];
   await this.attachAppliedSwaps(c,assignments);
+  const leaveEnabled=await this.leaveEnabled(c);
+  await this.attachOwnLeaveHours(c,actor,assignments,leaveEnabled);
+  const absenceHistoryAvailable=await this.attachAbsences(c,actor,month,assignments);
   if(schedule?.status==='PUBLISHED'&&['EMPLOYEE','SUPERVISOR'].includes(actor.role)) {
-   const conflicts=await rosterRequestConflicts(c,assignments.map(slot=>slot.assignment_id),new Date(),await this.leaveEnabled(c));
+   const conflicts=await rosterRequestConflicts(c,assignments.map(slot=>slot.assignment_id),new Date(),leaveEnabled);
    const slots=new Map(assignments.map(slot=>[slot.assignment_id,slot]));
    for(const conflict of conflicts) {
     const slot=slots.get(conflict.assignment_id);
@@ -195,8 +309,40 @@ export class SchedulesService {
    }
   }
   await c.query("INSERT INTO audit_logs(user_id,action,entity_type,entity_id,new_value) VALUES($1,'SCHEDULE_VIEWED','USER',$1,$2)",[actor.userId,JSON.stringify({month,scope:'ORGANIZATION',teamId:actor.teamId,scheduleVersion:schedule?.version??null})]);
-  return {month,schedule,assignments,holidays,holidayOvertimePreview,scope:'ORGANIZATION',dataSource:'SYNTHETIC'};
+  return {month,schedule,assignments,holidays,holidayOvertimePreview,
+   ...(absenceHistoryAvailable!==undefined?{absenceHistoryAvailable}:{}),scope:'ORGANIZATION',dataSource:'SYNTHETIC'};
   });
+ }
+ private async attachAbsences(c:PoolClient,actor:Actor,month:string,assignments:Assignment[]) {
+  const manager=actor.role==='MANAGER';
+  if((!manager&&!['EMPLOYEE','SUPERVISOR'].includes(actor.role))||!await this.absenceEnabled(c))return;
+  const checkedAt=new Date();
+  const slots=new Map(assignments.filter(slot=>slot.status==='ACTIVE'&&(manager||slot.employee_id===actor.employeeId))
+   .map(slot=>[slot.assignment_id,slot]));
+  const {rows}=await c.query<AbsenceRow>(`SELECT ${absenceFields} FROM ${absenceTable}
+   WHERE assignment_id=ANY($1::int[]) AND cancelled_at IS NULL AND recorded_at > ${absenceCutoff('$2')}`,[[...slots.keys()],checkedAt]);
+  for(const row of rows) slots.get(row.assignment_id)!.absence=absenceView(row);
+  const {rows:[history]}=await c.query<{available:boolean}>(`
+   SELECT $1::date >= ((${absenceCutoff('$2')}) AT TIME ZONE 'Asia/Bangkok')::date AS available`,[`${month}-01`,checkedAt]);
+  return history.available;
+ }
+ private async attachOwnLeaveHours(c:PoolClient,actor:Actor,assignments:Assignment[],leaveEnabled:boolean) {
+  if(!leaveEnabled||actor.employeeId===null||!['EMPLOYEE','SUPERVISOR'].includes(actor.role))return;
+  const slots=new Map(assignments.filter(slot=>slot.employee_id===actor.employeeId&&slot.status==='ACTIVE'&&slot.shift_code==='L')
+   .map(slot=>[slot.assignment_id,slot]));
+  if(!slots.size)return;
+  const {rows}=await c.query<{assignment_id:number;code:string|null;start_time:string|null;end_time:string|null}>(`
+   SELECT DISTINCT ON(l.assignment_id) l.assignment_id,l.source_snapshot->>'shift_code' AS code,
+    l.source_snapshot->>'start_time' AS start_time,l.source_snapshot->>'end_time' AS end_time
+   FROM shiftflow_policy.leave_requests l JOIN requests r USING(request_id)
+   WHERE l.assignment_id=ANY($1::int[]) AND r.requester_id=$2 AND r.request_type='LEAVE' AND r.status='APPROVED'
+   ORDER BY l.assignment_id, r.request_id DESC`,[[...slots.keys()],actor.employeeId]);
+  for(const row of rows) {
+   const slot=slots.get(row.assignment_id)!;
+   const minutes=scheduledMinutes(row.start_time,row.end_time);
+   if(row.code)slot.leaveBaseCode=row.code;
+   if(minutes!==null)slot.leaveMinutes=minutes;
+  }
  }
  private attachHolidayOvertime(holidayDates:string[],assignments:Assignment[],used:UsedHoliday[]) {
   const usedBySlot=new Map(used.map(row=>[row.assignment_id,row]));

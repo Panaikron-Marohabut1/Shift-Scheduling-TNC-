@@ -45,13 +45,18 @@
 /* ช่องที่เปลี่ยนจากตารางเดิม: มุมแดงซ้ายบนแบบหมายเหตุใน Excel */
 .cal-d.chg::before { content: ''; position: absolute; top: 0; left: 0; pointer-events: none; border-style: solid; border-width: 12px 12px 0 0; border-color: #d62828 transparent transparent transparent; border-top-left-radius: 8px; }
 .cal-d.chg .n { padding-left: 6px; }
-/* สรุปเดือนเป็นข้อความแถวเดียว ไม่แข่งขันกับตัวเลขวันในปฏิทิน */
-.my-sum { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin-top: 16px; padding-top: 12px; }
-.my-sum-label { font-size: 0.87rem; color: var(--muted); font-weight: 500; }
-.my-stats { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; }
-.my-stats div { display: flex; align-items: baseline; gap: 6px; }
-.my-stats dt { font-size: 0.87rem; color: var(--ink-2); }
-.my-stats dd { margin: 0; font-size: 0.93rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+/* The headline and figures wrap as groups when the calendar column is narrow. */
+.my-sum { grid-area: summary; min-width: 0; display: grid; margin-top: 20px; }
+.my-sum-header { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 6px 24px; padding-block: 14px; border-block: 1px solid var(--line); text-align: center; }
+.my-sum h2 { font-size: 1.05rem; }
+.my-sum-total, .my-stats { margin: 0; }
+.my-stats { display: flex; flex-wrap: wrap; justify-content: space-evenly; gap: 8px 20px; margin-block-start: var(--my-card-padding-block); }
+:is(.my-stats, .my-sum-total) > div { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 2px 8px; min-width: 0; text-align: center; }
+.my-sum dt { color: var(--ink-2); font-size: .87rem; }
+.my-sum dd { margin: 0; color: var(--ink); font-size: .93rem; font-weight: 600; font-variant-numeric: tabular-nums; text-wrap: pretty; }
+.my-sum-unit { white-space: nowrap; }
+.my-sum-total dd { font-size: 1.2rem; font-weight: 700; }
+.my-sum-note { margin-block-start: 14px; color: var(--ink-2); font-size: .85rem; }
 .my-cal-hint { margin-top: 10px; font-size: 0.8rem; color: var(--muted); }
 
 /* ---------- ข้อมูลแบบ 2 คอลัมน์ (ใช้ร่วมกับหน้าต่างอื่น): แยกด้วยระยะ ไม่ใช้เส้น ---------- */
@@ -90,7 +95,7 @@
 .my-home .my-heading h1 { font-size: 1.65rem; }
 .my-home .my-page-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
 .my-home .my-date { padding-inline-start: 16px; border-inline-start: 1px solid var(--line-2); color: var(--ink-2); font-size: 1.0625rem; }
-.my-home .my { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 34%); grid-template-areas: 'now now' 'cal req'; gap: 0; padding: 24px; background: var(--surface); border-radius: 8px; align-items: start; }
+.my-home .my { --my-card-padding-block: 24px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 34%); grid-template-areas: 'now now' 'cal req' 'summary summary'; gap: 0; padding: var(--my-card-padding-block); background: var(--surface); border-radius: 8px; align-items: start; }
 .my-home .my-now { grid-area: now; display: flex; justify-content: space-between; align-items: start; gap: 20px 32px; padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
 .my-home .my-duty-main { display: grid; gap: 18px; min-width: 0; }
 .my-home .my-duty-date { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
@@ -107,14 +112,15 @@
 .my-home .today-details { font-size: .9rem; color: var(--ink-2); }
 .my-home .my-duty-facts { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 0; }
 .my-home .my-duty-facts > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.my-home .my-roster-run { flex-basis: 100%; }
 .my-home .my-duty-facts dt { color: var(--muted); font-size: .9rem; }
 .my-home .my-duty-facts dd { margin: 0; font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .my-home .my-now-actions { flex: none; }
 .my-home .today-act { padding-inline: 28px; min-height: 40px; }
 .my-home .my-cal { grid-area: cal; min-width: 0; padding-right: 28px; }
-.my-home .my-cal-bar { justify-content: center; margin-bottom: 16px; gap: 8px; }
-.my-home .my-calendar-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 24px; margin-bottom: 22px; }
-.my-home .my-calendar-meta .mstatus { justify-content: center; margin: 0; gap: 8px 16px; font-size: .9rem; }
+.my-home .my-cal-bar { justify-content: center; margin-bottom: 20px; gap: 8px; }
+.my-home .my-calendar-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 24px; margin-bottom: 26px; }
+.my-home .my-calendar-meta .mstatus { justify-content: center; }
 .my-home .my-calendar-times { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin: 0; color: var(--ink-2); font-size: .9rem; }
 .my-home .my-calendar-times > span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .my-home .my-calendar-times .chip { min-width: 22px; height: 22px; font-size: .75rem; }
@@ -124,6 +130,7 @@
 .my-home .cal-body { grid-auto-rows: minmax(94px, 1fr); }
 .my-home .cal-d { border-radius: 3px; min-height: 94px; padding: 7px 9px; }
 .my-home .cal-shift { display: grid; place-content: center; gap: 1px; min-width: 0; }
+.my-home .cal-shift .absence-tag { max-width: 100%; padding-inline: 0; justify-self: center; white-space: normal; overflow-wrap: anywhere; text-align: center; }
 .my-home .cal-code { font-size: 1.05rem; }
 .my-home .cal-time { display: flex; justify-content: center; font-size: .75rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .my-home .cal-d .hn {
@@ -156,10 +163,8 @@
 .my-home .my-req-all { margin: 0; padding: 0; justify-self: start; font-size: .85rem; min-height: 36px; }
 .my-home .my-team-links { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .85rem; }
 .my-home .my-team-links .link { min-height: 36px; }
-.my-home .my-sum { gap: 8px 16px; margin-top: 12px; }
-.my-home .my-stats { gap: 6px 16px; }
 @media (max-width: 1100px) and (min-width: 761px) {
-  .my-home .my { grid-template-columns: minmax(0, 1fr) 280px; padding: 20px; }
+  .my-home .my { --my-card-padding-block: 20px; grid-template-columns: minmax(0, 1fr) 280px; }
   .my-home .my-cal { padding-right: 20px; }
   .my-home .my-req { padding-left: 20px; }
   .my-home .cal-time { display: grid; text-align: center; }
@@ -170,7 +175,8 @@
   .my-home .my-heading h1 { font-size: 1.45rem; }
   .my-home .my-page-title { flex-direction: column; }
   .my-home .my-date { padding-inline-start: 0; border-inline-start: 0; }
-  .my-home .my { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'now' 'pending' 'cal' 'recent' 'all' 'links'; padding: 16px 12px; }
+  .my-home .my { --my-card-padding-block: 16px; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'now' 'pending' 'cal' 'summary' 'recent' 'all' 'links'; padding-inline: 12px; }
+  .my-home .my-stats { justify-content: center; }
   .my-home .my-now { flex-direction: column; gap: 20px; margin-bottom: 16px; padding-bottom: 20px; }
   .my-home .my-duty-main { gap: 16px; }
   .my-home .my-duty-date { display: grid; gap: 4px; }
@@ -188,7 +194,6 @@
   .my-home .my-req-all { grid-area: all; margin-block: 12px; min-height: 44px; }
   .my-home .my-team-links { grid-area: links; display: flex; flex-wrap: wrap; gap: 8px 20px; }
   .my-home .my-team-links .link { min-height: 44px; }
-  .my-home .my-sum-label { flex-basis: 100%; }
   .my-home .my-cal-hint { font-size: .8rem; }
   .my-home .cal-time { display: grid; font-size: .7rem; white-space: normal; text-align: center; }
   .my-home .cal-time-sep { display: none; }

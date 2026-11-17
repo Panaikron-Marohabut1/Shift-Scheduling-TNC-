@@ -2,3 +2,23 @@
 .session-status h1:focus, #session-loading:focus { outline: none; }
 .session-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .session-actions .btn { min-height: 44px; }
+
+.session-recovery { width: min(100%, 520px); }
+.session-recovery-card {
+  --recovery-inset: clamp(18px, 5vw, 28px);
+  padding: 0;
+  border-radius: 8px;
+}
+.session-recovery-card .session-brand {
+  justify-content: center;
+  padding: 18px var(--recovery-inset);
+  border-bottom: 1px solid var(--line);
+}
+.session-recovery-body {
+  padding: clamp(22px, 5vw, 28px) var(--recovery-inset);
+  text-align: center;
+}
+.session-recovery-card h1 { font-size: clamp(1.4rem, 4vw, 1.65rem); }
+.session-recovery-card .session-description { margin-top: 8px; line-height: 1.55; text-wrap: balance; }
+.session-recovery-body .session-actions { justify-content: center; }
+.session-recovery-help { margin-top: 14px; color: var(--muted); font-size: .9rem; }

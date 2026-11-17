@@ -9,7 +9,7 @@ import { getShiftOverride } from '../../shared/scheduling/roster.js';
 
 /* ---------- รหัสกะ → สี ---------- */
 export function shownCode(code) { const parts = String(code).split('/'); return parts.length === 2 ? parts[0] : String(code); }
-export function codeClass(code) {
+export function codeClass(code, holidayOvertime = false) {
   const parts = String(code).split('/');
   const def = state.shiftDefs[code] || {};
   const first = state.shiftDefs[parts[0]] || {};
@@ -20,12 +20,23 @@ export function codeClass(code) {
   else if (['M', 'N', 'D', 'O'].includes(first.family)) fam = first.family;
   let c = `c-${fam}`;
   if (def.ot || first.ot) c += def.half || first.half ? ' is-ot is-half' : ' is-ot';
+  if (holidayOvertime) c += ' is-holiday-ot';
   if (shownCode(code).length > 3) c += ' is-long';
   return c;
 }
 export const famOf = code => codeClass(code).split(' ')[0];
 export const cellText = code => (code === 'O' ? '<span class="off">·</span>' : esc(shownCode(code)));
 export const swatch = code => `<span class="sw"><i class="cd ${famOf(code)}"></i>${esc(code)}</span>`;
+export function overtimeKindLabel(code, holidayOvertime) {
+  if (holidayOvertime) return 'OT นักขัตฤกษ์';
+  return state.shiftDefs[code]?.ot || state.shiftDefs[shownCode(code)]?.ot ? 'OT ปกติ' : '';
+}
+export function overtimeLegendHtml() {
+  return `<div class="ot-legend" role="group" aria-label="สัญลักษณ์ OT">
+    <span><i class="ot-mark" aria-hidden="true"></i>OT ปกติ</span>
+    <span><i class="ot-mark is-holiday-ot" aria-hidden="true"></i>OT นักขัตฤกษ์</span>
+  </div>`;
+}
 // มีการเปลี่ยนจากตารางเดิมหรือไม่: รหัสสลับ หรือช่องที่ถูกแก้/ได้จากคำขอที่อนุมัติ
 export function changeNote(emp, y, m, d, code) {
   const parts = String(code).split('/');

@@ -12,6 +12,7 @@
    driver (คนขับรถ), all (ทุกคน) — ผู้ที่ทำรายการเองไม่ได้รับแจ้งเรื่องที่ตัวเองทำ
    ========================================================================== */
 
+import { api } from '../../api/client.js';
 import { saveLocal, state } from '../../app/state.js';
 import { currentEmp, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
 
@@ -60,7 +61,6 @@ export function notify(to, title, message, reqId = null) {
 export function myNotifications() {
   const me = meKey();
   const keys = new Set(myKeys());
-  const readApi = new Set(state.notifRead[me] || []);
   const local = (state.actor?.remotePilot ? [] : state.localNotifications)
     .filter(n => n.by !== me && n.to.some(k => keys.has(k)))
     .map(n => ({ id: n.id, ts: n.ts, title: n.title, message: n.message, reqId: n.reqId, read: n.readBy.includes(me) }));
@@ -70,24 +70,40 @@ export function myNotifications() {
     return {
       id: `api-${n.notification_id}`, ts: Date.parse(n.created_at) || 0, title: n.title,
       message: req ? `${req.type} ของ ${req.person} · ${req.date}` : n.message, reqId: n.request_id,
-      read: !!n.is_read || readApi.has(n.notification_id)
+      read: !!n.is_read
     };
   });
   return [...local, ...fromApi].sort((a, b) => b.ts - a.ts);
 }
 export const unreadCount = () => myNotifications().filter(n => !n.read).length;
 
-// LOCAL: สถานะอ่านแล้ว (ระบบหลังบ้านยังไม่มี API บันทึกว่าอ่านแล้ว จึงจำไว้ในเครื่อง)
-export function markRead(id) {
+function markLocalRead(id) {
   const me = meKey();
-  if (String(id).startsWith('api-')) {
-    const list = state.notifRead[me] || (state.notifRead[me] = []);
-    const n = Number(String(id).slice(4));
-    if (!list.includes(n)) list.push(n);
-  } else {
-    const item = state.localNotifications.find(n => n.id === id);
-    if (item && !item.readBy.includes(me)) item.readBy.push(me);
+  const item = state.localNotifications.find(n => n.id === id);
+  if (item && !item.readBy.includes(me)) item.readBy.push(me);
+}
+
+async function markApiRead(path) {
+  const actor = state.actor;
+  const { notificationIds } = await api(path, { method: 'PATCH' });
+  if (state.actor !== actor) return;
+  const read = new Set(notificationIds);
+  for (const notification of state.apiNotifications) {
+    if (read.has(notification.notification_id)) notification.is_read = true;
   }
+}
+
+export async function markRead(id) {
+  if (id.startsWith('api-')) return markApiRead(`/notifications/${encodeURIComponent(id.slice(4))}/read`);
+  markLocalRead(id);
   saveLocal();
 }
-export function markAllRead() { myNotifications().filter(n => !n.read).forEach(n => markRead(n.id)); }
+
+export async function markAllRead() {
+  const actor = state.actor;
+  const unread = myNotifications().filter(n => !n.read);
+  if (unread.some(n => n.id.startsWith('api-'))) await markApiRead('/notifications/read-all');
+  if (state.actor !== actor) return;
+  for (const item of unread) if (!item.id.startsWith('api-')) markLocalRead(item.id);
+  saveLocal();
+}

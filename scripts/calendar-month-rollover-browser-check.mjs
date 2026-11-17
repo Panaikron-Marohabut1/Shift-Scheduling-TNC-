@@ -94,7 +94,7 @@ try {
       assert.equal(await header.count(), 0);
       assert.equal(await calendar.locator('.cal-d.tdy, [aria-current="date"]').count(), 0);
       assert.equal(await locked.count(), shouldBeLocked ? 1 : 0);
-      assert.equal(await calendar.getByText('สรุปตารางกะ', { exact: true }).count(), 1);
+      assert.equal(await page.getByRole('region', { name: 'สรุปตารางกะประจำเดือน' }).getByText('สรุปตารางกะ', { exact: true }).count(), 1);
     };
     const assertDayRequest = async (month, day, expectedOption) => {
       await dayButton(month, day).click();

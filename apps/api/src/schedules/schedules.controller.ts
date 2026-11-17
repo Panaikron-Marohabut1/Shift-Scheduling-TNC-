@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Query, Req, Inject, StreamableFile, HttpCode } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, Req, Inject, StreamableFile, HttpCode } from '@nestjs/common';
 import { ActorRequest } from '../auth/access.guard';
 import { SchedulesService } from './schedules.service';
 @Controller('api/schedules')
 export class SchedulesController {
  constructor(@Inject(SchedulesService) private readonly service:SchedulesService) {}
  @Get() read(@Req() req:ActorRequest,@Query('month') month:string) { return this.service.month(req.actor,month); }
+ @Post('assignments/:assignmentId/absence') @HttpCode(200)
+ setAbsence(@Req() req:ActorRequest,@Param('assignmentId') id:string,@Headers('idempotency-key') key:string,@Body() body:unknown) {
+  return this.service.setAbsence(req.actor,id,key,body);
+ }
 }
 
 @Controller('api/hr')

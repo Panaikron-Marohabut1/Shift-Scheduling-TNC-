@@ -4,6 +4,8 @@
    ========================================================================== */
 
 import { esc, js } from '../../shared/dom.js';
+import { state } from '../../app/state.js';
+import { showToast } from '../../shared/toast.js';
 import { pageHead } from '../../shared/ui.js';
 import { markAllRead, markRead, myNotifications } from './store.js';
 import { openRequestDetails } from '../requests/detail.js';
@@ -31,15 +33,27 @@ export function notificationsHtml() {
       </div>` : '<p class="empty">ยังไม่มีแจ้งเตือน เมื่อมีคำขอที่เกี่ยวข้องกับคุณหรือมีการเปลี่ยนตาราง จะแจ้งที่นี่</p>'}`;
 }
 
-export function openNotification(id) {
+export async function openNotification(id) {
   const item = myNotifications().find(n => n.id === id);
   if (!item) return;
-  markRead(id);
+  const actor = state.actor;
+  const openedFrom = state.activeView;
+  try { if (!item.read) await markRead(id); }
+  catch (error) { if (state.actor === actor) showToast(error.message, 'alert'); }
+  if (state.actor !== actor) return;
   repaint();
   const visible = item.reqId != null && getVisibleRequests().some(r => String(r.id) === String(item.reqId));
-  if (visible) openRequestDetails(item.reqId);
+  if (visible && state.activeView === openedFrom) openRequestDetails(item.reqId);
 }
-export function readAllNotifications() { markAllRead(); repaint(); }
+export async function readAllNotifications() {
+  const actor = state.actor;
+  try {
+    await markAllRead();
+    if (state.actor === actor) repaint();
+  } catch (error) {
+    if (state.actor === actor) showToast(error.message, 'alert');
+  }
+}
 
 // จำนวนที่ยังไม่อ่านครั้งก่อน — ใช้แจ้ง "มีแจ้งเตือนใหม่" ตอนข้อมูลรีเฟรช
 let lastUnread = null;

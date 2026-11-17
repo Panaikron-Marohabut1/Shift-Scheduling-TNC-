@@ -101,6 +101,14 @@ textarea.mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.85
 .is-ot, .is-chg { position: relative; }
 .is-ot::after { content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--ot); pointer-events: none; }
 .is-half::after { width: 6px; height: 6px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ot); }
+.ot-legend { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 6px 16px; color: var(--ink-2); font-size: .9rem; }
+.ot-legend > span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.ot-mark { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--ot); }
+.is-ot.is-holiday-ot::after, .ot-mark.is-holiday-ot {
+  border-radius: 1px;
+  background: var(--hol-ink);
+  transform: rotate(45deg);
+}
 .is-chg::before { content: ''; position: absolute; bottom: 4px; left: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--navy); pointer-events: none; }
 .cd { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; vertical-align: middle; }
 .cd.c-M { background: #f2c94c; }

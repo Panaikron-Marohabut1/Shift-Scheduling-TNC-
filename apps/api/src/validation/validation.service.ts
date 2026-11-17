@@ -8,7 +8,7 @@ type DisplayCheck = Check & {
  participant?:'requester'|'partner';
 };
 
-const MAX_CONSECUTIVE_DAYS = 6;
+export const MAX_CONSECUTIVE_DAYS = 6;
 const DAY_MS = 86_400_000;
 const MIN_SHIFT_REST_MS = 12 * 60 * 60 * 1000;
 const bangkokShiftTime = new Intl.DateTimeFormat('th-TH', {

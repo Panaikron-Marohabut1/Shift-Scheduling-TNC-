@@ -9,6 +9,29 @@
 import { view } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
 
+const sessionBrand = `
+  <header class="session-brand">
+    <img src="/assets/tnc-logo.png" alt="TNC" width="36" height="36">
+    <div><b>ShiftFlow</b><span>ตารางกะฝ่ายผลิต</span></div>
+  </header>`;
+
+function connectionErrorHtml() {
+  return `
+    <main class="session-shell session-recovery">
+      <section class="session-card session-recovery-card" aria-labelledby="session-title">
+        ${sessionBrand}
+        <div class="session-recovery-body">
+          <h1 id="session-title" tabindex="-1">เชื่อมต่อไม่สำเร็จ</h1>
+          <p class="session-description">ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต แล้วลองอีกครั้ง</p>
+          <div class="session-actions">
+            <button class="btn primary" type="button" data-session-retry>ลองอีกครั้ง</button>
+          </div>
+          <p class="session-recovery-help">หากยังเข้าไม่ได้ ให้ติดต่อผู้ดูแลระบบ</p>
+        </div>
+      </section>
+    </main>`;
+}
+
 // ไปหน้าเข้าสู่ระบบของระบบกลาง (URL มาจากระบบหลังบ้านเท่านั้น)
 export function goToLogin(loginUrl, { replace = false } = {}) {
   let url = null;
@@ -22,28 +45,22 @@ export function goToLogin(loginUrl, { replace = false } = {}) {
 
 export function loginHtml() {
   const needsAccess = view.unlinked || view.accessPending;
+  if (!needsAccess && !view.loginUrl) return connectionErrorHtml();
+
   const title = view.accessPending ? 'รอกำหนดบทบาท'
     : view.unlinked ? 'บัญชีนี้ยังเข้าใช้งานไม่ได้'
-    : view.loginUrl ? 'เข้าสู่ระบบ'
-    : 'เชื่อมต่อไม่สำเร็จ';
+    : 'เข้าสู่ระบบ';
   const actions = [
     view.loginUrl ? '<button class="btn primary" type="button" data-click="SF.toLogin()">เข้าสู่ระบบ</button>' : '',
     view.accessPending ? '<button class="btn primary" type="button" data-session-retry>ตรวจสอบสิทธิ์อีกครั้ง</button>' : '',
-    needsAccess ? '<button class="btn" type="button" data-click="SF.logout()">ใช้บัญชีอื่น</button>' : '',
-    !view.loginUrl && !needsAccess ? '<button class="btn primary" type="button" data-session-retry>ลองอีกครั้ง</button>' : ''
+    needsAccess ? '<button class="btn" type="button" data-click="SF.logout()">ใช้บัญชีอื่น</button>' : ''
   ].join('');
-  const message = needsAccess || view.loginUrl
-    ? view.authMsg
-    : 'ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง หากยังเข้าไม่ได้ให้ติดต่อผู้ดูแลระบบ';
   return `
     <main class="session-shell">
-      <header class="session-brand">
-        <img src="/assets/tnc-logo.png" alt="TNC" width="36" height="36">
-        <div><b>ShiftFlow</b><span>ตารางกะฝ่ายผลิต</span></div>
-      </header>
+      ${sessionBrand}
       <section class="session-card session-status" aria-labelledby="session-title">
         <h1 id="session-title" tabindex="-1">${esc(title)}</h1>
-        ${message ? `<p class="session-description">${esc(message)}</p>` : ''}
+        ${view.authMsg ? `<p class="session-description">${esc(view.authMsg)}</p>` : ''}
         <div class="session-actions">${actions}</div>
       </section>
     </main>`;

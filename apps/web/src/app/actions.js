@@ -42,7 +42,7 @@ import { selectEmployeeRequestGroup, selectRequestTab } from '../features/reques
 import { submitOTRequest } from '../features/requests/types/ot.js';
 import { submitColleagueSwapRequest } from '../features/requests/types/swap.js';
 import { submitCentralSwap } from '../features/requests/types/central-swap.js';
-import { openCell } from '../features/schedule/cell.js';
+import { openCell, setCellAbsence } from '../features/schedule/cell.js';
 import { codesModal } from '../features/schedule/page.js';
 import { goToLogin } from '../features/session/view.js';
 
@@ -96,6 +96,7 @@ const SF = {
     if (view.sideOpen) document.querySelector('.side-nav button.on, .side-nav button')?.focus();
   },
   codes: codesModal,
+  setCellAbsence,
   newRequest: newRequestModal,
   form: openForm,
   cell: openCell,

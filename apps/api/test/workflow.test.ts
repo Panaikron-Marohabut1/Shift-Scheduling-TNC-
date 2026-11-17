@@ -140,6 +140,153 @@ test('unauthenticated reads and cross-origin commands are blocked',async()=>{
  assert.equal(cross.status,403);
  const forged=await request('worker','/requests','POST',{...await swapInput('2026-10-08'),assignmentId:1},randomUUID());assert.ok([403,404].includes(forged.status));
 });
+
+test('notification reads persist across sessions and stay scoped to the recipient',async()=>{
+ const {rows}=await admin.query(`INSERT INTO notifications(user_id,title,message)
+  VALUES($1,'Read fixture 1',''),($1,'Read fixture 2',''),($2,'Read fixture other','')
+  RETURNING notification_id`,[accounts.worker.userId,accounts.target.userId]);
+ const [single,remaining,foreign]=rows.map(row=>row.notification_id);
+ const identity=cookies.worker.slice('sb-session='.length);
+ const read=async(id:number)=>(await request('worker',`/notifications/${id}/read`,'PATCH'));
+ const list=async(role:string)=>(await request(role,'/notifications')).body;
+ try {
+  assert.equal((await read(foreign)).status,404);
+  assert.equal((await read(single)).status,200);
+  assert.equal((await read(single)).status,200);
+  assert.equal((await request('worker','/auth/logout','POST')).status,201);
+  assert.equal((await request('worker','/notifications')).status,401);
+  sessions.set(identity,{});
+  assert.equal((await list('worker')).find((n:any)=>n.notification_id===single).is_read,true);
+  assert.equal((await list('worker')).find((n:any)=>n.notification_id===remaining).is_read,false);
+  assert.equal((await request('worker','/notifications/read-all','PATCH')).status,200);
+  assert.equal((await request('worker','/auth/logout','POST')).status,201);
+  sessions.set(identity,{});
+  assert.equal((await list('worker')).find((n:any)=>n.notification_id===remaining).is_read,true);
+  assert.equal((await list('target')).find((n:any)=>n.notification_id===foreign).is_read,false);
+ } finally {
+  sessions.set(identity,{});
+  await admin.query('DELETE FROM notifications WHERE notification_id=ANY($1::int[])',[[single,remaining,foreign]]);
+ }
+});
+
+test('Manager marks and cancels full-shift absence with protected evidence and Thai month lock',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-17T05:00:00Z')});
+ const month='2026-11',day='2026-11-20';
+ const previousCloseSetting=process.env.ENABLE_LOCAL_MONTH_CLOSE;
+ process.env.ENABLE_LOCAL_MONTH_CLOSE='true';
+ const managerId=accounts.manager.userId;
+ const [workerSlot]=await admin.query(`SELECT a.assignment_id,a.version,a.shift_type_id,
+  a.assigned_by,st.shift_code FROM shift_assignments a JOIN shift_types st USING(shift_type_id)
+  WHERE a.employee_id=$1 AND a.work_date=$2`,[accounts.worker.employeeId,day]).then(result=>result.rows);
+ const key=randomUUID();
+ const endpoint=`/schedules/assignments/${workerSlot.assignment_id}/absence`;
+ let extraAssignmentId:number|undefined;
+ try {
+  await admin.query(`UPDATE shift_assignments SET shift_type_id=(SELECT shift_type_id FROM shift_types WHERE shift_code='N')
+   WHERE assignment_id=$1`,[workerSlot.assignment_id]);
+  await admin.query("INSERT INTO holidays(holiday_date,holiday_name,is_active,created_by) VALUES($1,'Absence holiday test',true,$2)",[day,managerId]);
+  const {body:me}=await request('manager','/me');
+  assert.equal(me.capabilities.absenceTracking,true);
+  const mark={active:true,version:workerSlot.version,holidayDate:day};
+  const staleHoliday=await request('manager',endpoint,'POST',{...mark,holidayDate:null},randomUUID());
+  assert.equal(staleHoliday.status,409,JSON.stringify(staleHoliday.body));
+  assert.equal(staleHoliday.body.code,'ABSENCE_CHANGED');
+  const missingHolidayDate=await request('manager',endpoint,'POST',{active:true,version:workerSlot.version},randomUUID());
+  assert.equal(missingHolidayDate.status,400,JSON.stringify(missingHolidayDate.body));
+  const malformedHolidayDate=await request('manager',endpoint,'POST',{...mark,holidayDate:'2026-11-31'},randomUUID());
+  assert.equal(malformedHolidayDate.status,400,JSON.stringify(malformedHolidayDate.body));
+  for(const role of ['worker','a','hr','external']){
+   assert.equal((await request(role,endpoint,'POST',mark,randomUUID())).status,403);
+  }
+  const off=(await assignments('manager',month)).find((slot:any)=>slot.employee_id===accounts.worker.employeeId&&slot.work_date==='2026-11-21');
+  assert.equal(off.shift_code,'O');
+  const markedOff=await request('manager',`/schedules/assignments/${off.assignment_id}/absence`,'POST',
+   {active:true,version:off.version,holidayDate:null},randomUUID());
+  assert.equal(markedOff.body.code,'ABSENCE_SHIFT_INELIGIBLE');
+  assert.equal((await request('manager',endpoint,'POST',{...mark,version:workerSlot.version+1},randomUUID())).status,409);
+  const saved=await request('manager',endpoint,'POST',mark,key);
+  assert.equal(saved.status,200,JSON.stringify(saved.body));
+  const absence=saved.body.absence;
+  assert.deepEqual(absence,{id:absence.id,shiftCode:'NT',startTime:'19:30:00',endTime:'07:30:00',holidayDate:day});
+  assert.deepEqual((await request('manager',endpoint,'POST',mark,key)).body,saved.body);
+  assert.equal((await request('manager',endpoint,'POST',{...mark,version:workerSlot.version+1},key)).body.code,'KEY_REUSED');
+  assert.equal((await request('manager',endpoint,'POST',{...mark,holidayDate:null},key)).body.code,'KEY_REUSED');
+  const slotFor=async(role:string)=>(await assignments(role,month)).find((slot:any)=>slot.assignment_id===workerSlot.assignment_id);
+  assert.deepEqual((await slotFor('manager')).absence,absence);
+  assert.deepEqual((await slotFor('worker')).absence,absence);
+  for(const role of ['target','a','hr'])assert.equal((await slotFor(role)).absence,undefined);
+  assert.equal((await slotFor('worker')).shift_code,'N');
+  assert.equal((await slotFor('worker')).version,workerSlot.version);
+  t.mock.timers.setTime(new Date('2026-11-30T17:00:00Z').getTime());
+  const locked=await request('manager',endpoint,'POST',{active:false,version:workerSlot.version,absenceId:absence.id},randomUUID());
+  assert.equal(locked.body.code,'SCHEDULE_MONTH_CLOSED');
+  t.mock.timers.setTime(new Date('2026-11-17T06:00:00Z').getTime());
+  assert.equal((await request('manager',endpoint,'POST',{active:false,version:workerSlot.version,absenceId:absence.id+1},randomUUID())).status,409);
+  const undo={active:false,version:workerSlot.version,absenceId:absence.id};
+  assert.deepEqual((await request('manager',endpoint,'POST',undo,randomUUID())).body,{absence:null});
+  assert.equal((await slotFor('worker')).absence,undefined);
+  assert.deepEqual((await slotFor('worker')).holidayOvertime,{holidayDate:day,shiftCode:'NT'});
+  assert.deepEqual((await request('manager',endpoint,'POST',mark,key)).body,{absence:null},'delayed mark retry must not re-open a cancelled absence');
+  const history=await admin.query(`SELECT shift_code,recorded_by,cancelled_by
+   FROM shiftflow_policy.shift_absences WHERE assignment_id=$1`,[workerSlot.assignment_id]);
+  assert.deepEqual(history.rows,[{shift_code:'NT',recorded_by:managerId,cancelled_by:managerId}]);
+  const regular=(await assignments('manager',month)).find((slot:any)=>slot.employee_id===accounts.target.employeeId&&slot.is_working&&!slot.holidayOvertime);
+  assert.ok(regular);
+  extraAssignmentId=regular.assignment_id;
+  const regularEndpoint=`/schedules/assignments/${regular.assignment_id}/absence`;
+  const regularMark=await request('manager',regularEndpoint,'POST',{active:true,version:regular.version,holidayDate:null},randomUUID());
+  assert.equal(regularMark.status,200,JSON.stringify(regularMark.body));
+  assert.equal(regularMark.body.absence.shiftCode,regular.shift_code);
+  t.mock.timers.setTime(new Date('2027-11-18T05:00:00Z').getTime());
+  const expired=await request('target',`/schedules?month=${month}`);
+  assert.equal(expired.body.absenceHistoryAvailable,false);
+  assert.equal(expired.body.assignments.find((slot:any)=>slot.assignment_id===regular.assignment_id).absence,undefined);
+  const retentionFixtureKey=randomUUID();
+  await admin.query(`INSERT INTO shiftflow_policy.shift_absences
+   (assignment_id,shift_code,start_time,end_time,recorded_by,recorded_at,record_key,recorded_version)
+   VALUES($1,'M','07:30','19:30',$2,clock_timestamp()-interval '12 months 1 day',$3,$4)`,
+  [workerSlot.assignment_id,managerId,retentionFixtureKey,workerSlot.version]);
+  const runtime=new Pool({connectionString:process.env.DATABASE_URL});
+  try {
+   await assert.rejects(runtime.query('SELECT shiftflow_policy.purge_shift_absences()'),/permission denied/);
+   await assert.rejects(runtime.query('DELETE FROM shiftflow_policy.shift_absences WHERE absence_id=$1',[absence.id]),/permission denied/);
+  } finally { await runtime.end(); }
+  await admin.query('SELECT shiftflow_policy.purge_shift_absences()');
+  assert.deepEqual((await admin.query('SELECT record_key FROM shiftflow_policy.shift_absences WHERE record_key=$1',[retentionFixtureKey])).rows,[]);
+ } finally {
+  if(previousCloseSetting===undefined)delete process.env.ENABLE_LOCAL_MONTH_CLOSE;
+  else process.env.ENABLE_LOCAL_MONTH_CLOSE=previousCloseSetting;
+  if(extraAssignmentId) await admin.query('DELETE FROM shiftflow_policy.shift_absences WHERE assignment_id=$1',[extraAssignmentId]);
+  await admin.query('DELETE FROM holidays WHERE holiday_date=$1',[day]);
+  await admin.query('UPDATE shift_assignments SET shift_type_id=$1,assigned_by=$2 WHERE assignment_id=$3',
+   [workerSlot.shift_type_id,workerSlot.assigned_by,workerSlot.assignment_id]);
+ }
+});
+
+test('absence keeps exact minute windows with PostgreSQL fractional seconds and midnight',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2089-03-01T03:00:00Z')});
+ const month='2089-03',day='2089-03-10';
+ await seedHolidayRoster(month,[],[['worker',day,'N']]);
+ const slot=(await assignments('manager',month)).find((item:any)=>item.work_date===day);
+ const endpoint=`/schedules/assignments/${slot.assignment_id}/absence`;
+ const updateClock=(start:string,end:string)=>admin.query('UPDATE shift_types SET start_time=$1,end_time=$2 WHERE shift_type_id=$3',
+  [start,end,slot.shift_type_id]);
+ const mark=()=>request('manager',endpoint,'POST',{active:true,version:slot.version,holidayDate:null},randomUUID());
+ try {
+  await updateClock('19:30:00.000002','07:30:00.000003');
+  assert.equal((await mark()).body.code,'ABSENCE_SHIFT_INELIGIBLE');
+  for(const [startTime,endTime] of [['19:30:00.000002','07:30:00.000002'],['12:00:00','24:00:00']]){
+   await updateClock(startTime,endTime);
+   const saved=await mark();
+   assert.equal(saved.status,200,JSON.stringify(saved.body));
+   assert.deepEqual(saved.body.absence,{id:saved.body.absence.id,shiftCode:'N',startTime,endTime});
+   const cancelled=await request('manager',endpoint,'POST',{active:false,version:slot.version,absenceId:saved.body.absence.id},randomUUID());
+   assert.deepEqual(cancelled.body,{absence:null});
+  }
+ } finally {
+  await updateClock(slot.start_time,slot.end_time);
+ }
+});
 test('monthly schedules include only active holidays in the requested month',async()=>{
  const dates=['2026-10-13','2026-10-22','2026-11-01'];
  await admin.query(`INSERT INTO holidays(holiday_date,holiday_name,is_active,created_by)
@@ -717,7 +864,7 @@ test('the local scheduling default enables central swap and HR month close witho
   process.env.ENABLE_LOCAL_MONTH_CLOSE='false';
  });
  assert.deepEqual((await request('worker','/me')).body.capabilities,
-  {centralSwap:true,centralLeave:true,centralOT:true,centralHoliday:true,swapPolicy:true,hrClosedRoster:false,monthClose:true});
+  {centralSwap:true,centralLeave:true,centralOT:true,centralHoliday:true,absenceTracking:true,swapPolicy:true,hrClosedRoster:false,monthClose:true,maxConsecutiveWorkDays:6});
  assert.equal((await request('hr','/me')).body.capabilities.hrClosedRoster,true);
  assert.equal((await request('hr','/hr/closed-roster?month=2026-10')).status,200);
  assert.match((await request('a','/requests')).body.find((row:any)=>row.request_id===legacy.requestId).approvalBlockReason,/ยื่นคำขอใหม่/);
@@ -1376,6 +1523,18 @@ test('approved swap cancellation restores four cells, refunds only the requester
  assert.equal((await listRow('a')).canCancel,false);
  assert.equal((await cancel('target',final.body)).status,403);
  clock.setTime(Date.parse('2097-01-04T00:29:59Z'));
+ const markedShift=approved.find((slot:any)=>slot.employee_id===accounts.worker.employeeId&&slot.work_date==='2097-01-12');
+ const absenceEndpoint=`/schedules/assignments/${markedShift.assignment_id}/absence`;
+ const mark=await request('manager',absenceEndpoint,'POST',{active:true,version:markedShift.version,holidayDate:null},randomUUID());
+ assert.equal(mark.status,200,JSON.stringify(mark.body));
+ const absenceConflict=await cancel('worker',final.body);
+ assert.equal(absenceConflict.status,409,JSON.stringify(absenceConflict.body));
+ assert.equal(absenceConflict.body.code,'SCHEDULE_CHANGED');
+ assert.equal((await listRow('worker')).status,'APPROVED');
+ const unmark=await request('manager',absenceEndpoint,'POST',
+  {active:false,version:markedShift.version,absenceId:mark.body.absence.id},randomUUID());
+ assert.equal(unmark.status,200,JSON.stringify(unmark.body));
+ assert.deepEqual(await selectDays(),approved);
  const key=randomUUID();
  await admin.query(`CREATE FUNCTION fail_test_approved_reversal() RETURNS trigger LANGUAGE plpgsql AS $$
   BEGIN IF NEW.entity_id=${final.body.requestId} AND NEW.action='SCHEDULE_SWAP_REVERSED'

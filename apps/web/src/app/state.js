@@ -37,7 +37,7 @@ export function nextBangkokMidnightDelay() {
 
 export const LOCAL_KEY = 'shiftflow.web.demo.v1';
 // ฟิลด์ที่เก็บในเบราว์เซอร์ (เฉพาะส่วนที่ยังไม่มี API)
-export const SAVED_FIELDS = ['localRequests', 'localLogs', 'scheduleOverrides', 'peopleEdits', 'publishedMonths', 'managerConfig', 'annualScheduleConfig', 'driverAcknowledged', 'driverAckTime', 'localNotifications', 'notifRead'];
+export const SAVED_FIELDS = ['localRequests', 'localLogs', 'scheduleOverrides', 'peopleEdits', 'publishedMonths', 'managerConfig', 'annualScheduleConfig', 'driverAcknowledged', 'driverAckTime', 'localNotifications'];
 
 export const state = {
   activeRole: '',
@@ -76,7 +76,6 @@ export const state = {
   driverAcknowledged: false,
   driverAckTime: null,
   localNotifications: [], // แจ้งเตือนของส่วนที่ยังไม่มี API (ดู features/notifications/store.js)
-  notifRead: {},          // แจ้งเตือนจาก API ที่ผู้ใช้แต่ละคนอ่านแล้ว { u<userId>: [notification_id] }
   lastExport: null,       // เวลาส่งออกไฟล์ล่าสุด (แสดงในหน้าฝ่ายบุคคล)
   managerConfig: {
     shiftTimes: {

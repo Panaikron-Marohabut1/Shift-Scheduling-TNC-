@@ -5,11 +5,11 @@
 import { state, view } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
-import { TH_DW } from '../../shared/scheduling/dates.js';
+import { isoOf, TH_DW } from '../../shared/scheduling/dates.js';
 import { hasCentralHolidayCalendar } from '../../shared/scheduling/annual.js';
 import { getCalendarShiftCode } from '../../shared/scheduling/roster.js';
 import { telOf } from '../../shared/ui.js';
-import { codeClass, famOf } from './codes.js';
+import { codeClass, famOf, overtimeKindLabel } from './codes.js';
 import { dayClass, isToday } from './days.js';
 import { matchQ, teamSections } from './page.js';
 
@@ -31,15 +31,16 @@ export function dayViewHtml(S) {
   const { y, m, n, hol } = S;
   const d = Math.min(view.day, n);
   const dt = new Date(y, m, d);
+  const date = isoOf(y, m, d);
   const groups = { 'c-M': [], 'c-N': [], 'c-D': [], 'c-X': [], 'c-L': [], 'c-O': [] };
   const people = teamSections(y, m, d).flatMap(section => section.employees).filter(matchQ);
   people.forEach(e => {
     const c = getCalendarShiftCode(e, y, m, d);
     let f = famOf(c);
     if (f === 'c-H') f = 'c-L';
-    const def = state.shiftDefs[c] || {};
-    const note = c === 'O' ? '' : `${c}${def.ot ? ' · OT' : ''}`;
-    (groups[f] || groups['c-O']).push({ e, note, c });
+    const slot = state.apiAssign[e.id]?.[date];
+    const holidayOT = Boolean(slot?.holidayOvertime);
+    (groups[f] || groups['c-O']).push({ e, c, holidayOT, absent: Boolean(slot?.absence), overtime: overtimeKindLabel(c, holidayOT) });
   });
   const t = state.managerConfig.shiftTimes;
   const col = (key, title, time) => `
@@ -49,7 +50,7 @@ export function dayViewHtml(S) {
         <li class="${S.viewer && S.viewer.id === x.e.id ? 'me' : ''}">
           <button class="prow" data-click="SF.cell(${js(x.e.id)}, ${d})">
             <span class="pname">${esc(x.e.name)}${S.viewer && S.viewer.id === x.e.id ? ' <span class="you">คุณ</span>' : ''}${x.e.roleCategory === 'Shift Supervisor' ? ' <span class="tag" title="หัวหน้ากะ">S</span>' : ''}</span>
-            <span class="pmeta">${esc(x.e.teamForDisplay)}${x.note && key !== 'c-O' ? `<span class="chip ${codeClass(x.c)}">${esc(x.note)}</span>` : ''}</span>
+            <span class="pmeta">${esc(x.e.teamForDisplay)}${key !== 'c-O' ? `<span class="chip ${codeClass(x.c, x.holidayOT)}">${esc(x.c)}</span>` : ''}${x.overtime ? ` <span class="day-ot-kind">${esc(x.overtime)}</span>` : ''}${x.absent ? ' <span class="absence-tag">ขาดงาน</span>' : ''}</span>
           </button>
           ${telOf(x.e.phone)}
         </li>`).join('')}</ul>` : '<p class="none">ไม่มี</p>'}

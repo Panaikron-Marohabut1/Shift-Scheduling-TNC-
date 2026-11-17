@@ -7,7 +7,8 @@ import { esc, js } from '../../shared/dom.js';
 import { isoOf, TH_DW, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { getAllEmployees } from '../../shared/scheduling/employees.js';
 import { getCalendarShiftCode, getShiftCodeForDate, getTeamForDate } from '../../shared/scheduling/roster.js';
-import { cellText, changeNote, codeClass, famOf } from './codes.js';
+import { holidayDateLabel } from '../requests/types/holiday.js';
+import { cellText, changeNote, codeClass, famOf, overtimeKindLabel } from './codes.js';
 import { dayClass } from './days.js';
 import { matchQ, teamSections } from './page.js';
 
@@ -43,9 +44,12 @@ export function gridHtml(S) {
             if (code === null) return `<td class="${cls[i]}" aria-label="อยู่ทีมอื่นในวันนี้"></td>`;
             const d = i + 1, def = state.shiftDefs[code] || state.shiftDefs.O;
             const chg = changeNote(emp, y, m, d, getShiftCodeForDate(emp, y, m, d));
-            const holidayOT = state.apiAssign[emp.id]?.[isoOf(y, m, d)]?.holidayOvertime;
-            const tip = `${emp.name} ${d} ${thaiMonthName(m, 'short')} · ${def.label}${chg ? ` · ${chg}` : ''}${holidayOT ? ` · OT นักขัตฤกษ์จากวันที่ ${Number(holidayOT.holidayDate.slice(-2))}` : ''}${hol[`${m}-${d}`] ? ` · ${hol[`${m}-${d}`]}` : ''}${!S.hasData ? ' · คาดการณ์' : ''}`;
-            return `<td class="${codeClass(code)} ${chg ? 'chg' : ''} ${cls[i]} ${!S.hasData ? 'proj' : ''}"><button data-click="SF.cell(${js(emp.id)}, ${d})" title="${esc(tip)}">${cellText(code)}</button></td>`;
+            const assignment = state.apiAssign[emp.id]?.[isoOf(y, m, d)];
+            const holidayOT = assignment?.holidayOvertime;
+            const absence = assignment?.absence;
+            const overtime = holidayOT ? `OT จากวันหยุดนักขัตฤกษ์ ${holidayDateLabel(holidayOT.holidayDate)}` : overtimeKindLabel(code);
+            const tip = `${emp.name} ${d} ${thaiMonthName(m, 'short')} · ${def.label}${absence ? ' · ขาดงาน' : ''}${chg ? ` · ${chg}` : ''}${overtime ? ` · ${overtime}` : ''}${hol[`${m}-${d}`] ? ` · ${hol[`${m}-${d}`]}` : ''}${!S.hasData ? ' · คาดการณ์' : ''}`;
+            return `<td class="${codeClass(code, Boolean(holidayOT))} ${absence ? 'is-absent' : ''} ${chg ? 'chg' : ''} ${cls[i]} ${!S.hasData ? 'proj' : ''}"><button data-click="SF.cell(${js(emp.id)}, ${d})" title="${esc(tip)}" aria-label="${esc(tip)}">${cellText(code)}${absence ? '<span class="absence-tag" aria-hidden="true">ขาด</span>' : ''}</button></td>`;
           }).join('')}
           <td class="sm">${sum.work}</td><td class="sm">${sum.ot || ''}</td><td class="sm">${sum.leave || ''}</td>
         </tr>`;

@@ -10,7 +10,7 @@ import { daysIn, monthLabel, thaiMonthName } from '../../shared/scheduling/dates
 import { getAllEmployees } from '../../shared/scheduling/employees.js';
 import { dataMonth, getTeamForDate } from '../../shared/scheduling/roster.js';
 import { pageHead } from '../../shared/ui.js';
-import { swatch } from './codes.js';
+import { famOf, overtimeLegendHtml } from './codes.js';
 import { dayNav, dayViewHtml } from './day-view.js';
 import { draftNote } from './days.js';
 import { gridHtml } from './month-grid.js';
@@ -60,7 +60,10 @@ export function scheduleHtml() {
       </div>
     </div>
     ${state.actor?.remotePilot && !S.hasData && !S.projected ? '<p class="empty">ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</p>' : view.mode === 'month' ? `
-      <div class="mstatus">${statusChips(S)}</div>
+      <div class="sched-month-meta">
+        <div class="mstatus" role="group" aria-label="สถานะตารางกะ">${statusChips(S)}</div>
+        ${overtimeLegendHtml()}
+      </div>
       ${S.projected ? '' : !S.published ? `<p class="note warn proj-note">${state.actor?.remotePilot ? 'ตารางกะเดือนนี้ยังไม่ประกาศใช้' : draftNote(S.y)}</p>` : !S.hasData ? `<p class="note warn proj-note">${esc(monthLabel(S.y, S.m))} ยังไม่มีตารางกะจริง ระบบคาดการณ์จากรอบ 2 วันสลับ 2 วันของเดือน${esc(thaiMonthName(base.m, 'long'))} ${base.y + 543} ${S.monthLocked ? 'เดือนนี้ถูกล็อก ดูได้อย่างเดียว' : 'กดช่องกะเพื่อยื่นคำขอได้ตามปกติ'}</p>` : ''}
       ${gridHtml(S)}
       ${legendHtml()}` : dayViewHtml(S)}
@@ -70,38 +73,44 @@ export function scheduleHtml() {
 // กลุ่มคำอธิบายคงที่ อ่านจากกะทำงานไปยังสัญลักษณ์ประกอบ
 function legendHtml() {
   return `
-    <div class="legend legend-grouped">
-      <section class="legend-group" aria-label="กะทำงาน">
-        <h3>กะทำงาน</h3><div class="legend-group-items">
-          <span><i class="chip c-M">M</i>กะเช้า</span>
-          <span><i class="chip c-N">N</i>กะดึก</span>
-          <span><i class="chip c-D">D</i>เวลาทำการปกติ</span>
-        </div>
-      </section>
-      <section class="legend-group" aria-label="OT">
-        <h3>OT</h3><div class="legend-group-items">
-          <span><i class="chip c-X" aria-hidden="true"></i>OT เพิ่มเติม</span>
-          <span><i class="mk-ot"></i>มี OT</span>
-        </div>
-      </section>
-      <section class="legend-group" aria-label="ลาและวันพัก">
-        <h3>ลาและวันพัก</h3><div class="legend-group-items">
-          <span><i class="chip c-L">L</i>ลา</span>
-          <span><i class="chip c-H">H</i>ใช้สิทธิ์นักขัตฤกษ์</span>
-          <span><i class="chip c-O">·</i>วันหยุดประจำ (O)</span>
-        </div>
-      </section>
-      <section class="legend-group" aria-label="วันตามปฏิทิน">
-        <h3>วันตามปฏิทิน</h3><div class="legend-group-items">
-          <span><i class="chip lg-we day-line-key" aria-hidden="true"></i>เสาร์–อาทิตย์</span>
-          <span><i class="chip lg-hol day-line-key" aria-hidden="true"></i>วันหยุดนักขัตฤกษ์</span>
-        </div>
-      </section>
-      <section class="legend-group" aria-label="การเปลี่ยนแปลง">
-        <h3>การเปลี่ยนแปลง</h3><div class="legend-group-items">
-          <span><i class="mk-corner"></i>เปลี่ยนจากตารางเดิม</span>
-        </div>
-      </section>
+    <div class="legend">
+      <div class="legend-groups">
+        <section class="legend-group" aria-label="กะทำงาน">
+          <h3>กะทำงาน</h3>
+          <ul class="legend-group-items">
+            <li><i class="chip c-M">M</i><span>กะเช้า</span></li>
+            <li><i class="chip c-N">N</i><span>กะดึก</span></li>
+            <li><i class="chip c-D">D</i><span>เวลาทำการปกติ</span></li>
+          </ul>
+        </section>
+        <section class="legend-group" aria-label="OT">
+          <h3>OT</h3>
+          <ul class="legend-group-items">
+            <li><i class="chip c-X" aria-hidden="true"></i><span>OT เพิ่มเติม</span></li>
+          </ul>
+        </section>
+        <section class="legend-group" aria-label="ลาและวันพัก">
+          <h3>ลาและวันพัก</h3>
+          <ul class="legend-group-items">
+            <li><i class="chip c-L">L</i><span>ลา</span></li>
+            <li><i class="chip c-H">H</i><span>ใช้สิทธิ์นักขัตฤกษ์</span></li>
+            <li><i class="chip c-O" aria-hidden="true">·</i><span>วันหยุดประจำ (O)</span></li>
+          </ul>
+        </section>
+        <section class="legend-group" aria-label="วันตามปฏิทิน">
+          <h3>วันตามปฏิทิน</h3>
+          <ul class="legend-group-items">
+            <li><i class="chip lg-we" aria-hidden="true"></i><span>เสาร์–อาทิตย์</span></li>
+            <li><i class="chip lg-hol" aria-hidden="true"></i><span>วันหยุดนักขัตฤกษ์</span></li>
+          </ul>
+        </section>
+        <section class="legend-group" aria-label="การเปลี่ยนแปลง">
+          <h3>การเปลี่ยนแปลง</h3>
+          <ul class="legend-group-items">
+            <li><i class="mk-corner" aria-hidden="true"></i><span>เปลี่ยนจากตารางเดิม</span></li>
+          </ul>
+        </section>
+      </div>
       <button class="link" data-click="SF.codes()">รหัสกะทั้งหมด</button>
     </div>`;
 }
@@ -116,20 +125,41 @@ const CODE_GROUPS = [
   ['ปรับหลายขั้นตอน', ['O/M/N', 'O/M/S']]
 ];
 
+function codeGuideRow(code) {
+  const { label, time } = state.shiftDefs[code];
+  const hours = /^(\d{2}:\d{2}–\d{2}:\d{2}) \((.+)\)$/.exec(time);
+  return `<tr role="row">
+    <th scope="row" role="rowheader"><span class="chip ${famOf(code)}">${esc(code)}</span></th>
+    <td class="shift-code-meaning" role="cell">${esc(label)}</td>
+    <td class="shift-code-time" role="cell">${hours ? `<span>${esc(hours[1])}</span><small>${esc(hours[2])}</small>` : esc(time)}</td>
+  </tr>`;
+}
+
 export function codesModal() {
   const known = new Set(CODE_GROUPS.flatMap(([, codes]) => codes));
   const extra = Object.keys(state.shiftDefs).filter(code => !known.has(code));
   const groups = extra.length ? [...CODE_GROUPS, ['รหัสอื่น ๆ', extra]] : CODE_GROUPS;
   openModal('ความหมายรหัสกะ', `
-    <table class="tbl codes">
-      <thead><tr><th>รหัส</th><th>ความหมาย</th><th>เวลา</th></tr></thead>
-      ${groups.map(([label, codes]) => {
-        const available = codes.filter(code => state.shiftDefs[code]);
-        return available.length ? `<tbody>
-          <tr class="codes-group"><th scope="rowgroup" colspan="3">${esc(label)}</th></tr>
-          ${available.map(c => `<tr><td>${swatch(c)}</td><td>${esc(state.shiftDefs[c].label)}</td><td>${esc(state.shiftDefs[c].time)}</td></tr>`).join('')}
-        </tbody>` : '';
-      }).join('')}
-    </table>
-    <p class="codes-note"><span class="chip lg-we" aria-hidden="true"></span> สีแดงอ่อน = เสาร์–อาทิตย์ · <span class="chip lg-hol" aria-hidden="true"></span> สีชมพูเข้ม = วันหยุดนักขัตฤกษ์ · <i class="mk-corner"></i> ขีดใต้ช่อง = ประเภทวันตามสีคอลัมน์ (ช่องที่ทำงานคงสีกะ) · มุมแดง = เปลี่ยนจากตารางเดิม · ช่อง · = วันหยุดประจำ</p>`, '<button class="btn" data-click="closeModal()">ปิด</button>');
+    <div class="shift-code-guide">
+      <table class="shift-code-table" role="table" aria-label="ความหมายรหัสกะ">
+        <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">รหัส</th><th scope="col" role="columnheader">ความหมาย</th><th scope="col" role="columnheader">เวลาและรายละเอียด</th></tr></thead>
+        ${groups.map(([label, codes]) => {
+          const available = codes.filter(code => state.shiftDefs[code]);
+          return available.length ? `<tbody role="rowgroup">
+            <tr class="shift-code-group" role="row"><th scope="rowgroup" role="rowheader" colspan="3">${esc(label)}</th></tr>
+            ${available.map(codeGuideRow).join('')}
+          </tbody>` : '';
+        }).join('')}
+      </table>
+      <section class="shift-code-key" aria-labelledby="shiftCodeKeyTitle">
+        <h3 id="shiftCodeKeyTitle">สัญลักษณ์ในตาราง</h3>
+        ${overtimeLegendHtml()}
+        <ul>
+          <li><i class="chip lg-we" aria-hidden="true"></i>เสาร์–อาทิตย์</li>
+          <li><i class="chip lg-hol" aria-hidden="true"></i>วันหยุดนักขัตฤกษ์</li>
+          <li><i class="mk-corner" aria-hidden="true"></i>เปลี่ยนจากตารางเดิม</li>
+          <li><i class="chip c-O" aria-hidden="true">·</i>วันหยุดประจำ</li>
+        </ul>
+      </section>
+    </div>`, '<button type="button" class="btn" data-click="closeModal()">ปิด</button>');
 }

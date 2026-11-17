@@ -129,6 +129,50 @@ export function getCalendarShiftCode(emp, year, month, day) {
   if (slot?.holidayLeave) return 'H';
   return slot?.holidayOvertime?.shiftCode || getShiftCodeForDate(emp, year, month, day);
 }
+
+// true = ทำงาน, false = ยืนยันว่าไม่ได้ทำงาน, null = ยังไม่มีข้อมูลยืนยัน
+function workingOn(emp, date) {
+  const year = date.getFullYear(), month = date.getMonth(), day = date.getDate();
+  if (!isSchedulePublished(year, month)) return null;
+  const override = getShiftOverride(emp, year, month, day);
+  const slot = state.apiAssign[emp.id]?.[isoOf(year, month, day)];
+  if (override === undefined && (!slot || slot.status !== 'ACTIVE')) return null;
+  const parts = String(override ?? slot.shift_code).split('/');
+  const code = parts.length > 2 ? parts.at(-1) : parts[0];
+  if (slot?.holidayLeave || code === 'O' || code === '-' || LEAVE.has(code)) return false;
+  if (override === undefined && typeof slot.is_working === 'boolean') return slot.is_working;
+  return state.shiftDefs[code] ? true : null;
+}
+
+export function getCurrentWorkRun(emp, today) {
+  const todayWorking = workingOn(emp, today);
+  if (todayWorking !== true) return todayWorking === false ? { throughToday: 0 } : null;
+
+  function walk(direction) {
+    const cursor = new Date(today);
+    let edge = today, days = 0;
+    cursor.setDate(cursor.getDate() + direction);
+    let working = workingOn(emp, cursor);
+    while (working === true) {
+      edge = new Date(cursor);
+      days++;
+      cursor.setDate(cursor.getDate() + direction);
+      working = workingOn(emp, cursor);
+    }
+    return { edge, days, complete: working === false };
+  }
+
+  const past = walk(-1), future = walk(1);
+  return {
+    throughToday: past.days + 1,
+    throughTodayComplete: past.complete,
+    total: past.days + 1 + future.days,
+    totalComplete: past.complete && future.complete,
+    start: past.edge,
+    end: future.edge,
+  };
+}
+
 export function getTeamForDate(emp, year, month, day) {
   if (state.actor?.remotePilot || state.actor?.swapPolicy || state.actor?.monthClose || state.actor?.peopleManagement) {
     const date = isoOf(year, month, day);

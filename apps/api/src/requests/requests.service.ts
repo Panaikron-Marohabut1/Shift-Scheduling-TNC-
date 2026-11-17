@@ -13,6 +13,7 @@ import { isHolidayReplacementDate } from '../shared/holiday-roster-rules';
 import { holidayRequestWindow, isHolidayDate } from './holiday-request-policy';
 import { rosterRequestConflicts, staleSlots, swapSlots } from './roster-request-conflicts';
 import { restoredRosterVersions } from './restored-roster-versions';
+import { requireNoMarkedAbsence, requireStableAbsenceShifts } from './absence-conflicts';
 type SwapLeg={assignmentId:number;targetAssignmentId:number;assignmentVersion:number;targetVersion:number};
 export type SwapInput=SwapLeg&{secondSwap?:SwapLeg};
 export type DecisionInput={decision:'APPROVE'|'REJECT';expectedVersion:number;reason:string};
@@ -316,6 +317,7 @@ export class RequestsService {
  private async requireFreeAssignments(
   c:PoolClient,ids:number[],checkedAt:Date,includeLeave:boolean,excludeRequestId?:number,
  ) {
+  await requireNoMarkedAbsence(c,this.schedules,ids);
   const [conflict]=await rosterRequestConflicts(c,ids,checkedAt,includeLeave,excludeRequestId);
   if(conflict?.status==='APPROVED') {
    throw new ConflictException({code:'APPROVED_REQUEST',message:'กะที่เลือกมีคำขอที่อนุมัติแล้ว กรุณายกเลิกคำขอเดิมและคืนกะก่อน'});
@@ -429,6 +431,7 @@ export class RequestsService {
   const now=new Date();
   await c.query('UPDATE approvals SET status=$1,request_version=$2,approved_at=$3,comment=$5 WHERE approval_id=$4',[reject?'REJECTED':'APPROVED',input.expectedVersion,now,step.approval_id,request.ot_code&&reject?input.reason:null]);
   await this.finishLeave(c,request,status,now,!request.ot_code&&reject?input.reason:null);
+  if(status==='APPROVED'&&roster)await requireStableAbsenceShifts(c,this.schedules,roster.before);
   await this.audit(c,actor,reject?'REQUEST_REJECTED':'REQUEST_APPROVED',request.request_id,{status:'PENDING'},
    {status,requestVersion:request.version+1,approvedRequestVersion:input.expectedVersion,level:step.approver_level});
   await this.notifyLeaveParties(c,request.request_id,leaveSlots(request).map(slot=>slot.employee_id),'สถานะคำขอเปลี่ยนแปลง');
@@ -463,6 +466,7 @@ export class RequestsService {
   const roster=approved?await this.leaveRoster(c,request,true):null;
   if(roster)await this.writeLeaveRoster(c,actor,request,roster,true);
   await this.finishLeave(c,request,'CANCELLED',new Date());
+  if(roster)await requireStableAbsenceShifts(c,this.schedules,roster.before);
   await this.audit(c,actor,'REQUEST_CANCELLED',request.request_id,{status:request.status},{status:'CANCELLED',requestVersion:request.version+1});
   await this.notifyLeaveParties(c,request.request_id,leaveSlots(request).map(slot=>slot.employee_id),'คำขอถูกยกเลิก');
   beforeCommit(()=>{
@@ -634,6 +638,7 @@ export class RequestsService {
     for(const [source,target] of pairs) for(const [own,incoming] of [[source,target],[target,source]]) {
      await c.query('UPDATE shift_assignments SET shift_type_id=$1,assigned_by=$2,version=version+1,updated_at=now() WHERE assignment_id=$3',[incoming.shift_type_id,actor.userId,own.assignment_id]);
     }
+    await requireStableAbsenceShifts(c,this.schedules,pairs.flat());
     await c.query('UPDATE schedules SET version=version+1,updated_at=now() WHERE schedule_id=ANY($1::int[])',[scheduleIds]);
     const after=(own:Assignment,incoming:Assignment)=>({...own,shift_type_id:incoming.shift_type_id,shift_code:incoming.shift_code,shift_name:incoming.shift_name,is_working:incoming.is_working,start_time:incoming.start_time,end_time:incoming.end_time,assigned_by:actor.userId,version:own.version+1});
     const extra=pairs[1];
@@ -725,6 +730,7 @@ export class RequestsService {
    await c.query('UPDATE shift_assignments SET shift_type_id=$1,assigned_by=$2,version=version+1,updated_at=now() WHERE assignment_id=$3',
     [before.shift_type_id,before.assigned_by,before.assignment_id]);
   }
+  await requireStableAbsenceShifts(c,this.schedules,current);
   await c.query('UPDATE schedules SET version=version+1,updated_at=now() WHERE schedule_id=ANY($1::int[])',[scheduleIds]);
   // Usage is counted from APPROVED requests in the original month. This transition refunds exactly one slot.
   await c.query("UPDATE requests SET status='CANCELLED',version=version+1,updated_at=now() WHERE request_id=$1",[requestId]);

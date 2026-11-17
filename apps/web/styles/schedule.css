@@ -2,7 +2,7 @@
    ตารางกะ: ตารางรายเดือน มุมมองรายวัน คำอธิบายสัญลักษณ์ วันหยุด ช่องที่เปลี่ยนกะ
    ========================================================================== */
 
-.mstatus { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; font-size: 0.93rem; color: var(--ink-2); margin-bottom: 12px; }
+.mstatus { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: center; }
 
 /* ---------- ตารางกะรายเดือน ---------- */
 .grid-wrap { overflow: auto; max-height: calc(100vh - 226px); min-height: 280px; background: var(--surface); border-radius: 8px; }
@@ -26,6 +26,8 @@
 .roster tr.me .name { font-weight: 700; color: var(--primary-dark); }
 .roster td button { display: block; width: 100%; min-width: 31px; height: calc(var(--row) - 1px); font-weight: 600; font-size: 0.87rem; line-height: 1; color: inherit; }
 .roster td .off { font-size: 1rem; font-weight: 400; line-height: 1; color: #c3cad3; }
+.absence-tag { display: inline-block; padding: 1px 4px; border-radius: 4px; background: var(--bad-tint); color: var(--bad); font-size: .7rem; font-weight: 700; line-height: 1.2; }
+.roster td.is-absent button { display: grid; align-content: center; justify-items: center; gap: 2px; }
 .roster td.is-long button { font-size: 0.72rem; letter-spacing: -0.02em; }
 @media (hover: hover) and (pointer: fine) { .roster td button:hover { box-shadow: inset 0 0 0 2px var(--primary); } }
 .roster .sm { width: 40px; min-width: 40px; background: var(--surface); font-variant-numeric: tabular-nums; color: var(--ink-2); }
@@ -36,12 +38,6 @@
 .roster tfoot .r2 th, .roster tfoot .r2 td { bottom: 0; border-bottom: 0; }
 .roster tfoot .nm { z-index: 5; padding: 0 16px; font-weight: 500; background: var(--soft); }
 .roster tfoot td.low { color: var(--bad); font-weight: 700; }
-.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 14px; font-size: 0.93rem; color: var(--ink-2); }
-.legend span { display: inline-flex; align-items: center; gap: 7px; }
-.mk-ot, .mk-chg { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
-.mk-ot { background: var(--ot); }
-.mk-chg { background: var(--navy); }
-.legend .link { margin-left: auto; }
 
 /* ---------- มุมมองรายวัน ---------- */
 .dnav { display: inline-flex; align-items: center; gap: 4px; }
@@ -67,11 +63,10 @@
 .pname { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pmeta { font-size: 0.87rem; color: var(--muted); }
 .pmeta .chip { margin-left: 8px; height: 22px; font-size: 0.8rem; vertical-align: middle; }
+.day-ot-kind { display: inline-block; margin-inline-start: 6px; }
 .tel { font-variant-numeric: tabular-nums; white-space: nowrap; text-decoration: none; color: var(--primary); }
 @media (hover: hover) and (pointer: fine) { .tel:hover { text-decoration: underline; } }
 .plist .tel { padding: 10px 18px; font-size: 0.95rem; }
-.tbl.codes th, .tbl.codes td { padding: 9px 10px; }
-.tbl.codes td .sw + span { margin-left: 6px; color: var(--ink-2); }
 @media (max-width: 760px) {
   .grid-wrap { max-height: calc(100vh - 330px); min-height: 320px; }
   .roster .nm { width: 128px; min-width: 128px; max-width: 128px; }
@@ -83,7 +78,6 @@
   .dnav-days button { flex: 1; width: auto; }
   .daycols { grid-template-columns: 1fr; }
   .prow, .plist .tel { padding-top: 12px; padding-bottom: 12px; }
-  .legend .link { margin-left: 0; }
 }
 
 /* จอโน้ตบุ๊ก 1280–1366 ให้ตารางทั้งเดือนยังพอดีจอ */
@@ -123,17 +117,6 @@
 .roster tfoot td.we { background: color-mix(in srgb, var(--we-bg) 80%, var(--we-marker)); }
 .roster td.c-O.hol, .roster td.hol:empty { background: var(--hol-bg); }
 .roster tfoot td.hol { background: color-mix(in srgb, var(--hol-bg) 80%, var(--hol-marker)); }
-/* Day-kind underline overlays shift fills without replacing them or the
-   existing today/own-row strokes. It also avoids OT/comment pseudo-elements. */
-.roster tbody tr:not(.team) td:is(.we, .hol):not(.c-O):has(button, span):not(:empty) {
-  background-image: linear-gradient(var(--day-kind-marker), var(--day-kind-marker));
-  background-size: 100% 3px;
-  background-position: left bottom;
-  background-repeat: no-repeat;
-}
-.roster td.we { --day-kind-marker: var(--we-marker); }
-.roster td.hol { --day-kind-marker: var(--hol-marker); }
-.roster tr.team td { background-image: none; }
 
 .roster td.tdy {
   --today-line: color-mix(in srgb, var(--primary) 35%, transparent);
@@ -186,10 +169,6 @@
 .filter-toggle { display: none; }
 .filter-toggle .badge { min-width: 18px; height: 18px; font-size: 0.7rem; }
 .roster .name-short { display: none; }
-.codes-note { margin-top: 12px; font-size: 0.9rem; color: var(--ink-2); line-height: 1.8; }
-.codes-note .lg-day { vertical-align: -2px; }
-.lg-day.we { background: var(--we-bg); box-shadow: inset 0 0 0 1px var(--we-ink); }
-.lg-day.hol { background: var(--hol-bg); box-shadow: inset 0 0 0 1px var(--hol-ink); }
 @media (max-width: 760px) {
   .sched-bar { gap: 8px; }
   .sched-bar .mnav { flex: 1; }
@@ -210,7 +189,6 @@
   .roster thead .nm { font-size: 0.8rem; }
   .roster tr.team td.team-note { font-size: 0.78rem; }
   .grid-wrap { max-height: calc(100svh - 270px); }
-  .legend { gap: 6px 14px; font-size: 0.87rem; }
 }
 .roster .lbl-short { display: none; }
 @media (max-width: 760px) {
@@ -262,7 +240,8 @@
 /* Monthly roster: one white working sheet around controls, status, grid and legend.
    Grid cell sizes, sticky columns, semantic fills and scrolling stay unchanged. */
 .roster-sheet { min-width: 0; background: var(--surface); padding: 24px; border-radius: 8px; }
-.roster-sheet .sched-bar { padding: 0; border-radius: 0; margin-bottom: 16px; }
+.roster-sheet .sched-bar { padding: 0; border-radius: 0; margin-bottom: 20px; }
+.sched-month-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; margin-bottom: 20px; }
 .roster-sheet .grid-wrap { border: 1px solid var(--line-2); }
 @media (max-width: 760px) {
   .roster-sheet { padding: 16px 12px; }
@@ -271,18 +250,71 @@
   .roster-sheet { padding: 0; border-radius: 0; }
 }
 
-.legend .day-line-key.lg-we { border-bottom: 3px solid var(--we-marker); }
-.legend .day-line-key.lg-hol { border-bottom: 3px solid var(--hol-marker); }
-
-/* Keep related legend entries together when the footer wraps. */
-.legend-grouped { align-items: start; gap: 16px 28px; }
-.legend-group { display: grid; gap: 8px; }
-.legend-group h3 { font-size: .85rem; font-weight: 600; color: var(--muted); }
-.legend-group-items { display: flex; flex-wrap: wrap; gap: 8px 16px; }
-.legend-grouped .link { align-self: end; }
-.tbl.codes .codes-group th { padding: 20px 10px 8px; color: var(--ink); font-size: .9rem; font-weight: 700; }
+/* Size each group to its labels so all groups can share a row when they fit. */
+.legend {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  padding-block: 12px 4px;
+  border-top: 1px solid var(--line);
+  font-size: .9rem;
+  color: var(--ink-2);
+}
+.legend-groups { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px 24px; }
+.legend-group { min-width: 0; }
+.legend-group h3 { margin-bottom: 8px; font-size: .85rem; color: var(--muted); text-wrap: wrap; }
+.legend-group-items { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 0; list-style: none; }
+.legend-group-items li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.legend-group-items i { flex: none; }
+.legend-group-items .mk-corner { margin-inline: 8px; }
+.legend .link { justify-self: end; }
 @media (max-width: 760px) {
-  .legend-grouped { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .legend-group-items { gap: 8px 14px; }
-  .legend-grouped .link { justify-self: start; margin-left: 0; }
+  .legend-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .legend-group:last-of-type { grid-column: 1 / -1; }
+  .legend .link { justify-self: start; min-height: 44px; }
+  .sched-month-meta .ot-legend { justify-content: start; }
+}
+@media (max-width: 359px) {
+  .legend-groups { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Shift code reference uses the shared dialog with a scrollable reading area. */
+.modal:has(.shift-code-guide) > header { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.modal:has(.shift-code-guide) > footer { border-top: 1px solid var(--line); }
+.modal:has(.shift-code-guide) > .modal-body { min-height: 0; padding-block: 14px 20px; overscroll-behavior: contain; }
+.shift-code-guide { display: grid; min-width: 0; gap: 20px; }
+.shift-code-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; line-height: 1.5; }
+.shift-code-table :is(th, td) { padding: 10px 12px; vertical-align: top; text-align: start; }
+.shift-code-table thead th { color: var(--muted); font-size: .85rem; font-weight: 600; }
+.shift-code-table thead th:first-child { width: 6rem; }
+.shift-code-table thead th:last-child { width: 46%; }
+.shift-code-table .shift-code-group th { padding-block: 7px; background: var(--soft); color: var(--ink-2); font-size: .9rem; font-weight: 700; }
+.shift-code-table tbody tr:not(.shift-code-group) > * { border-bottom: 1px solid var(--line); }
+.shift-code-table tbody tr:last-child > * { padding-bottom: 14px; border-bottom: 0; }
+.shift-code-table .chip { min-width: 34px; padding-inline: 8px; }
+.shift-code-time { overflow-wrap: anywhere; color: var(--ink-2); }
+.shift-code-time span { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+.shift-code-time small { display: block; margin-top: 2px; font-size: .85rem; color: var(--muted); }
+.shift-code-key { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; }
+.modal-body .shift-code-key h3 { margin: 0; font-size: .95rem; }
+.shift-code-key .ot-legend { justify-content: start; }
+.shift-code-key ul { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; list-style: none; }
+.shift-code-key li { display: flex; align-items: center; gap: 7px; color: var(--ink-2); font-size: .9rem; }
+.shift-code-key .chip { min-width: 22px; height: 18px; }
+
+@media (min-width: 761px) {
+  .overlay > .modal:has(.shift-code-guide) { width: min(740px, 100%); max-height: min(760px, calc(100dvh - 40px)); }
+}
+@media (max-width: 540px) {
+  .modal:has(.shift-code-guide) > .modal-body { padding-inline: 16px; }
+  .shift-code-table thead { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  .shift-code-table, .shift-code-table tbody { display: block; }
+  .shift-code-table tbody tr { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 2px 8px; padding: 10px 8px; }
+  .shift-code-table tbody tr:not(.shift-code-group) { border-bottom: 1px solid var(--line); }
+  .shift-code-table tbody tr:not(.shift-code-group) > * { padding: 0; border: 0; }
+  .shift-code-table tbody tr:last-child { padding-bottom: 14px; border: 0; }
+  .shift-code-table tbody th:not([colspan]) { grid-row: span 2; }
+  .shift-code-table .shift-code-group { display: block; padding: 0; }
+  .shift-code-table .shift-code-group th { display: block; padding-inline: 8px; }
+  .shift-code-time { font-size: .88rem; }
 }

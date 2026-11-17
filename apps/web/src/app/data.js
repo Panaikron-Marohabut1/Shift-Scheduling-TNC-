@@ -12,7 +12,7 @@
    ========================================================================== */
 
 import { api } from '../api/client.js';
-import { saveLocal, state } from './state.js';
+import { DEMO_TODAY, saveLocal, state } from './state.js';
 import { monthKey, pad2, thaiMonthName } from '../shared/scheduling/dates.js';
 import { findEmployeeById, getAllEmployees, TEAM_KEYS } from '../shared/scheduling/employees.js';
 import { clearPatternCache } from '../shared/scheduling/roster.js';
@@ -23,6 +23,7 @@ export const nowText = () => fmtTime(new Date().toISOString());
 /* ---------- ตารางกะ ---------- */
 const yearsLoaded = {};
 let quotaRequest;
+let workRunBoundary;
 
 function myQuotaMonth() {
   return `${state.currentYear}-${pad2(state.currentMonth + 1)}`;
@@ -49,24 +50,53 @@ export function loadMySwapQuota(refresh = false) {
     .then(result => { request.result = result; })
     .catch(() => { request.error = true; });
 }
+function fetchScheduleMonth(y, m, strict = false) {
+  const pending = api(`/schedules?month=${y}-${pad2(m + 1)}`);
+  return strict ? pending : pending.catch(() => ({ assignments: [] }));
+}
 export async function loadYear(y, force = false) {
   if (yearsLoaded[y] && !force) return;
-  const months = await Promise.all(Array.from({ length: 12 }, (_, m) => api(`/schedules?month=${y}-${pad2(m + 1)}`).catch(() => ({ assignments: [] }))));
+  const months = await Promise.all(Array.from({ length: 12 }, (_, m) => fetchScheduleMonth(y, m)));
   months.forEach((r, m) => { state.apiMonths[monthKey(y, m)] = r; });
   yearsLoaded[y] = true;
   rebuildSchedule();
 }
-export async function reloadMonths(keys) {
+export async function reloadMonths(keys, { strict = false } = {}) {
+  const actor = state.actor;
   await Promise.all(keys.map(async key => {
     const [y, m] = key.split('-').map(Number);
-    state.apiMonths[key] = await api(`/schedules?month=${y}-${pad2(m + 1)}`).catch(() => ({ assignments: [] }));
+    const latest = await fetchScheduleMonth(y, m, strict);
+    if (state.actor === actor) state.apiMonths[key] = latest;
   }));
-  rebuildSchedule();
+  if (state.actor === actor) rebuildSchedule();
+}
+// โหลดเพิ่มเฉพาะธันวาคมหรือมกราคม เพื่อให้รอบกะต่อเนื่องข้ามปีได้
+export function loadWorkRunBoundaryMonth() {
+  const month = DEMO_TODAY.getMonth();
+  if (month !== 0 && month !== 11) return;
+  const year = DEMO_TODAY.getFullYear() + (month === 0 ? -1 : 1);
+  const adjacentMonth = month === 0 ? 11 : 0;
+  const key = monthKey(year, adjacentMonth);
+  if (state.apiMonths[key] || workRunBoundary?.key === key) return;
+
+  const request = workRunBoundary = { key, year };
+  return fetchScheduleMonth(year, adjacentMonth).then(result => {
+    if (workRunBoundary !== request || state.apiMonths[key]) return;
+    state.apiMonths[key] = result;
+    rebuildSchedule();
+  });
 }
 export async function reloadLoadedYears() {
-  await Promise.all(Object.keys(yearsLoaded).map(y => loadYear(Number(y), true)));
+  const pending = Object.keys(yearsLoaded).map(y => loadYear(Number(y), true));
+  if (workRunBoundary && !yearsLoaded[workRunBoundary.year]) pending.push(reloadMonths([workRunBoundary.key]));
+  await Promise.all(pending);
 }
-export function resetData() { Object.keys(yearsLoaded).forEach(k => { delete yearsLoaded[k]; }); state.apiMonths = {}; quotaRequest = null; }
+export function resetData() {
+  Object.keys(yearsLoaded).forEach(k => { delete yearsLoaded[k]; });
+  state.apiMonths = {};
+  quotaRequest = null;
+  workRunBoundary = null;
+}
 
 // พนักงานและรหัสกะจากตารางในฐานข้อมูล + การแก้ข้อมูลพนักงานในเดโม
 export function rebuildSchedule() {
@@ -194,7 +224,13 @@ export function merge() {
 }
 /* ---------- แจ้งเตือน ---------- */
 export async function loadNotifications() {
-  try { state.apiNotifications = await api('/notifications'); } catch { state.apiNotifications = []; }
+  const actor = state.actor;
+  try {
+    const latest = await api('/notifications');
+    if (state.actor !== actor) return;
+    const alreadyRead = new Set(state.apiNotifications.filter(item => item.is_read).map(item => item.notification_id));
+    state.apiNotifications = latest.map(item => ({ ...item, is_read: item.is_read || alreadyRead.has(item.notification_id) }));
+  } catch { /* Keep the last list through a transient connection failure. */ }
 }
 export async function refreshAll() {
   await Promise.all([loadRequests(), loadLogs(), loadNotifications(), loadMySwapQuota(true)]);

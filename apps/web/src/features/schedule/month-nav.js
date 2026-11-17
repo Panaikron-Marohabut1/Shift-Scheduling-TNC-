@@ -5,7 +5,7 @@
 import { state } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
-import { hasCentralHolidayCalendar, isYearPublished } from '../../shared/scheduling/annual.js';
+import { isYearPublished } from '../../shared/scheduling/annual.js';
 import { daysIn, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { currentEmp, isSupervisorRoleName } from '../../shared/scheduling/employees.js';
 import { dataMonth, hasPilotProjection, hasScheduleDataForMonth, isMonthLocked, isSchedulePublished } from '../../shared/scheduling/roster.js';
@@ -58,15 +58,13 @@ export function scheduleState() {
 }
 // สถานะของเดือน (ใช้ร่วมกันระหว่างตารางกะและกะของฉัน)
 export function statusChips(S, { holidayOvertimePreview = false } = {}) {
-  const holidays = holidayOvertimePreview ? '<span class="st">OT นักขัตฤกษ์ · ผลคำนวณย้อนหลัง</span>'
-    : state.actor?.remotePilot && !hasCentralHolidayCalendar(S.y, S.m) && Object.keys(S.hol).some(key => key.startsWith(`${S.m}-`))
-    ? '<span class="st">วันหยุดนักขัตฤกษ์ · ข้อมูลทดสอบ</span>' : '';
-  if (S.projected) return '<span class="st warn">ตารางกะคาดการณ์ · ดูได้อย่างเดียว</span>' + holidays;
+  const preview = holidayOvertimePreview ? '<span class="st">OT นักขัตฤกษ์ · ผลคำนวณย้อนหลัง</span>' : '';
+  if (S.projected) return '<span class="st warn">ตารางกะคาดการณ์ · ดูได้อย่างเดียว</span>' + preview;
   const status = [];
   status.push(S.published ? '<span class="st ok">ประกาศใช้แล้ว</span>' : '<span class="st warn">ฉบับร่าง ยังไม่ประกาศใช้</span>');
   if (!S.hasData) status.push(`<span class="st warn">${state.actor?.remotePilot ? 'ยังไม่มีตารางกะในฐานทดสอบ' : 'ตารางคาดการณ์ ยังไม่มีข้อมูลจริง'}</span>`);
   if (S.readOnly) status.push('<span class="st">ดูข้อมูลอย่างเดียว</span>');
   else if (S.monthLocked) status.push('<span class="st">ข้อมูลถูกล็อก</span>');
   else if (S.published) status.push('<span class="st ok">ยื่นคำขอได้</span>');
-  return status.join('') + holidays;
+  return status.join('') + preview;
 }
