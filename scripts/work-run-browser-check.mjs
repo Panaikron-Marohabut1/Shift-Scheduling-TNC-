@@ -15,33 +15,33 @@ const runFromScreenshot = {
 };
 const cases = [
   { name: 'screenshot and refresh after an approved swap', date: '2026-11-17', slots: runFromScreenshot,
-    count: '2 / 6 วัน', total: /^6\/6 วัน \(16\s*[–-]\s*21 พ\.ย\. 2569\)/, refresh: true },
-  { name: 'swap to work, OT, and scheduled holiday OT', date: '2026-11-20', slots: runFromScreenshot, count: '5 / 6 วัน', total: /^6\/6 วัน/ },
+    count: '6 / 6 วัน', refresh: true },
+  { name: 'swap to work, OT, and scheduled holiday OT', date: '2026-11-20', slots: runFromScreenshot, count: '6 / 6 วัน' },
   { name: 'day off resets the count', date: '2026-11-22', slots: runFromScreenshot, count: '0 / 6 วัน' },
   { name: 'swap to off cuts the run', date: '2026-11-18', slots: {
     ...runFromScreenshot, '2026-11-17': { shift_code: 'O', swap: { originalShiftCode: 'M' } },
-  }, count: '1 / 6 วัน', total: /^4\/6 วัน/ },
+  }, count: '4 / 6 วัน' },
   { name: 'approved ordinary leave cuts the run', date: '2026-11-19', slots: {
     ...runFromScreenshot, '2026-11-18': { shift_code: 'L' },
-  }, count: '1 / 6 วัน', total: /^3\/6 วัน/ },
+  }, count: '3 / 6 วัน' },
   { name: 'approved holiday leave is not work', date: '2026-11-18', slots: {
     ...runFromScreenshot, '2026-11-18': { shift_code: 'L', holidayLeave: { holidayDate: '2026-11-16' } },
   }, count: '0 / 6 วัน' },
   { name: 'previous month is counted', date: '2026-12-01', slots: {
     '2026-11-30': { shift_code: 'M' }, '2026-12-01': { shift_code: 'M' },
-  }, count: '2 / 6 วัน', total: /^2\/6 วัน/ },
+  }, count: '2 / 6 วัน' },
   { name: 'January loads only December from the previous year', date: '2027-01-01', boundary: '2026-12', slots: {
     '2026-12-31': { shift_code: 'M' }, '2027-01-01': { shift_code: 'M' },
-  }, count: '2 / 6 วัน', total: /^2\/6 วัน/ },
+  }, count: '2 / 6 วัน' },
   { name: 'December includes published January shifts', date: '2026-12-31', boundary: '2027-01', slots: {
     '2026-12-31': { shift_code: 'M' }, '2027-01-01': { shift_code: 'M' },
-  }, count: '1 / 6 วัน', total: /^2\/6 วัน/ },
+  }, count: '2 / 6 วัน' },
   { name: 'draft shifts are excluded', date: '2026-12-31', boundary: '2027-01', draft: '2027-01', slots: {
     '2026-12-31': { shift_code: 'M' }, '2027-01-01': { shift_code: 'M' },
-  }, count: '1 / 6 วัน', total: /^อย่างน้อย 1\/6 วัน/ },
+  }, count: 'อย่างน้อย 1 / 6 วัน' },
   { name: 'a missing day is not counted as work or treated as a known break', date: '2026-11-19', slots: {
     ...runFromScreenshot, '2026-11-18': null,
-  }, count: 'อย่างน้อย 1 / 6 วัน', total: /^อย่างน้อย 3\/6 วัน/ },
+  }, count: 'อย่างน้อย 3 / 6 วัน' },
   { name: 'an absent assignment today is not reported as a day off', date: '2026-11-19', slots: {
     ...runFromScreenshot, '2026-11-19': null,
   }, count: 'ข้อมูลกะไม่ครบ' },
@@ -95,12 +95,11 @@ try {
         return state.apiMonths[`${year}-${number - 1}`]?.schedule?.status === 'DRAFT';
       }, scenario.draft);
     }
-    const elapsed = fact('ทำงานต่อเนื่องถึงวันนี้');
-    await elapsed.filter({ hasText: scenario.count }).waitFor();
-    assert.equal(await elapsed.innerText(), scenario.count, scenario.name);
-    const total = fact('ตามตารางรอบนี้');
-    if (scenario.total) await total.filter({ hasText: scenario.total }).waitFor();
-    else assert.equal(await total.count(), 0, scenario.name);
+    const run = fact('ทำงานต่อเนื่องตามตาราง');
+    await run.filter({ hasText: scenario.count }).waitFor();
+    assert.equal(await run.innerText(), scenario.count, scenario.name);
+    assert.equal(await header.getByText('ทำงานต่อเนื่องถึงวันนี้', { exact: true }).count(), 0);
+    assert.equal(await header.getByText('ตามตารางรอบนี้', { exact: true }).count(), 0);
     if (scenario.boundary) {
       const otherYear = [...months].filter(month => !month.startsWith(scenario.date.slice(0, 4)));
       assert.deepEqual(otherYear, [scenario.boundary]);
@@ -113,8 +112,7 @@ try {
         state.managerConfig.maxConsecutiveWorkDays = 9;
         await afterApi();
       });
-      assert.equal(await elapsed.innerText(), '1 / 6 วัน');
-      await total.filter({ hasText: /^5\/6 วัน/ }).waitFor();
+      assert.equal(await run.innerText(), '5 / 6 วัน');
     }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), scenario.name);
     assert.deepEqual(errors, []);

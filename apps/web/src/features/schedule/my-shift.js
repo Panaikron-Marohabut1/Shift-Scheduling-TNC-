@@ -25,12 +25,6 @@ function splitTime(time) {
   return { hours: hours || '', details };
 }
 
-const runDate = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-function formatWorkRun({ total, totalComplete, start, end }, limit) {
-  const range = total === 1 ? runDate.format(start) : runDate.formatRange(start, end);
-  return `${totalComplete ? '' : 'อย่างน้อย '}${total}/${limit} วัน (${range})`;
-}
-
 function formatSummaryAmount({ minutes, shifts, unquantifiedShifts }, incomplete = false) {
   const uncertain = incomplete || unquantifiedShifts > 0;
   const remainder = minutes % 60;
@@ -113,7 +107,7 @@ export function myHtml() {
   const workRun = isCurrentMonth && !unavailable ? getCurrentWorkRun(emp, DEMO_TODAY) : null;
   const workLimit = state.actor?.maxConsecutiveWorkDays ?? state.managerConfig.maxConsecutiveWorkDays;
   const streakText = workRun
-    ? `${workRun.throughToday && !workRun.throughTodayComplete ? 'อย่างน้อย ' : ''}${workRun.throughToday} / ${workLimit} วัน`
+    ? `${workRun.total && !workRun.totalComplete ? 'อย่างน้อย ' : ''}${workRun.total ?? 0} / ${workLimit} วัน`
     : 'ข้อมูลกะไม่ครบ';
   const mine = state.requests.filter(r => r.requesterId === emp.id).map(withCurrentRequestStatus);
   const pending = mine.filter(isRequestInProgress);
@@ -200,16 +194,15 @@ export function myHtml() {
             <p class="my-duty-date"><span>กะวันนี้</span><strong>${esc(todayStr)}</strong></p>
             <div class="today-line">
               <span class="chip today-chip ${codeClass(todayCode || 'O', todayHolidayOT)}">${todayCode ? esc(shownCode(todayCode)) : '–'}</span>
-              <div class="today-text">
-                <div class="today-summary">
+              <div class="today-summary">
+                <div class="today-shift">
                   <div class="my-shift-title"><b>${todayCode ? esc(label(todayCode)) : 'ไม่มีข้อมูลกะ'}</b>${todaySlot?.absence ? '<span class="absence-tag">ขาดงาน</span>' : ''}${hours ? `<span class="today-hours">${esc(hours)}${todayDef.family === 'N' ? '<small>เลิกวันถัดไป</small>' : ''}</span>` : ''}</div>
-                  <dl class="my-duty-facts">
-                    ${unavailable ? '' : `<div id="myWorkRun"><dt>ทำงานต่อเนื่องถึงวันนี้</dt><dd>${esc(streakText)}</dd></div>`}
-                    <div><dt>สิทธิ์สลับกะ</dt><dd id="mySwapQuota">${esc(quotaText)}</dd></div>
-                    ${workRun?.total ? `<div class="my-roster-run"><dt>ตามตารางรอบนี้</dt><dd>${esc(formatWorkRun(workRun, workLimit))}</dd></div>` : ''}
-                  </dl>
+                  ${details.length ? `<span class="today-details">${details.map(esc).join(' · ')}</span>` : ''}
                 </div>
-                ${details.length ? `<span class="today-details">${details.map(esc).join(' · ')}</span>` : ''}
+                <dl class="my-duty-facts">
+                  ${unavailable ? '' : `<div id="myWorkRun"><dt>ทำงานต่อเนื่องตามตาราง</dt><dd>${esc(streakText)}</dd></div>`}
+                  <div><dt>สิทธิ์สลับกะ</dt><dd id="mySwapQuota">${esc(quotaText)}</dd></div>
+                </dl>
               </div>
             </div>
           </div>
