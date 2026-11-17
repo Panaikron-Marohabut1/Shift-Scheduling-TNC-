@@ -3,7 +3,7 @@
 > **Source:** synced on 2026-11-17 from the team's Word file `TNC-Shift_schedule_test_plan.docx`, which is the current version.
 > Results from the UAT paper sheets were added in §4.2, §4.3, §5.2 and §5.3; full data is in the [UAT results](2026-11-03-uat-results.md) and the [issue log](issue-log.md).
 >
-> SUS item 10 for U02, U03, U04, U09 and U10 added on 2026-11-17 from the follow-up scan; see §5.3.
+> SUS item 10 for all 10 participants added on 2026-11-17 from two follow-up scans; see §5.3.
 >
 > UAT actual date corrected to 3 November 2026 in §6.1, as confirmed by the team on 2026-11-17 (the Word file said 2 November).
 >
@@ -284,14 +284,15 @@ Interpreting the SUS score. The final SUS score is a number from 0 to 100. It is
 
 The team reports the SUS score of each participant and the mean score of all participants. Source: 5 Ways to Interpret a SUS Score (MeasuringU).
 
-**Results.** The paper form given to participants had only items 1–9. Item 10 was collected afterwards on a separate sheet from 5 participants (U02, U03, U04, U09, U10), so the team reports two scores:
+**Results.** The paper form given to participants had only items 1–9. Item 10 was collected afterwards on a separate sheet from all 10 participants, so every participant has a standard SUS score.
 
-| Score | Participants | Mean | Range |
-| --- | --- | --- | --- |
-| Standard 10-item SUS | 5 (3 employees, 2 supervisors) | 72.0 (Acceptable) | 67.5–77.5 |
-| Modified 9-item score (items 1–9, sum × 100 / 36) | All 10 | 71.9 | 50.0–83.3 |
+| Group | SUS mean | Range |
+| --- | --- | --- |
+| Employees (U01–U08) | 71.3 | 50.0–82.5 |
+| Supervisors (U09–U10) | 70.0 | 67.5–72.5 |
+| All (n = 10) | 71.0 | 50.0–82.5 |
 
-The standard score can be read against the table above: 72.0 is above the average of 68 and inside "Acceptable". The 9-item score is not standard SUS and should not be read against the table as if it were.
+71.0 is above the SUS average of 68. Against the table above it sits at the top of "Marginal" (51.7–71.0), 0.1 below "Acceptable".
 
 Per-participant responses are in the [UAT results](2026-11-03-uat-results.md).
 

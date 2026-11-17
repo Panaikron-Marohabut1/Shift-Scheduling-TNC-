@@ -92,9 +92,9 @@ Median times reported by 8 employees. Full table: [comparison-table.md](comparis
 | Submit a shift swap request (M-02) | 5.0 min | 3.0 min |
 | Check request status (M-03) | 3.5 min; 2 more employees reported 1–3 and 2–3 days of waiting | 2.0 min |
 | Verify an approved swap (M-04) | 2.0 min | 1.0 min |
-| Usability (standard SUS, 5 participants) | — | 72.0 / 100 |
+| Usability (SUS, 10 participants) | — | 71.0 / 100 |
 
-These times are self-reported estimates. The standard SUS score covers the 5 participants who answered all 10 items; across all 10 participants, the modified 9-item score is 71.9. See the limitations in the [UAT results](../Test_plan/2026-11-03-uat-results.md#6-limitations-of-this-evidence).
+These times are self-reported estimates. The SUS score of 71.0 is above the SUS average of 68, at the top of the test plan’s “Marginal” band. See the limitations in the [UAT results](../Test_plan/2026-11-03-uat-results.md#6-limitations-of-this-evidence).
 
 ### 3.2 What works now
 
@@ -120,12 +120,12 @@ Found during UAT ([issue log](../Test_plan/issue-log.md)):
 
 - One employee found submitting a swap slower in the new system (5 min) than by phone (2 min).
 - One employee asked for leave balances (annual, sick, personal) in the app; this is outside the current scope.
-- The evidence itself has limits: task times were estimated by participants, errors per task were not recorded, and SUS item 10 was collected later from only 5 of 10 participants.
+- The evidence itself has limits: task times were estimated by participants, errors per task were not recorded, and SUS item 10 was missing from the first form and was collected later on a separate sheet.
 
 ### 3.4 Next steps
 
 1. Fix logic issues F01–F09 and move every request type from localStorage to PostgreSQL.
 2. Update `pnpm test:browser` to the current Login flow so the full workflow is covered automatically.
 3. Deploy to a hosted test environment and publish a live URL.
-4. Re-run usability with the full 10-item SUS for every participant and with observer timings.
+4. Re-run usability with observer timings and a complete SUS form in one sitting, after improving the swap request flow.
 5. Decide on the leave-balance request (ISS-03) against the sick-leave minimisation rule in [rule.md](../01-requirements/rule.md).

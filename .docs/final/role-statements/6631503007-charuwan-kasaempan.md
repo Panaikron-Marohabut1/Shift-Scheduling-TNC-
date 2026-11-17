@@ -14,7 +14,7 @@ I ran the UAT sessions on 3 November 2026. I observed 10 real users — 8 employ
 
 ## 3. What I learned
 
-I learned that the evidence from a user test is only as good as the forms and methods used to collect it. Our SUS sheet was missing its tenth question, and nobody noticed until after the sessions. We collected that question later, but only five of the ten participants answered it, so only half of them have a standard SUS score. A single pilot session with one person would have caught the gap before it cost us data.
+I learned that the evidence from a user test is only as good as the forms and methods used to collect it. Our SUS sheet was missing its tenth question, and nobody noticed until after the sessions. We had to go back to all ten participants with a separate sheet for that one question. We got every answer in the end, but it cost extra time and meant the last item was answered later than the others. A single pilot session with one person would have caught the gap before the real sessions.
 
 I also learned the difference between what a plan says and what actually happens on the day. The test plan described observers timing each task with a stopwatch, but on the sheets participants wrote their own estimates. Both are useful, but they are not the same evidence, and the report has to say which one we have.
 

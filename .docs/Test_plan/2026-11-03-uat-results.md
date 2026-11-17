@@ -3,7 +3,7 @@
 > **Source:** paper UAT sheets (scanned) and the team's Word test plan `TNC-Shift_schedule_test_plan.docx`.
 > Transcribed into this file on 2026-11-17. Participants are identified by code only. The original scans are **not** stored in this repository: they stay in the team's OneDrive / Google Drive folder because the scan file names contain personal names.
 >
-> **Update 2026-11-17:** a follow-up scan, `UAT_all_with_SUS10_v2.pdf`, added SUS item 10 for U02, U03, U04, U09 and U10. Items 1–9 on those forms match the values below. The scan also corrected U02's ease rating for UAT02 (2, not 5) and made U02's note beside UAT07 readable (see UAT-S04).
+> **Update 2026-11-17:** the first SUS form had only items 1–9. Item 10 was collected afterwards on a separate sheet from every participant, in two follow-up scans: `UAT_all_with_SUS10_v2.pdf` (U02, U03, U04, U09, U10) and `UAT ต่อ.pdf` (U01, U05, U06, U07, U08). Items 1–9, times and ease ratings on those scans match the values below. The follow-up scans also corrected three values: U02's ease rating for UAT02 (2, not 5), U01's SUS item 3 (5, not 3) and U01's item 8 (confirmed 2), and made U02's note beside UAT07 readable (see UAT-S04).
 >
 > ⚠ marks a handwritten value that was hard to read. Check each ⚠ against the original scan before this file is used as final evidence.
 
@@ -15,7 +15,7 @@
 | UAT scenarios | 7/7 passed (sessions on 3 November 2026) |
 | UAT participants | 10 real users: 8 employees (U01–U08), 2 shift supervisors (U09–U10) |
 | UAT sessions completed | 20 (2 per participant) |
-| Usability (see §5) | Standard 10-item SUS: mean 72.0 for the 5 participants who answered all 10 items. Modified 9-item score: mean 71.9 for all 10 participants. |
+| Usability (see §5) | Standard SUS, all 10 participants: mean 71.0 (employees 71.3, supervisors 70.0), median 73.8 |
 | Median task time, old method → new system | M-01 1.25 → 1.0 min, M-02 5.0 → 3.0 min, M-03 3.5 → 2.0 min, M-04 2.0 → 1.0 min |
 
 Exit criteria from the test plan (§6.3):
@@ -27,7 +27,7 @@ Exit criteria from the test plan (§6.3):
 | At least 90% of unit, integration, and E2E cases passed | Met (94%, 17 of 18) |
 | No open critical defect | Met: IT-01 failed (ISS-05) but does not stop a swap request from being submitted or approved, so it is not critical by the plan’s definition; see [issue-log.md](issue-log.md) |
 | At least 10 UAT sessions with records | Met (20 sessions) |
-| Task results and a SUS score from every participant | Partly met: task times recorded for all 8 employees; a standard SUS score for 5 of 10 participants, as U01 and U05–U08 have no item 10 (see §5) |
+| Task results and a SUS score from every participant | Met: task times recorded for all 8 employees (supervisors are not timed in the plan) and a standard SUS score for all 10 participants (see §5) |
 
 ## 2. Test case results
 
@@ -145,57 +145,37 @@ The median is the headline figure because U03's large values pull the means up. 
 
 ## 5. Usability
 
-### 5.1 Standard SUS (5 participants)
+### 5.1 System Usability Scale (SUS)
 
-The first SUS form had only items 1–9. Item 10 ("I needed to learn a lot of things before I could get going with this system") was collected afterwards on a separate sheet from 5 participants. For them, a standard SUS score can be calculated: sum of the 10 adjusted scores (maximum 40) × 2.5.
+Every participant answered all 10 SUS items. Items 1–9 were on the first form and item 10 on a follow-up sheet (see the update note at the top). The score is standard SUS:
 
-| Participant | Role | Adjusted sum Q1–Q9 | Q10 response | Q10 adjusted (5 − response) | Total (/40) | SUS (0–100) |
-| --- | --- | --- | --- | --- | --- | --- |
-| U02 | Employee | 27 | 2 | 3 | 30 | 75.0 |
-| U03 | Employee | 28 | 2 | 3 | 31 | 77.5 |
-| U04 | Employee | 26 | 4 | 1 | 27 | 67.5 |
-| U09 | Supervisor | 26 | 2 | 3 | 29 | 72.5 |
-| U10 | Supervisor | 25 | 3 | 2 | 27 | 67.5 |
+- Adjusted score per item: odd items (positive statements) = response − 1; even items (negative statements) = 5 − response.
+- SUS = sum of the 10 adjusted scores (maximum 40) × 2.5, giving 0–100.
 
-| Group | Mean | Range |
-| --- | --- | --- |
-| Employees (n = 3) | 73.3 | 67.5–77.5 |
-| Supervisors (n = 2) | 70.0 | 67.5–72.5 |
-| All (n = 5) | **72.0** | 67.5–77.5 |
-
-A mean of 72.0 is above the SUS average of 68 and falls in the "Acceptable" band of the test plan (71.1–100). With 5 participants this is descriptive. U01 and U05–U08 did not answer item 10, so they have no standard score.
-
-### 5.2 Modified 9-item SUS (all 10 participants)
-
-So that all 10 participants can be compared, the team also reports a modified score from items 1–9:
-
-- Adjusted score per item as in standard SUS (odd items: response − 1; even items: 5 − response).
-- Sum of the 9 adjusted scores (maximum 36), rescaled to 0–100 by × 100 / 36.
-
-This score is **not** standard SUS and should not be compared directly with the SUS benchmark of 68.
-
-| Participant | Role | Q1 | Q2 | Q3 | Q4 | Q5 | Q6 | Q7 | Q8 | Q9 | Adjusted sum (/36) | Score (0–100) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| U01 | Employee | 5 | 3 | 3 ⚠ | 3 | 4 | 2 | 5 | 2 ⚠ | 4 | 26 | 72.2 |
-| U02 | Employee | 5 | 3 | 4 | 1 | 4 | 3 | 4 | 3 | 5 | 27 | 75.0 |
-| U03 | Employee | 5 | 2 | 4 | 2 | 4 | 2 | 4 | 2 | 4 | 28 | 77.8 |
-| U04 | Employee | 5 | 2 | 4 | 4 | 4 | 2 | 4 | 2 | 4 | 26 | 72.2 |
-| U05 | Employee | 3 | 4 | 3 | 2 | 3 | 3 | 4 | 4 | 3 | 18 | 50.0 |
-| U06 | Employee | 5 | 3 | 4 | 4 | 4 | 2 | 4 | 2 | 4 | 25 | 69.4 |
-| U07 | Employee | 5 | 2 | 4 | 2 | 4 | 2 | 4 | 2 | 4 | 28 | 77.8 |
-| U08 | Employee | 5 | 2 | 4 | 2 | 4 | 3 | 5 | 1 | 5 | 30 | 83.3 |
-| U09 | Supervisor | 4 | 2 | 4 | 3 | 4 | 2 | 4 | 2 | 4 | 26 | 72.2 |
-| U10 | Supervisor | 5 | 3 | 4 | 2 | 4 | 3 | 4 | 3 | 4 | 25 | 69.4 |
+| Participant | Role | Q1 | Q2 | Q3 | Q4 | Q5 | Q6 | Q7 | Q8 | Q9 | Q10 | Adjusted sum (/40) | SUS (0–100) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| U01 | Employee | 5 | 3 | 5 | 3 | 4 | 2 | 5 | 2 | 4 | 3 | 30 | 75.0 |
+| U02 | Employee | 5 | 3 | 4 | 1 | 4 | 3 | 4 | 3 | 5 | 2 | 30 | 75.0 |
+| U03 | Employee | 5 | 2 | 4 | 2 | 4 | 2 | 4 | 2 | 4 | 2 | 31 | 77.5 |
+| U04 | Employee | 5 | 2 | 4 | 4 | 4 | 2 | 4 | 2 | 4 | 4 | 27 | 67.5 |
+| U05 | Employee | 3 | 4 | 3 | 2 | 3 | 3 | 4 | 4 | 3 | 3 | 20 | 50.0 |
+| U06 | Employee | 5 | 3 | 4 | 4 | 4 | 2 | 4 | 2 | 4 | 4 | 26 | 65.0 |
+| U07 | Employee | 5 | 2 | 4 | 2 | 4 | 2 | 4 | 2 | 4 | 2 | 31 | 77.5 |
+| U08 | Employee | 5 | 2 | 4 | 2 | 4 | 3 | 5 | 1 | 5 | 2 | 33 | 82.5 |
+| U09 | Supervisor | 4 | 2 | 4 | 3 | 4 | 2 | 4 | 2 | 4 | 2 | 29 | 72.5 |
+| U10 | Supervisor | 5 | 3 | 4 | 2 | 4 | 3 | 4 | 3 | 4 | 3 | 27 | 67.5 |
 
 | Group | Mean | Median | Range |
 | --- | --- | --- | --- |
-| Employees (n = 8) | 72.2 | 72.2 | 50.0–83.3 |
-| Supervisors (n = 2) | 70.8 | 70.8 | 69.4–72.2 |
-| All (n = 10) | 71.9 | 72.2 | 50.0–83.3 |
+| Employees (n = 8) | 71.3 | 75.0 | 50.0–82.5 |
+| Supervisors (n = 2) | 70.0 | 70.0 | 67.5–72.5 |
+| All (n = 10) | **71.0** | 73.8 | 50.0–82.5 |
 
-Item 2 ("I found the system unnecessarily complex") had the lowest mean adjusted score, 2.4 out of 4: 5 of 10 participants answered 3 (neutral) or higher. Item 1 ("I would like to use this system frequently") had the highest, 3.7 out of 4.
+A mean of 71.0 is above the SUS average of 68. By the test plan's bands it falls at the very top of "Marginal" (51.7–71.0), 0.1 below "Acceptable" (71.1–100). Seven of the 10 participants scored above 68. With 10 participants this is descriptive, not a statistical test.
 
-### 5.3 Ease rating per task (1 = very hard, 5 = very easy)
+By item, the lowest mean adjusted score was item 10 ("I needed to learn a lot of things before I could get going with this system"), 2.3 out of 4, followed by item 2 ("unnecessarily complex"), 2.4. The highest was item 1 ("I would like to use this system frequently"), 3.7 out of 4.
+
+### 5.2 Ease rating per task (1 = very hard, 5 = very easy)
 
 | Task | Responses | Mean |
 | --- | --- | --- |
@@ -212,6 +192,6 @@ Employee responses are listed in order U01–U08; supervisor responses in order 
 ## 6. Limitations of this evidence
 
 - Task times are self-reported estimates, not observer stopwatch timings, and errors per task were not recorded.
-- SUS item 10 was collected separately and only from 5 participants, so the standard SUS score covers 5 of 10; the 9-item score covers all 10 but is not standard SUS.
+- SUS item 10 was missing from the first form and was collected afterwards on a separate sheet, so participants answered it later than items 1–9.
 - Participant codes were assigned after the sessions, from scan order.
 - Values marked ⚠ need to be checked against the original scans.
