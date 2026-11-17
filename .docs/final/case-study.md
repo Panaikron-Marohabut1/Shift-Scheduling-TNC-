@@ -111,7 +111,7 @@ Everything above passed in testing on 2–3 November 2026, except company-accoun
 Known as of 2026-11-01 ([release check](../06-development/2026-11-01-release-check.md)):
 
 - Nine frontend logic issues, F01–F09, are confirmed and not yet fixed. Examples: the ±7-day window breaks across month boundaries, and a swap with a return day can produce 7 consecutive working days.
-- In the local demo (`pnpm dev`), several request types are still stored in browser localStorage and are not shared between devices. In the shared Supabase demo (`pnpm dev:supabase`), leave, OT and public-holiday requests are stored in PostgreSQL.
+- Swap, leave, OT and public-holiday requests are stored in PostgreSQL in both run modes once migrations are applied. A few demo-only features, such as the van driver's acknowledgement, are still stored in browser localStorage and are not shared between devices.
 - The system runs on localhost with demo data only.
 - Microsoft sign-in, MFA and logout have not been tested end to end with real accounts.
 - Open dependency advisories remain in the API (`body-parser`, `multer`, `qs`).
@@ -124,7 +124,7 @@ Found during UAT ([issue log](../Test_plan/issue-log.md)):
 
 ### 3.4 Next steps
 
-1. Fix logic issues F01–F09 and move the remaining local-demo request types from localStorage to PostgreSQL.
+1. Fix logic issues F01–F09 and move the remaining demo-only features from localStorage to PostgreSQL.
 2. Update `pnpm test:browser` to the current Login flow so the full workflow is covered automatically.
 3. Deploy to a hosted test environment and publish a live URL.
 4. Re-run usability with observer timings and a complete SUS form in one sitting, after improving the swap request flow.

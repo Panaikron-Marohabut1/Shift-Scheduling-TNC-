@@ -23,6 +23,7 @@
 | Use case: Employee and Supervisor | [Use case diagram](../02-design/diagrams/TNC%20Diagrams-Usecase%20Diagram%20Roles%20Employee,%20Supervisor.jpg) |
 | Use case: Manager, HR, Admin and External User | [Use case diagram](../02-design/diagrams/TNC%20Diagrams-Usecase%20Diagram%20Roles%20Manager,%20HR,%20Admin,%20External%20user.jpg) |
 | ER diagram: database tables and relationships | [ER diagram](../02-design/diagrams/TNC%20Diagrams-System%20ER%20Diagram.jpg) |
+| Sequence: shift swap submit and approve | [Sequence diagram](../02-design/diagrams/TNC%20Diagrams-Sequence%20Diagram.jpg) |
 | Activity: Case 1 | [Activity diagram 1](../02-design/diagrams/TNC%20Diagrams-Activity%20Diagram%20-%20Case%201.jpg) |
 | Activity: Case 2 | [Activity diagram 2](../02-design/diagrams/TNC%20Diagrams-Activity%20Diagram%20-%20Case%202.jpg) |
 | Activity: Case 3 | [Activity diagram 3](../02-design/diagrams/TNC%20Diagrams-Activity%20Diagram%20-%20Case%203%20.jpg) |

@@ -32,4 +32,4 @@ Finally, I learned that tests need maintenance like code. Our automated browser 
 
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
-| Codex | Drafting test cases for the test plan ([Test plan §7](../../Test_plan/TNC%20Shift%20Schedule_test-plan.md)) | Checked and adjusted the drafts against the shift swap workflow |
+| Claude and Codex | Drafting test cases for the test plan ([Test plan §7](../../Test_plan/TNC%20Shift%20Schedule_test-plan.md)) | Checked and adjusted the drafts against the shift swap workflow |
