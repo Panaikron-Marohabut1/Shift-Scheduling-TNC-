@@ -27,7 +27,7 @@ This matters because each shift must stay fully staffed, and labour rules such a
 
 ### 1.3 Evidence of the problem
 
-The pains above come from the project proposal and the team's stakeholder interviews. The interview records are kept in the team's Google Drive folder, linked from [interview-evidence.md](../05-log/interview-evidence.md); the repository holds the link only, not transcripts. UAT on 3 November 2026 confirmed the communication pain from real users: before/after times for the old phone-and-Excel method are in the [UAT results](../Test_plan/2026-11-03-uat-results.md).
+The pains above come from the project proposal and the team's stakeholder interviews. The interview records are kept in the team's Google Drive folder, linked from [interview-evidence.md](../05-log/interview-evidence.md); the repository holds the link and screenshots of the two stakeholder sessions (6 and 30 September 2026), not transcripts. UAT on 3 November 2026 confirmed the communication pain from real users: before/after times for the old phone-and-Excel method are in the [UAT results](../Test_plan/2026-11-03-uat-results.md).
 
 ---
 
