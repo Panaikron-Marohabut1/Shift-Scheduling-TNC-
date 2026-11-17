@@ -2,7 +2,7 @@
 
 **Role:** Tech Lead
 
-> **To complete:** replace each line marked ✍ with your own words, and check that the AI disclosure matches what you actually did. Everything else is drawn from the repository and the test plan.
+> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
 
 ## 1. What I owned
 
@@ -10,11 +10,15 @@ As Tech Lead, I owned the early legal and project documents and the running of u
 
 ## 2. What I did
 
-I ran the UAT sessions on 3 November 2026. I observed 10 real users — 8 employees and 2 shift supervisors — across 20 sessions, and recorded their task times, ease ratings, and SUS answers on paper sheets. All 7 UAT scenarios passed. Participants were identified only by U-codes, so no real names reached the repository. The sessions produced the before/after evidence in the comparison table, including the finding that checking a swap's status used to take days of waiting.
+I ran the UAT sessions on 3 November 2026. I observed 10 real users — 8 employees and 2 shift supervisors — across 20 sessions, and collected their task times, ease ratings, and SUS answers on paper sheets. All 7 UAT scenarios passed. Participants were identified only by U-codes, so no real names reached the repository. The sessions produced the before/after evidence in the comparison table, including the finding that checking a swap's status used to take days of waiting.
 
 ## 3. What I learned
 
-✍ One or two sentences in your own words.
+I learned that the evidence from a user test is only as good as the forms and methods used to collect it. Our SUS sheet was missing its tenth question, and nobody noticed until after the sessions. We collected that question later, but only five of the ten participants answered it, so only half of them have a standard SUS score. A single pilot session with one person would have caught the gap before it cost us data.
+
+I also learned the difference between what a plan says and what actually happens on the day. The test plan described observers timing each task with a stopwatch, but on the sheets participants wrote their own estimates. Both are useful, but they are not the same evidence, and the report has to say which one we have.
+
+Running the sessions also showed me how much care real people's data needs. We recorded everyone by code only, U01 to U10, and kept the scanned sheets out of the repository because the file names held a real name. Writing rule.md earlier made these choices easy, because the PDPA rules were already written down before we needed them. Next time I would plan the evidence and the privacy steps together, before the first session starts.
 
 ## 4. Evidence
 

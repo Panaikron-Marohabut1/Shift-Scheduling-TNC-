@@ -2,7 +2,7 @@
 
 **Role:** Product Owner
 
-> **To complete:** replace each line marked ✍ with your own words, and check that the AI disclosure matches what you actually did. Everything else is drawn from the repository and the test plan.
+> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
 
 ## 1. What I owned
 
@@ -14,7 +14,11 @@ I created the requirement-writer workflow and the audit that checks every Must (
 
 ## 3. What I learned
 
-✍ One or two sentences in your own words.
+I learned that deciding what not to build is as important as deciding what to build. With 42 Must stories in the backlog, there was always pressure to add more. Writing a Won't list gave the team a clear answer when a new idea came up, and the automated backlog audit made sure no Must story was silently dropped or duplicated as the spec changed.
+
+I also learned that a Product Owner should not guess. Many questions, such as how swap quotas are counted or who approves overtime, are business decisions that belong to the company, not to us. Recording them as open questions and asking the owner took longer, but it stopped us from building rules that would later be wrong.
+
+The biggest lesson came from login. Our plan assumed testers would sign in with a company account, but the demo version could only use demo accounts, so IT-01 failed. The swap workflow itself was fine; the problem was a dependency on something outside our control that we had not confirmed early enough. Next time I would list every outside dependency, such as company accounts, data sources, and test environments, at the start of the project and check each one before the test plan depends on it.
 
 ## 4. Evidence
 

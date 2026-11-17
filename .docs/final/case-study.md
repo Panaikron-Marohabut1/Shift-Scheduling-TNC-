@@ -20,7 +20,7 @@ This matters because each shift must stay fully staffed, and labour rules such a
 
 | Role | Main pain | Evidence |
 | --- | --- | --- |
-| Shift Operator | Has to phone a colleague and then the Supervisor to swap a shift, and phone again to learn whether it was approved. Two UAT participants described the old status check as 1–3 days of waiting. | [proposal.md §2.3](../01-requirements/proposal.md); [UAT results §4](../Test_plan/2026-11-03-uat-results.md) |
+| Shift Operator | Has to phone a colleague and then the Supervisor to swap a shift, and phone again to learn whether it was approved. Two UAT participants described the old status check as days of waiting (1–3 and 2–3 days). | [proposal.md §2.3](../01-requirements/proposal.md); [UAT results §4](../Test_plan/2026-11-03-uat-results.md) |
 | Shift Supervisor | Edits and re-checks the Excel file by hand for every change, with a risk of data-entry errors and several versions of the same schedule. | [proposal.md §2.1](../01-requirements/proposal.md) |
 | HR | Excel does not give structured data for OT, shift allowance, or payroll calculation. | [proposal.md §2.5](../01-requirements/proposal.md) |
 | External User (Contractor / Van Driver) | Cannot open the internal Excel file, so does not get the latest daily schedule directly. | [proposal.md §2.4](../01-requirements/proposal.md) |
@@ -90,11 +90,11 @@ Median times reported by 8 employees. Full table: [comparison-table.md](comparis
 | Metric | Before (Excel + phone) | After (new system) |
 | --- | --- | --- |
 | Submit a shift swap request (M-02) | 5.0 min | 3.0 min |
-| Check request status (M-03) | 3.5 min; 2 employees reported 1–3 days of waiting | 2.0 min |
+| Check request status (M-03) | 3.5 min; 2 more employees reported 1–3 and 2–3 days of waiting | 2.0 min |
 | Verify an approved swap (M-04) | 2.0 min | 1.0 min |
-| Usability (modified 9-item SUS) | — | 71.9 / 100 |
+| Usability (standard SUS, 5 participants) | — | 72.0 / 100 |
 
-These times are self-reported estimates, and the SUS form was missing item 10; see the limitations in the [UAT results](../Test_plan/2026-11-03-uat-results.md#6-limitations-of-this-evidence).
+These times are self-reported estimates. The standard SUS score covers the 5 participants who answered all 10 items; across all 10 participants, the modified 9-item score is 71.9. See the limitations in the [UAT results](../Test_plan/2026-11-03-uat-results.md#6-limitations-of-this-evidence).
 
 ### 3.2 What works now
 
@@ -120,12 +120,12 @@ Found during UAT ([issue log](../Test_plan/issue-log.md)):
 
 - One employee found submitting a swap slower in the new system (5 min) than by phone (2 min).
 - One employee asked for leave balances (annual, sick, personal) in the app; this is outside the current scope.
-- The evidence itself has limits: task times were estimated by participants, errors per task were not recorded, and SUS item 10 was missing from the form.
+- The evidence itself has limits: task times were estimated by participants, errors per task were not recorded, and SUS item 10 was collected later from only 5 of 10 participants.
 
 ### 3.4 Next steps
 
 1. Fix logic issues F01–F09 and move every request type from localStorage to PostgreSQL.
 2. Update `pnpm test:browser` to the current Login flow so the full workflow is covered automatically.
 3. Deploy to a hosted test environment and publish a live URL.
-4. Re-run usability with the full 10-item SUS and observer timings, so results can be compared with the SUS benchmark.
+4. Re-run usability with the full 10-item SUS for every participant and with observer timings.
 5. Decide on the leave-balance request (ISS-03) against the sick-leave minimisation rule in [rule.md](../01-requirements/rule.md).

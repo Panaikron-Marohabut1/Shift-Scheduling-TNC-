@@ -3,6 +3,8 @@
 > **Source:** synced on 2026-11-17 from the team's Word file `TNC-Shift_schedule_test_plan.docx`, which is the current version.
 > Results from the UAT paper sheets were added in §4.2, §4.3, §5.2 and §5.3; full data is in the [UAT results](2026-11-03-uat-results.md) and the [issue log](issue-log.md).
 >
+> SUS item 10 for U02, U03, U04, U09 and U10 added on 2026-11-17 from the follow-up scan; see §5.3.
+>
 > UAT actual date corrected to 3 November 2026 in §6.1, as confirmed by the team on 2026-11-17 (the Word file said 2 November).
 >
 > §3.2 re-synced on 2026-11-17 from the updated Word file: integration tests ran on the demo version, which cannot sign in with a company account, so IT-01 is recorded as failed and IT-02 passed against demo data only.
@@ -114,7 +116,7 @@ Test Data lists the accounts and schedules used by the test cases, so that anyon
 
 | Test Case ID | Test Scenario | Test Data | Test Steps | Expected Result | Actual Result | Pass/Fail |
 | --- | --- | --- | --- | --- | --- | --- |
-| IT-01 | Company Account Login | Company test account of Employee A. | 1) Open the Shift Schedule Management login page. 2) Sign in using a valid company account. 3) Open the Shift Schedule page. | The user can sign in using the existing company account and access the schedule according to the assigned permissions. | Not executed. The demo version does not support signing in with a company account. The tester signed in with the demo account of Employee A, which does not verify company-account login. | fail |
+| IT-01 | Company Account Login | Company test account of Employee A. | 1) Open the Shift Schedule Management login page. 2) Sign in using a valid company account. 3) Open the Shift Schedule page. | The user can sign in using the existing company account and access the schedule according to the assigned permissions. | Failed. The demo version does not support signing in with a company account. The tester signed in with the demo account of Employee A, which does not verify company-account login. | fail |
 | IT-02 | Employee Information Availability | Employee A. | 1) Select a test employee whose source information is available. 2) Open the employee information or schedule in Shift Schedule Management. 3) Compare the employee ID, name, and team with the approved source data available to the tester. | The employee information displayed by the application matches the corresponding source data for the fields checked (employee ID, name, and team). | The employee ID, name, and team shown for Employee A match the demo seed data. | Pass (demo data only) |
 | IT-03 | Approval Workflow and Schedule Update | Request between Employee A and Employee B for 5 Nov. Supervisor A and Supervisor B (either order). | 1) Submit a valid shift swap request using the test employee account. 2) Approve the request using the Supervisor A account. 3) Approve the request using the Supervisor B account. 4) Reopen the request and check its status. 5) Open the schedules of both employees. | The approval records are consistent with the request status. After all required approvals are complete, Employee A is on the night shift and Employee B is on the day shift on 5 Nov. | Using demo accounts, the approval records are consistent with the request status. After all required approvals are complete, Employee A is on the night shift and Employee B is on the day shift on 5 Nov. | pass |
 | IT-04 | Pending Approval Does Not Update Schedule | Request between Employee A and Employee B for 5 Nov. Approval from Supervisor A only. | 1) Submit a valid shift swap request using the test employee account. 2) Approve the request using the Supervisor A account. 3) Leave the Supervisor B approval incomplete. 4) Check the request status. 5) Open the schedules of both employees. | The request remains awaiting the remaining required approval. The schedules are not updated: Employee A stays on the day shift and Employee B on the night shift on 5 Nov. | Using demo accounts, the request remains awaiting the remaining required approval. The schedules are not updated: Employee A stays on the day shift and Employee B on the night shift on 5 Nov. | pass |
@@ -187,13 +189,13 @@ A session record is kept for each UAT session to document the participant's acti
 | Session ID | Participant ID | Test Date | Activity | Observation / User Feedback | Issue / Defect Reference |
 | --- | --- | --- | --- | --- | --- |
 | UAT-S01 | U01 | 3 Nov 2026 | View schedule and submit a shift swap request | Completed. | — |
-| UAT-S02 | U01 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Old method for checking status: about 1–3 days of waiting for the supervisor. Handwritten note beside UAT07 is unclear ⚠. | [ISS-04](issue-log.md) |
+| UAT-S02 | U01 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Completed. | — |
 | UAT-S03 | U02 | 3 Nov 2026 | View schedule and submit a shift swap request | Completed. | — |
-| UAT-S04 | U02 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Old method for checking status: 2–3 days ⚠. | — |
+| UAT-S04 | U02 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Old method for checking status: about 1–3 days of waiting for the supervisor. UAT07: the system answered that swap rights were already used and the request was not allowed, as expected. | [ISS-04](issue-log.md) (closed) |
 | UAT-S05 | U03 | 3 Nov 2026 | View schedule and submit a shift swap request | Completed. | — |
 | UAT-S06 | U03 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Completed. | — |
 | UAT-S07 | U04 | 3 Nov 2026 | View schedule and submit a shift swap request | Completed. | — |
-| UAT-S08 | U04 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Completed. | — |
+| UAT-S08 | U04 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Old method for checking status: 2–3 days. | — |
 | UAT-S09 | U05 | 3 Nov 2026 | View schedule and submit a shift swap request | Problem noted with colours on UAT01 ⚠. Submitting a swap took 5 min in the new system vs 2 min by phone; ease 3/5. | [ISS-01](issue-log.md), [ISS-02](issue-log.md) |
 | UAT-S10 | U05 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Completed. | — |
 | UAT-S11 | U06 | 3 Nov 2026 | View schedule and submit a shift swap request | Completed. | — |
@@ -242,7 +244,7 @@ Results for the 8 employees (U01–U08), median minutes. Times are the participa
 | --- | --- | --- | --- | --- | --- | --- |
 | M-01 | Not observed (estimate) | 1.25 | Not recorded | Yes (8/8) | 1.0 | Not recorded |
 | M-02 | Not observed (estimate) | 5.0 | Not recorded | Yes (8/8) | 3.0 | Not recorded |
-| M-03 | Not observed (estimate) | 3.5 (n = 6; 2 answered 1–3 days) | Not recorded | Yes (8/8) | 2.0 | Not recorded |
+| M-03 | Not observed (estimate) | 3.5 (n = 6; 2 answered in days: 1–3 and 2–3) | Not recorded | Yes (8/8) | 2.0 | Not recorded |
 | M-04 | Not observed (estimate) | 2.0 | Not recorded | Yes (8/8) | 1.0 | Not recorded |
 
 Task completion rate is the percentage of assigned tasks completed successfully without help from the observer. Task completion time starts when the participant has read the task and stops when the participant says the task is done, and is measured in minutes. An error is an incorrect action that the participant has to undo or repeat, such as choosing the wrong date or the wrong employee. Results are summarized per task as the mean and the median for the old method and the new system. With 5 participants, the comparison is descriptive and is not a statistical test.
@@ -282,13 +284,14 @@ Interpreting the SUS score. The final SUS score is a number from 0 to 100. It is
 
 The team reports the SUS score of each participant and the mean score of all participants. Source: 5 Ways to Interpret a SUS Score (MeasuringU).
 
-**Results.** The paper form given to participants had only items 1–9; item 10 was missing, so a standard SUS score could not be calculated. The team reports a modified 9-item score instead: the sum of the 9 adjusted scores (maximum 36) × 100 / 36. This is not standard SUS and should not be read against the table above as if it were.
+**Results.** The paper form given to participants had only items 1–9. Item 10 was collected afterwards on a separate sheet from 5 participants (U02, U03, U04, U09, U10), so the team reports two scores:
 
-| Group | Modified 9-item score: mean | Range |
-| --- | --- | --- |
-| Employees (U01–U08) | 72.2 | 50.0–83.3 |
-| Supervisors (U09–U10) | 70.8 | 69.4–72.2 |
-| All (n = 10) | 71.9 | 50.0–83.3 |
+| Score | Participants | Mean | Range |
+| --- | --- | --- | --- |
+| Standard 10-item SUS | 5 (3 employees, 2 supervisors) | 72.0 (Acceptable) | 67.5–77.5 |
+| Modified 9-item score (items 1–9, sum × 100 / 36) | All 10 | 71.9 | 50.0–83.3 |
+
+The standard score can be read against the table above: 72.0 is above the average of 68 and inside "Acceptable". The 9-item score is not standard SUS and should not be read against the table as if it were.
 
 Per-participant responses are in the [UAT results](2026-11-03-uat-results.md).
 

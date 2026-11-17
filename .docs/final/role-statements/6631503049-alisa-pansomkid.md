@@ -2,7 +2,7 @@
 
 **Role:** QA / Test
 
-> **To complete:** replace each line marked ✍ with your own words, and check that the AI disclosure matches what you actually did. Everything else is drawn from the repository and the test plan.
+> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
 
 ## 1. What I owned
 
@@ -14,7 +14,11 @@ I wrote the TNC Shift Schedule test plan: 8 unit, 7 integration, 3 E2E cases and
 
 ## 3. What I learned
 
-✍ One or two sentences in your own words.
+I learned that a test result is only valid for the environment it ran in. We ran our integration tests on the demo version. They proved that the swap workflow, the approval rules, and the audit trail work, but they could not prove company-account login, because the demo has no company sign-in. IT-01 failed for that reason. A test plan has to state its environment and its limits as clearly as its test cases, or a reader will assume more was proven than really was.
+
+I also learned to record a failure honestly instead of hiding it. It was tempting to mark IT-01 as not applicable, but writing it down as a failure, with the reason and an issue log entry, gives the team a clear task: rerun it when company sign-in is ready. Our exit criteria still passed at 94 percent, so the honest result did not hurt us.
+
+Finally, I learned that tests need maintenance like code. Our automated browser test stopped working when the login page replaced the old demo account picker. Nothing was wrong with the system; the test was out of date. Next time I would update the tests in the same change that updates the screens they check.
 
 ## 4. Evidence
 

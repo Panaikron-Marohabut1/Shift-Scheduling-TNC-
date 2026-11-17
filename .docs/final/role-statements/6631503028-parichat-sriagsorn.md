@@ -2,7 +2,7 @@
 
 **Role:** Designer
 
-> **To complete:** replace each line marked ✍ with your own words, and check that the AI disclosure matches what you actually did. Everything else is drawn from the repository and the test plan.
+> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
 
 ## 1. What I owned
 
@@ -14,7 +14,11 @@ I wrote the feature list and user journey describing how each role moves through
 
 ## 3. What I learned
 
-✍ One or two sentences in your own words.
+I learned that real users judge a design differently from the people who build it. Inside the team, every screen made sense to us because we knew how the system worked. When shift supervisors reviewed the app, they pointed out request rules that did not match how their teams really work, such as needing a cover person for every leave request. Their feedback changed the design more than any of our own reviews did.
+
+UAT taught me where to focus. Checking a request's status was rated the easiest task, 4.88 out of 5, but submitting a swap, the most important task in the whole system, was rated the least easy at 4.00. One employee took five minutes in the app, compared with two minutes by phone. A new system has to beat a simple phone call, not just an Excel file, so this flow needs the most design attention next.
+
+I also learned that small details matter to users. One participant noticed the colours in the schedule view, which we had not thought of as a problem. Next time I would test early paper or screen sketches with a few real employees before building, so that problems like these are found while they are still cheap to fix.
 
 ## 4. Evidence
 

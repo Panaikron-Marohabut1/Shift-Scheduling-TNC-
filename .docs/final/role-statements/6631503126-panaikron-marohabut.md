@@ -2,7 +2,7 @@
 
 **Role:** AI Lead
 
-> **To complete:** replace each line marked ✍ with your own words, and check that the AI disclosure matches what you actually did. Everything else is drawn from the repository and the test plan.
+> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
 
 ## 1. What I owned
 
@@ -14,7 +14,11 @@ I built the shift schedule prototype and evolved it as the rules became clear: c
 
 ## 3. What I learned
 
-✍ One or two sentences in your own words.
+I learned that AI agents speed up building but do not remove the need for human judgement. With Codex and Claude Code, we could build an alpha demo, a database, and a login service much faster than we could have alone. But speed made it easy to accept changes without fully reading them. Keeping agent work on separate branches and merging it only through pull requests made every change reviewable and gave us a clear history of what the AI did.
+
+I also learned that an AI agent will fill gaps with guesses unless it is told not to. Our project rules in AGENTS.md tell agents to ask instead of guessing on business, legal, or personal-data decisions. That rule mattered: swap limits, approval order, and data retention are company decisions, and they had to be confirmed by people, not invented by the AI.
+
+Finally, I learned that AI output must be checked against the real evidence. When AI helped transcribe our handwritten UAT sheets, some numbers were misread, and the team corrected them against the scans. Next time I would build that checking step into every AI task from the start, instead of treating it as a final review.
 
 ## 4. Evidence
 
