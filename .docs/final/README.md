@@ -43,6 +43,7 @@
 | --- | --- |
 | Test Plan | [Test Plan](../Test_plan/TNC%20Shift%20Schedule_test-plan.md) |
 | Coded real-user session logs | [UAT results — participants and sessions](../Test_plan/2026-11-03-uat-results.md#3-participants-and-sessions) |
+| UAT session photos and original sheets | [UAT evidence folder (Google Drive)](https://drive.google.com/drive/folders/1KNqCzYeW4HwTVGfBSSj59Bzo5hYUDVCz?usp=sharing) |
 | Before / After measurements | [UAT results — task times](../Test_plan/2026-11-03-uat-results.md#4-before--after-task-times-m-01-to-m-04) |
 | Every MUST task: coverage and gaps | [Comparison table](comparison-table.md) |
 | Usability responses and results | [UAT results — usability](../Test_plan/2026-11-03-uat-results.md#5-usability) |

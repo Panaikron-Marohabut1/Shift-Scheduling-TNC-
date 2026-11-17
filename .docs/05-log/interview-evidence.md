@@ -8,7 +8,7 @@ This file explains where the team's discovery evidence came from and where each 
 | --- | --- | --- |
 | Meeting recordings, notes and supporting files | [Team Google Drive folder](https://drive.google.com/drive/folders/1n0P3FzTRqDJdGf4120tCVehAvEoZpILZ?usp=sharing) | The files contain real names and company material, so they are not copied into the repository |
 | Meeting screenshots | This folder: [2026-09-06-s01-company-portal-walkthrough.png](2026-09-06-s01-company-portal-walkthrough.png), [2026-09-30-s01-shift-workflow-figma.png](2026-09-30-s01-shift-workflow-figma.png) | Proof that the sessions took place |
-| UAT sheets from real users | Team drive; transcribed by participant code in [UAT results](../Test_plan/2026-11-03-uat-results.md) | Scan file names contain personal names |
+| UAT sheets and session photos from real users | [UAT evidence folder (Google Drive)](https://drive.google.com/drive/folders/1KNqCzYeW4HwTVGfBSSj59Bzo5hYUDVCz?usp=sharing); transcribed by participant code in [UAT results](../Test_plan/2026-11-03-uat-results.md) | Scan file names contain personal names |
 
 ## 2. Stakeholder sessions
 
