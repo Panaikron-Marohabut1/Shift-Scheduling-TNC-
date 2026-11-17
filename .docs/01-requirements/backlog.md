@@ -35,7 +35,7 @@ This system must support continuous 24-hour / 7-day operations and reduce schedu
 | N | Normal Night Shift | 19:30–07:30 |
 | NT | Night Shift with OT | 19:30–07:30 + OT handover period |
 | D | Normal Working Hours | 08:00–17:00 |
-| O / Blank | Off Day | No scheduled work |
+| O | Blank | Off Day | No scheduled work |
 | V | Vacation Leave | Leave |
 | B | Business Leave | Leave |
 | S | Sick Leave | Leave |
@@ -59,7 +59,7 @@ This system must support continuous 24-hour / 7-day operations and reduce schedu
 | E08 | Approval Workflow | P0 |
 | E09 | Real-Time Schedule & Notifications | P0 |
 | E10 | HR Export & Integration | P0 |
-| E11 | Contractor / Van Driver Schedule | P1 |
+| E11 | Contractor / Van Driver Schedule | P0 |
 | E12 | Audit Trail & Schedule History | P1 |
 | E13 | Mobile & Responsive Experience | P0 |
 | E14 | Reporting & Dashboard | P2 |
@@ -1113,6 +1113,8 @@ Features that improve operational completeness but are not essential to the firs
 - US-048 — Request Approval History
 - US-052 — Responsive Supervisor Schedule
 
+> **Audit note (team decision, 2026-11-17):** US-047 and US-048 stay P1 because they cover the screens for reviewing change and approval history. The audit evidence itself is mandatory and is not deferred: it is required by [rule.md](rule.md) and by LR8 and LR12 in the [requirements specification](2026-09-02-01-requirement-spec.md), and the system records it from the first release. Every schedule change, request decision, cancellation and HR export writes an attributable `audit_logs` row with previous and new values, and a database trigger blocks updates and deletions.
+
 ---
 
 ## 9. Phase 2 Scope
@@ -1210,11 +1212,14 @@ The following items should be confirmed before development of the related backlo
 
 ## 15. Backlog Prioritization Legend
 
-| Priority | Meaning |
-| --- | --- |
-| P0 | Critical for core operation / MVP |
-| P1 | Important for operational completeness |
-| P2 | Enhancement / can be delivered after MVP |
+| Priority | MoSCoW | Meaning |
+| --- | --- | --- |
+| P0 | **Must** have | Critical for core operation / MVP |
+| P1 | Should have | Important for operational completeness |
+| P2 | Could have | Enhancement / can be delivered after MVP |
+| — | Won't have (this release) | Out of scope; listed in [§10 Won't List](#10-wont-list) |
+
+Every story and epic marked P0 is a MUST item.
 
 ---
 
