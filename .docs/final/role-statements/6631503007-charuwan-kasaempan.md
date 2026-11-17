@@ -2,8 +2,6 @@
 
 **Role:** Tech Lead
 
-> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
-
 ## 1. What I owned
 
 As Tech Lead, I owned the early legal and project documents and the running of user acceptance testing. I updated rule.md and the proposal so the team's requirements rested on PDPA, the Computer Crime Act, and the Electronic Transactions Act. I merged the redesigned web interface into main (PR #18).
@@ -34,4 +32,4 @@ Running the sessions also showed me how much care real people's data needs. We r
 
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
-| ✍ Tool name, or "None" | ✍ | ✍ |
+| Claude | Improving the wording of rule.md and the proposal, and preparing the UAT session sheets | Checked the legal points against the PDPA and Act sections cited in rule.md, and checked the session sheets against the test plan before printing |

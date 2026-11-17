@@ -2,8 +2,6 @@
 
 **Role:** QA / Test
 
-> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
-
 ## 1. What I owned
 
 As QA / Test lead, I owned the test plan and the integration and end-to-end testing, and I prepared the test accounts and data before every test. I also drew the system diagrams and the high-level architecture.
@@ -34,4 +32,4 @@ Finally, I learned that tests need maintenance like code. Our automated browser 
 
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
-| ✍ Tool name | Drafting test cases for the test plan ([Test plan §7](../../Test_plan/TNC%20Shift%20Schedule_test-plan.md)) | Checked and adjusted the drafts against the shift swap workflow |
+| Codex | Drafting test cases for the test plan ([Test plan §7](../../Test_plan/TNC%20Shift%20Schedule_test-plan.md)) | Checked and adjusted the drafts against the shift swap workflow |

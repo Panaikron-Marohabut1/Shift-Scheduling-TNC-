@@ -2,8 +2,6 @@
 
 **Role:** Product Owner
 
-> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
-
 ## 1. What I owned
 
 As Product Owner, I owned the requirements and the product backlog. I set up the requirements workflow and the automated backlog audit, kept the proposal and legal baseline up to date, and added the Won't list so the team agreed on scope. I also built the login side of the system and owned unit testing of the business rules.
@@ -38,5 +36,5 @@ Some of these commits carry another member's e-mail address because of the local
 
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
-| AI coding agent (21 "Agent host session" commits) | Drafting the requirements workflow, the backlog audit, and the login integration | ✍ How you reviewed it (for example: read every diff, ran the audit and API tests) |
+| Claude (Claude Code; 21 "Agent host session" commits) | Drafting the requirements workflow, the backlog audit, and the login integration | Read every change before committing, and ran `pnpm audit:backlog` and the API tests |
 | Claude Code | Transcribing the UAT sheets and drafting the final documents | Checked values against the scans; unclear ones are marked ⚠ |

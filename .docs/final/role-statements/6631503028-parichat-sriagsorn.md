@@ -2,8 +2,6 @@
 
 **Role:** Designer
 
-> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
-
 ## 1. What I owned
 
 As Designer, I owned the user experience of the web app: the feature list, the user journey, and the ShiftFlow interface that employees and supervisors use. I turned the first static page into the current app in `apps/web`.
@@ -35,4 +33,4 @@ I also learned that small details matter to users. One participant noticed the c
 
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
-| ✍ Tool name, or "None" | ✍ | ✍ |
+| Claude | Drafting the feature list and user journey, and refining the ShiftFlow layout and on-screen text | Tried every changed screen in the browser and checked the result against the shift supervisors’ feedback |

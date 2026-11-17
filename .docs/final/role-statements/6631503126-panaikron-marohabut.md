@@ -2,8 +2,6 @@
 
 **Role:** AI Lead
 
-> **To complete:** fill in the lines marked ✍ in the AI disclosure, and check that sections 1–3 match what you did and learned. Everything else is drawn from the repository and the test plan.
-
 ## 1. What I owned
 
 As AI Lead, I owned how the team used AI agents to build the system, and I own the GitHub repository. I set up the project structure, merged half of the team's 20 pull requests, and led the move from the static prototype to a working alpha.
@@ -36,4 +34,4 @@ Finally, I learned that AI output must be checked against the real evidence. Whe
 
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
-| Codex (`codex/*` branches) | Building the alpha demo and the shared Supabase demo | ✍ How you reviewed it (for example: PR review, API tests, `pnpm check`) |
+| Codex (`codex/*` branches) | Building the alpha demo and the shared Supabase demo | Reviewed each pull request before merging it into main, and ran the API tests and `pnpm check` |
