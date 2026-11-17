@@ -17,7 +17,7 @@ export async function start() {
  app.use(express.static(resolve(projectRoot,'apps/web'),{index:'index.html',dotfiles:'deny'}));
  app.enableShutdownHooks();
  const db=app.get(Database);
- try {
+ async function verifyDatabase() {
   const schema=await db.query("SELECT name FROM schema_migrations WHERE name='004_request_cancellation.sql'");
   if(!schema.rowCount)throw new Error('Run db:migrate first.');
   if (config.remotePilot || config.sharedDemo) {
@@ -29,6 +29,16 @@ export async function start() {
     const latest=await db.query("SELECT name FROM schema_migrations WHERE name='007_swap_policy_cutover.sql'");
     if(!latest.rowCount)throw new Error('Run pnpm db:migrate before starting the local scheduling app.');
   }
+ }
+ try {
+  if (config.publicHttps && config.sharedDemo) {
+    // Static files can start on a cold instance without occupying database connections.
+    let ready: Promise<void> | undefined;
+    app.use('/api',(req:express.Request,res:express.Response,next:express.NextFunction)=>{
+      ready ??= verifyDatabase().catch(error=>{ready=undefined;throw error;});
+      void ready.then(()=>next(),()=>res.status(503).json({code:'DATABASE_UNAVAILABLE',message:'เชื่อมต่อฐานข้อมูลตารางกะไม่สำเร็จ กรุณาลองอีกครั้ง'}));
+    });
+  } else await verifyDatabase();
   await app.listen(config.port,config.host);
  } catch(error) {await app.close();throw error;}
  console.log(`Shift schedule TNC: ${config.origin} (synthetic data only)`);

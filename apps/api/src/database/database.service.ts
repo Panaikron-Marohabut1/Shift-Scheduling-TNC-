@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient, types } from 'pg';
 import { databaseOptions } from '../config';
 types.setTypeParser(1082, value => value);
@@ -6,6 +6,9 @@ types.setTypeParser(1082, value => value);
 export class Database implements OnModuleDestroy {
   readonly pool = new Pool(databaseOptions());
   private readonly initialized = new WeakSet<PoolClient>();
+  constructor() {
+    this.pool.on('error', () => new Logger(Database.name).warn('An idle database connection was closed.'));
+  }
   private async acquire(): Promise<PoolClient> {
     const client = await this.pool.connect();
     if (this.initialized.has(client)) return client;

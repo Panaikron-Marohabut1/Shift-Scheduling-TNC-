@@ -95,7 +95,8 @@ export function myHtml() {
   const overtimeByDate = new Map(preview.map(item => [item.workDate, item]));
   const unavailable = state.actor?.remotePilot && !hasData && !projected;
   const todayNum = Math.min(state.currentDay, n);
-  const monthStatus = unavailable ? '<span class="st warn" role="status">ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</span>'
+  const monthStatus = monthRoster?.loadFailed ? '<span class="st warn" role="status">โหลดตารางกะไม่สำเร็จ กรุณาโหลดหน้าใหม่</span>'
+    : unavailable ? '<span class="st warn" role="status">ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</span>'
     : statusChips(schedule, { holidayOvertimePreview: overtimeByDate.size > 0 }).replace('<span class="st ok">ยื่นคำขอได้</span>', '');
   const codes = Array.from({ length: n }, (_, i) => unavailable ? null : getCalendarShiftCode(emp, y, m, i + 1));
   const team = getTeamForDate(emp, y, m, todayNum);

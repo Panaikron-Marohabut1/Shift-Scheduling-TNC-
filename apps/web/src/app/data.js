@@ -52,21 +52,31 @@ export function loadMySwapQuota(refresh = false) {
 }
 function fetchScheduleMonth(y, m, strict = false) {
   const pending = api(`/schedules?month=${y}-${pad2(m + 1)}`);
-  return strict ? pending : pending.catch(() => ({ assignments: [] }));
+  return strict ? pending : pending.catch(() => ({ loadFailed: true }));
 }
 export async function loadYear(y, force = false) {
   if (yearsLoaded[y] && !force) return;
-  const months = await Promise.all(Array.from({ length: 12 }, (_, m) => fetchScheduleMonth(y, m)));
-  months.forEach((r, m) => { state.apiMonths[monthKey(y, m)] = r; });
+  const actor = state.actor;
+  const first = state.currentMonth;
+  const months = [first, ...Array.from({ length: 12 }, (_, m) => m).filter(m => m !== first)];
+  for (let i = 0; i < months.length; i += 2) {
+    const batch = months.slice(i, i + 2);
+    const results = await Promise.all(batch.map(m => fetchScheduleMonth(y, m)));
+    if (state.actor !== actor) return;
+    batch.forEach((m, index) => storeScheduleMonth(monthKey(y, m), results[index]));
+  }
   yearsLoaded[y] = true;
   rebuildSchedule();
+}
+function storeScheduleMonth(key, result) {
+  if (!result.loadFailed || !state.apiMonths[key]?.assignments) state.apiMonths[key] = result;
 }
 export async function reloadMonths(keys, { strict = false } = {}) {
   const actor = state.actor;
   await Promise.all(keys.map(async key => {
     const [y, m] = key.split('-').map(Number);
     const latest = await fetchScheduleMonth(y, m, strict);
-    if (state.actor === actor) state.apiMonths[key] = latest;
+    if (state.actor === actor) storeScheduleMonth(key, latest);
   }));
   if (state.actor === actor) rebuildSchedule();
 }

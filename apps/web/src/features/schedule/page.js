@@ -6,7 +6,7 @@ import { state, view } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
 import { openModal } from '../../shared/modal.js';
-import { daysIn, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
+import { daysIn, monthKey, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { getAllEmployees } from '../../shared/scheduling/employees.js';
 import { dataMonth, getTeamForDate } from '../../shared/scheduling/roster.js';
 import { pageHead } from '../../shared/ui.js';
@@ -31,6 +31,8 @@ export const matchQ = e => { const q = view.q.trim().toLowerCase(); return !q ||
 
 export function scheduleHtml() {
   const S = scheduleState();
+  const loadFailed = state.apiMonths[monthKey(S.y, S.m)]?.loadFailed;
+  const remoteRosterMissing = state.actor?.remotePilot && !S.hasData && !S.projected;
   const base = dataMonth();
   const right = [];
   if (state.activeRole === 'Manager' && !state.actor?.remotePilot) right.push(`<button class="btn ghost" data-click="SF.toAnnual(${S.y})">${icon('left')} ตารางรายปี</button>`);
@@ -59,7 +61,8 @@ export function scheduleHtml() {
           <input class="inp q" id="schedQ" type="search" placeholder="ค้นหาชื่อหรือรหัส" value="${esc(view.q)}" data-input="SF.search(this.value)" autocomplete="off"></div>
       </div>
     </div>
-    ${state.actor?.remotePilot && !S.hasData && !S.projected ? '<p class="empty">ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</p>' : view.mode === 'month' ? `
+    ${loadFailed ? '<p class="empty" role="status">โหลดตารางกะไม่สำเร็จ กรุณาโหลดหน้าใหม่</p>'
+      : remoteRosterMissing ? '<p class="empty">ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</p>' : view.mode === 'month' ? `
       <div class="sched-month-meta">
         <div class="mstatus" role="group" aria-label="สถานะตารางกะ">${statusChips(S)}</div>
         ${overtimeLegendHtml()}

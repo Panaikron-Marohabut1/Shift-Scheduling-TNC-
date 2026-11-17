@@ -31,6 +31,7 @@ export function isRemotePilotDatabase(url: URL): boolean {
 }
 
 export const sharedDemoProject = 'mmesiubkvxmsklmgsepd';
+const hostedSharedDemo = () => process.env.APP_MODE === 'SHARED_DEMO' && process.env.SHARED_DEMO_PUBLIC_HTTPS === 'true';
 
 export function isSharedDemoDatabase(url: URL): boolean {
   if (process.env.APP_MODE !== 'SHARED_DEMO' || !['postgres:', 'postgresql:'].includes(url.protocol)
@@ -81,8 +82,10 @@ export function databaseOptions(): PoolConfig {
   if (!certificate) throw new Error('Set DATABASE_CA_CERT before connecting to Supabase.');
   // pg connection-string SSL parameters replace the ssl object; use one explicit TLS config.
   url.searchParams.delete('sslmode');
+  const hosted = hostedSharedDemo();
   return {
-    connectionString: url.toString(), max: 8, connectionTimeoutMillis: 15000,
+    connectionString: url.toString(), max: hosted ? 1 : 8, connectionTimeoutMillis: 15000,
+    ...(hosted && { idleTimeoutMillis: 750 }),
     options: '-c timezone=UTC -c statement_timeout=10000',
     ssl: { ca: readFileSync(resolve(projectRoot, certificate), 'utf8'), rejectUnauthorized: true },
   };
@@ -100,7 +103,7 @@ export function settings() {
   const authCookie = process.env.AUTH_COOKIE_NAME ?? 'sb-session';
   const remotePilot = mode === 'PILOT';
   const sharedDemo = mode === 'SHARED_DEMO';
-  const publicHttps = remotePilot || (sharedDemo && process.env.SHARED_DEMO_PUBLIC_HTTPS === 'true');
+  const publicHttps = remotePilot || hostedSharedDemo();
   const publicUrl = new URL(origin);
   if (!['DEMO', 'PILOT', 'SHARED_DEMO'].includes(mode) || !['127.0.0.1', 'localhost'].includes(host)) throw new Error('Use a supported demo mode on a loopback listener.');
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid API port.');
