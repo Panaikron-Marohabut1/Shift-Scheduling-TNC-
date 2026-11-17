@@ -196,7 +196,7 @@ A session record is kept for each UAT session to document the participant's acti
 | UAT-S06 | U03 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Completed. | — |
 | UAT-S07 | U04 | 3 Nov 2026 | View schedule and submit a shift swap request | Completed. | — |
 | UAT-S08 | U04 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Old method for checking status: 2–3 days. | — |
-| UAT-S09 | U05 | 3 Nov 2026 | View schedule and submit a shift swap request | Problem noted with colours on UAT01 ⚠. Submitting a swap took 5 min in the new system vs 2 min by phone; ease 3/5. | [ISS-01](issue-log.md), [ISS-02](issue-log.md) |
+| UAT-S09 | U05 | 3 Nov 2026 | View schedule and submit a shift swap request | Problem noted on UAT01: the colours for Saturday and Sunday look too similar. Submitting a swap took 5 min in the new system vs 2 min by phone; ease 3/5. | [ISS-01](issue-log.md), [ISS-02](issue-log.md) |
 | UAT-S10 | U05 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Completed. | — |
 | UAT-S11 | U06 | 3 Nov 2026 | View schedule and submit a shift swap request | Completed. | — |
 | UAT-S12 | U06 | 3 Nov 2026 | Check request status and updated schedule; swap restrictions | Completed. | — |
@@ -209,7 +209,7 @@ A session record is kept for each UAT session to document the participant's acti
 | UAT-S19 | U10 | 3 Nov 2026 | Review a pending shift swap request | Completed. | — |
 | UAT-S20 | U10 | 3 Nov 2026 | Approve a request | Completed. | — |
 
-Times for M-01 to M-04 are in §5.2. Errors and help requests were not recorded on the sheets. ⚠ marks handwriting that must be checked against the original scan.
+Times for M-01 to M-04 are in §5.2. Errors and help requests were not recorded on the sheets. Hard-to-read handwriting was confirmed by the team against the scans.
 
 ## 5. Metrics
 

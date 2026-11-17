@@ -7,7 +7,7 @@
 
 | ID | Found in | Description | Severity (proposed) | Status | Fix commit | Retest |
 | --- | --- | --- | --- | --- | --- | --- |
-| ISS-01 | UAT-S09 (U05, UAT01) | Participant noted a problem with colours in the schedule view. Exact wording is unclear on the scan ⚠ — transcribe before acting. | Low | Open | — | Not retested |
+| ISS-01 | UAT-S09 (U05, UAT01) | U05 noted on UAT01 (view own schedule) that the colours for Saturday and Sunday look too similar, so the two days are hard to tell apart. | Low | Open | — | Not retested |
 | ISS-02 | UAT-S09 (U05, UAT02) | Submitting a swap request took longer in the new system (5 min) than the old phone method (2 min); the participant rated the task 3/5. | Low | Open | — | Not retested |
 | ISS-03 | UAT-S14 (U07) | Feature request: show the employee's leave balances by type (annual, sick, personal, other), with totals and days used in the year. Not in the current scope; needs a backlog decision and a check against the sick-leave minimisation rule in [rule.md](../01-requirements/rule.md). | Enhancement | Open | — | — |
 | ISS-04 | UAT-S04 (U02, UAT07) | Handwritten note beside UAT07 (swap restrictions). The clearer follow-up scan shows it records the system blocking the request because the swap rights were already used, which is the expected behaviour, so it is not a defect. | None | Closed (not a defect) | — | — |

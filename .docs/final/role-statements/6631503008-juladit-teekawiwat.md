@@ -37,4 +37,4 @@ Some of these commits carry another member's e-mail address because of the local
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
 | Claude (Claude Code; 21 "Agent host session" commits) | Drafting the requirements workflow, the backlog audit, and the login integration | Read every change before committing, and ran `pnpm audit:backlog` and the API tests |
-| Claude Code | Transcribing the UAT sheets and drafting the final documents | Checked values against the scans; unclear ones are marked ⚠ |
+| Claude Code | Transcribing the UAT sheets and drafting the final documents | Checked values against the scans; the team confirmed the hard-to-read ones |

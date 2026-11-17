@@ -5,7 +5,7 @@
 >
 > **Update 2026-11-17:** the first SUS form had only items 1–9. Item 10 was collected afterwards on a separate sheet from every participant, in two follow-up scans: `UAT_all_with_SUS10_v2.pdf` (U02, U03, U04, U09, U10) and `UAT ต่อ.pdf` (U01, U05, U06, U07, U08). Items 1–9, times and ease ratings on those scans match the values below. The follow-up scans also corrected three values: U02's ease rating for UAT02 (2, not 5), U01's SUS item 3 (5, not 3) and U01's item 8 (confirmed 2), and made U02's note beside UAT07 readable (see UAT-S04).
 >
-> ⚠ marks a handwritten value that was hard to read. Check each ⚠ against the original scan before this file is used as final evidence.
+> Hard-to-read handwriting was checked against the clearer follow-up scans and confirmed by the team on 2026-11-17. This corrected U03's new-system time for M-03 (8, not 4).
 
 ## 1. Summary
 
@@ -77,8 +77,8 @@ Session date for all sessions: 3 November 2026 (confirmed by the team). Employee
 | UAT-S05 | U03 | View schedule, submit swap | Yes | — | — |
 | UAT-S06 | U03 | Status, schedule after approval, swap limits | Yes | — | — |
 | UAT-S07 | U04 | View schedule, submit swap | Yes | — | — |
-| UAT-S08 | U04 | Status, schedule after approval, swap limits | Yes | Old method for checking status: "2–3 days" ⚠ | — |
-| UAT-S09 | U05 | View schedule, submit swap | Yes | Problem noted on UAT01 about colours ⚠ (exact wording unclear). Submitting a swap took longer in the new system (5 min) than by phone (2 min). | [ISS-01](issue-log.md), [ISS-02](issue-log.md) |
+| UAT-S08 | U04 | Status, schedule after approval, swap limits | Yes | Old method for checking status: "2–3 days" | — |
+| UAT-S09 | U05 | View schedule, submit swap | Yes | Problem noted on UAT01: the colours for Saturday and Sunday look too similar. Submitting a swap took longer in the new system (5 min) than by phone (2 min). | [ISS-01](issue-log.md), [ISS-02](issue-log.md) |
 | UAT-S10 | U05 | Status, schedule after approval, swap limits | Yes | Rated UAT07 (swap limits) 3/5. | — |
 | UAT-S11 | U06 | View schedule, submit swap | Yes | — | — |
 | UAT-S12 | U06 | Status, schedule after approval, swap limits | Yes | — | — |
@@ -101,7 +101,7 @@ Session date for all sessions: 3 November 2026 (confirmed by the team). Employee
 | --- | --- | --- | --- |
 | M-01 View shift schedule | U01 | 3 | 1 |
 | | U02 | 0.5 | 0.5 |
-| | U03 | 10 | 2 ⚠ |
+| | U03 | 10 | 2 |
 | | U04 | 1–2 (1.5) | 0.5 |
 | | U05 | 1 | 1 |
 | | U06 | 2 | 1 |
@@ -109,7 +109,7 @@ Session date for all sessions: 3 November 2026 (confirmed by the team). Employee
 | | U08 | 1 | 1 |
 | M-02 Submit swap request | U01 | 4 | 2 |
 | | U02 | 5 | 4 |
-| | U03 | 30 ⚠ | 10 |
+| | U03 | 30 | 10 |
 | | U04 | 10 | 3 |
 | | U05 | 2 | 5 |
 | | U06 | 5 | 3 |
@@ -117,15 +117,15 @@ Session date for all sessions: 3 November 2026 (confirmed by the team). Employee
 | | U08 | 3 | 3 |
 | M-03 Check request status | U01 | 2 | 1 |
 | | U02 | about 1–3 **days** (excluded) | 1–2 (1.5) |
-| | U03 | 25 ⚠ | 4 ⚠ |
-| | U04 | 2–3 **days** ⚠ (excluded) | 3 |
+| | U03 | 25 | 8 |
+| | U04 | 2–3 **days** (excluded) | 3 |
 | | U05 | 2 | 1 |
 | | U06 | 5 | 2 |
 | | U07 | 10 | 3 |
 | | U08 | 2 | 2 |
 | M-04 Verify approved swap | U01 | 2 | 2 |
 | | U02 | 2 | 2 |
-| | U03 | 27 ⚠ | 5 |
+| | U03 | 27 | 5 |
 | | U04 | 3 | 0.5 |
 | | U05 | 1 | 1 |
 | | U06 | 3 | 1 |
@@ -138,7 +138,7 @@ Session date for all sessions: 3 November 2026 (confirmed by the team). Employee
 | --- | --- | --- | --- | --- | --- | --- |
 | M-01 | 8 / 8 | 1.25 | 1.0 | −0.25 min (−20%) | 2.50 | 1.00 |
 | M-02 | 8 / 8 | 5.0 | 3.0 | −2.0 min (−40%) | 8.63 | 4.13 |
-| M-03 | 6 / 8 | 3.5 | 2.0 | −1.5 min (−43%) | 7.67 | 2.19 |
+| M-03 | 6 / 8 | 3.5 | 2.0 | −1.5 min (−43%) | 7.67 | 2.69 |
 | M-04 | 8 / 8 | 2.0 | 1.0 | −1.0 min (−50%) | 5.00 | 1.69 |
 
 The median is the headline figure because U03's large values pull the means up. With 8 participants and self-reported times, this comparison is descriptive, not a statistical test. For M-03, two employees described the old method as **days** of waiting for the supervisor's answer, which the minute figures do not capture.
@@ -194,4 +194,4 @@ Employee responses are listed in order U01–U08; supervisor responses in order 
 - Task times are self-reported estimates, not observer stopwatch timings, and errors per task were not recorded.
 - SUS item 10 was missing from the first form and was collected afterwards on a separate sheet, so participants answered it later than items 1–9.
 - Participant codes were assigned after the sessions, from scan order.
-- Values marked ⚠ need to be checked against the original scans.
+- Some handwriting was hard to read; those values were confirmed by the team against the scans.
