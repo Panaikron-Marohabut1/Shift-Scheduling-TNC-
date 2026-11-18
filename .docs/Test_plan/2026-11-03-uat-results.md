@@ -3,7 +3,7 @@
 > **Source:** paper UAT sheets (scanned) and the team's Word test plan `TNC-Shift_schedule_test_plan.docx`.
 > Transcribed into this file on 2026-11-17. Participants are identified by code only. The original scans are **not** stored in this repository: they stay in the [team's UAT evidence folder on Google Drive](https://drive.google.com/drive/folders/1KNqCzYeW4HwTVGfBSSj59Bzo5hYUDVCz?usp=sharing) because the scans contain personal names. The folder also holds photos of the test sessions.
 >
-> **Update 2026-11-17:** the first SUS form had only items 1–9. Item 10 was collected afterwards on a separate sheet from every participant, in two follow-up scans: `UAT_all_with_SUS10_v2.pdf` (U02, U03, U04, U09, U10) and `UAT ต่อ.pdf` (U01, U05, U06, U07, U08). Items 1–9, times and ease ratings on those scans match the values below. The follow-up scans also corrected three values: U02's ease rating for UAT02 (2, not 5), U01's SUS item 3 (5, not 3) and U01's item 8 (confirmed 2), and made U02's note beside UAT07 readable (see UAT-S04).
+> **Update 2026-11-17:** the first SUS form had only items 1–9. Item 10 was collected afterwards on a separate sheet from every participant. These follow-up sheets are included in `uat-sheets.pdf`. Items 1–9, times and ease ratings on the follow-up sheets match the values below. The follow-up scans also corrected three values: U02's ease rating for UAT02 (2, not 5), U01's SUS item 3 (5, not 3) and U01's item 8 (confirmed 2), and made U02's note beside UAT07 readable (see UAT-S04).
 >
 > Hard-to-read handwriting was checked against the clearer follow-up scans and confirmed by the team on 2026-11-17. This corrected U03's new-system time for M-03 (8, not 4).
 
