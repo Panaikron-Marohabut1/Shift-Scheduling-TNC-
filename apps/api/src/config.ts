@@ -83,8 +83,9 @@ export function databaseOptions(): PoolConfig {
   // pg connection-string SSL parameters replace the ssl object; use one explicit TLS config.
   url.searchParams.delete('sslmode');
   const hosted = hostedSharedDemo();
+  const max = hosted ? 1 : process.env.APP_MODE === 'SHARED_DEMO' ? 4 : 8;
   return {
-    connectionString: url.toString(), max: hosted ? 1 : 8, connectionTimeoutMillis: 15000,
+    connectionString: url.toString(), max, connectionTimeoutMillis: 15000,
     ...(hosted && { idleTimeoutMillis: 750 }),
     options: '-c timezone=UTC -c statement_timeout=10000',
     ssl: { ca: readFileSync(resolve(projectRoot, certificate), 'utf8'), rejectUnauthorized: true },

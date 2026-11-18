@@ -14,7 +14,15 @@ export async function start() {
   res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   res.setHeader('Cache-Control','no-store'); next();
  });
- app.use(express.static(resolve(projectRoot,'apps/web'),{index:'index.html',dotfiles:'deny'}));
+ app.use(express.static(resolve(projectRoot,'apps/web'),{
+  index:'index.html',dotfiles:'deny',cacheControl:false,
+  setHeaders:(res,file)=>{
+   if(config.publicHttps && config.sharedDemo && /\.(?:js|css|json|woff2?|png|jpe?g|webp|avif|svg|ico)$/i.test(file)) {
+    res.setHeader('Cache-Control','public, max-age=0, must-revalidate');
+    res.setHeader('Vercel-CDN-Cache-Control','max-age=86400');
+   }
+  },
+ }));
  app.enableShutdownHooks();
  const db=app.get(Database);
  async function verifyDatabase() {

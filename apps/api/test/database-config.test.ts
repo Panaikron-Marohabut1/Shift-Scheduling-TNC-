@@ -123,7 +123,7 @@ test('hosted shared demo stays on the same restricted database and requires a ca
   assert.equal(hosted.idleTimeoutMillis, 750);
   assert.equal(centralSchedulingEnabled(runtime), true);
   process.env.SHARED_DEMO_PUBLIC_HTTPS = 'false';
-  assert.equal(databaseOptions().max, 8);
+  assert.equal(databaseOptions().max, 4);
   process.env.SHARED_DEMO_PUBLIC_HTTPS = 'true';
   for (const origin of ['http://shiftflow-tnc.vercel.app', 'https://localhost', 'https://shiftflow-tnc.vercel.app/path']) {
     process.env.APP_ORIGIN = origin;
