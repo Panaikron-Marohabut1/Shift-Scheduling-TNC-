@@ -51,18 +51,18 @@ Integration tests ran on the demo version, which cannot sign in with a company a
 
 All participants are real users from the target roles. The paper sheets for employees were all headed "U01 to U03" and both supervisor sheets were headed "U04", so codes were assigned afterwards in scan order:
 
-| Participant | Role | Source scan (file in team drive) |
+| Participant | Role | Source (file in the UAT evidence folder) |
 | --- | --- | --- |
-| U01 | Employee | `17112026scan_rotated.pdf` |
-| U02 | Employee | `แบบประเมิน พนักงาน.pdf`, pages 1–4 |
-| U03 | Employee | `แบบประเมิน พนักงาน.pdf`, pages 5–8 |
-| U04 | Employee | `แบบประเมิน พนักงาน.pdf`, pages 9–12 |
-| U05 | Employee | scan `…_202611150454.pdf` |
-| U06 | Employee | scan `…_202611150455.pdf` |
-| U07 | Employee | scan `…_202611150456.pdf` |
-| U08 | Employee | scan `…_202611150457.pdf` |
-| U09 | Shift Supervisor | `แบบประเมินหัวหน้ากะ.pdf`, pages 1–3 |
-| U10 | Shift Supervisor | `แบบประเมินหัวหน้ากะ.pdf`, pages 4–6 |
+| U01 | Employee | `uat-sheets.pdf` |
+| U02 | Employee | `uat-sheets.pdf` |
+| U03 | Employee | `uat-sheets.pdf` |
+| U04 | Employee | `uat-sheets.pdf` |
+| U05 | Employee | `uat-sheets.pdf` |
+| U06 | Employee | `uat-sheets.pdf` |
+| U07 | Employee | `uat-sheets.pdf` |
+| U08 | Employee | `uat-sheets.pdf` |
+| U09 | Shift Supervisor | `uat-sheets.pdf` |
+| U10 | Shift Supervisor | `uat-sheets.pdf` |
 
 ### Session log
 

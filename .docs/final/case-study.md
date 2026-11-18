@@ -2,7 +2,7 @@
 
 | Item | Value |
 | --- | --- |
-| Live URL | Not deployed. The system runs on localhost with demo data only ([release check](../06-development/2026-11-01-release-check.md)); setup steps are in the [README](../../README.md). |
+| Live URL | Demo for review: https://shiftflow-tnc.vercel.app. The system is not yet deployed in the company environment; setup steps for running it locally are in the [README](../../README.md). |
 | Repository | <https://github.com/Panaikron-Marohabut1/Shift-Scheduling-TNC-> |
 | Team (ODestiny) | Charuwan Kasaempan (Tech Lead), Juladit Teekawiwat (Product Owner), Parichat Sriagsorn (Designer), Alisa Pansomkid (QA / Test), Panaikron Marohabut (AI Lead) — see [role-statements/](role-statements/) |
 
@@ -112,7 +112,7 @@ Known as of 2026-11-01 ([release check](../06-development/2026-11-01-release-che
 
 - Nine frontend logic issues, F01–F09, are confirmed and not yet fixed. Examples: the ±7-day window breaks across month boundaries, and a swap with a return day can produce 7 consecutive working days.
 - Swap, leave, OT and public-holiday requests are stored in PostgreSQL in both run modes once migrations are applied. A few demo-only features, such as the van driver's acknowledgement, are still stored in browser localStorage and are not shared between devices.
-- The system runs on localhost with demo data only.
+- The system is not yet deployed in the company environment.
 - Microsoft sign-in, MFA and logout have not been tested end to end with real accounts.
 - Open dependency advisories remain in the API (`body-parser`, `multer`, `qs`).
 
@@ -126,6 +126,6 @@ Found during UAT ([issue log](../Test_plan/issue-log.md)):
 
 1. Fix logic issues F01–F09 and move the remaining demo-only features from localStorage to PostgreSQL.
 2. Update `pnpm test:browser` to the current Login flow so the full workflow is covered automatically.
-3. Deploy to a hosted test environment and publish a live URL.
+3. Deploy to the company environment, as planned in the proposal, Phase 9.
 4. Re-run usability with observer timings and a complete SUS form in one sitting, after improving the swap request flow.
 5. Decide on the leave-balance request (ISS-03) against the sick-leave minimisation rule in [rule.md](../01-requirements/rule.md).
