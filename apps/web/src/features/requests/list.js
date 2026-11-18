@@ -42,9 +42,6 @@ export function statusCls(req) {
 /* ---------- หน้ารายการ ---------- */
 function reqActions(req) {
   const pending = req.status.includes('รอ');
-  const next = req.approvers ? req.approvers.find(a => a.status !== 'approved') : null;
-  // ทั้งแถวเปิดรายละเอียดได้อยู่แล้ว จึงไม่มีปุ่ม "ดูรายละเอียด" ซ้ำทุกแถว
-  const detail = '';
   const approve = req.approvalBlockReason ? '' : `<button class="btn sm primary" data-click="approveRequest(${js(req.id)})">อนุมัติ</button>`;
   const decide = `<button class="btn sm danger" data-click="promptRejectRequest(${js(req.id)})">ไม่อนุมัติ</button>${approve}`;
   const me = currentEmp();
@@ -53,11 +50,11 @@ function reqActions(req) {
     ? `<button class="btn sm danger" data-click="withdrawRequest(${js(req.id)})" title="ยกเลิกได้จนกว่าหัวหน้ากะจะเริ่มตรวจสอบ">ยกเลิกคำขอ</button>`
     : pending ? '<button class="btn sm" disabled title="ยกเลิกไม่ได้ คำขอนี้ผ่านการตรวจสอบไปแล้ว">ยกเลิกคำขอ</button>' : '');
   const undo = canCancelApproved(req) ? `<button class="btn sm danger" data-click="promptCancelApproved(${js(req.id)})" title="ยกเลิกคำขอที่อนุมัติแล้ว และคืนตารางกะเป็นแบบเดิม">ยกเลิกและคืนตาราง</button>` : '';
-  if (state.activeRole === 'Manager') return (managerCanAct(req) ? decide : '') + detail + undo;
-  if (mine) return detail + withdraw() + undo;
-  if (canUserReviewRequest(req) && pending) return decide + detail;
-  if (isSupervisorRoleName(state.activeRole) && pending) return `<span class="muted small wait-for">รอ ${esc(String(next ? next.role : 'หัวหน้ากะอีกฝ่าย').replace(/\s*\([^)]*\)\s*$/, ''))}</span>${detail}`;
-  return detail;
+  if (state.activeRole === 'Manager') return (managerCanAct(req) ? decide : '') + undo;
+  if (mine) return withdraw() + undo;
+  if (canUserReviewRequest(req) && pending) return decide;
+  if (isSupervisorRoleName(state.activeRole) && pending && !req.approvers?.length) return '<span class="muted small">รอ หัวหน้ากะอีกฝ่าย</span>';
+  return '';
 }
 // ขั้นอนุมัติแบบสั้น: ไอคอนถูก = อนุมัติแล้ว · จุดทึบ = ถึงคิว · วงกลม = ยังไม่ถึง (ตัดชื่อในวงเล็บที่ซ้ำกับบทบาทออก)
 function stepsHtml(req) {
@@ -109,6 +106,8 @@ export function requestsHtml(title) {
     const people = r.targetPerson ? `<span>${esc(nameOf(r.person))}</span> <span class="req-pair"><span class="req-arrow">${r.kind === 'leave' ? 'ให้' : '↔'}</span> ${esc(nameOf(r.targetPerson))}${r.kind === 'leave' ? ' ทำแทน' : ''}</span>` : esc(nameOf(r.person));
     const meta = [`ยื่น ${r.submittedAt}`, !isEmp && r.roleCategory, r.quotaUsed && r.quotaUsed !== '-' && `โควตาเดือนนี้ ${r.quotaUsed}`].filter(Boolean).map(esc).join(' · ');
     const acts = reqActions(r);
+    const steps = stepsHtml(r);
+    const status = steps ? r.status.replace(/^(รออนุมัติครบ 2 ฝ่าย) \(.+\)$/, '$1') : r.status;
     return `
       <li class="req ${isRequestInProgress(r) ? 'open' : 'closed'}" data-click="openRequestDetails(${js(r.id)})">
         <div class="req-main">
@@ -122,8 +121,8 @@ export function requestsHtml(title) {
           ${r.approvalBlockReason ? `<p class="req-note err">${esc(r.approvalBlockReason)}</p>` : ''}
           ${r.cancelBlockReason ? `<p class="req-note">${esc(r.cancelBlockReason)}</p>` : ''}
         </div>
-        ${stepsHtml(r)}
-        <span class="req-status st ${statusCls(r)}">${esc(r.status)}</span>
+        ${steps}
+        <span class="req-status st ${statusCls(r)}">${esc(status)}</span>
         ${acts ? `<div class="req-acts">${acts}</div>` : ''}
       </li>`;
   };
