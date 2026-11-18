@@ -68,19 +68,42 @@ function refreshCalendarDate() {
   const delay = nextBangkokMidnightDelay();
   if (delay !== null) dateTimer = setTimeout(refreshCalendarDate, delay);
 }
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refreshCalendarDate();
-});
 refreshCalendarDate();
 
-// รีเฟรชข้อมูลจากฐานข้อมูลทุก 30 วินาที (ข้ามระหว่างเปิดหน้าต่างย่อยหรือกำลังพิมพ์)
-setInterval(() => {
+// รีเฟรชข้อมูลจากฐานข้อมูลทุก 30 วินาที (ข้ามระหว่างเปิดหน้าต่างย่อย กำลังพิมพ์ หรือแท็บถูกซ่อน)
+// กลับมาที่แท็บแล้วรีเฟรชทันทีถ้าข้อมูลเก่ากว่า 30 วินาที
+const DATA_REFRESH_MS = 30000;
+let lastDataRefresh = Date.now();
+let refreshInProgress = false;
+let refreshTimer;
+function scheduleDataRefresh() {
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => { void refreshData(); }, DATA_REFRESH_MS);
+}
+async function refreshData() {
+  if (document.hidden || refreshInProgress) return;
+  const now = Date.now();
+  const elapsed = now - lastDataRefresh;
+  if (elapsed >= 0 && elapsed < DATA_REFRESH_MS) return;
   const tag = document.activeElement && document.activeElement.tagName;
   if (!view.signed || view.loading || view.sideOpen || modalOpen() || ['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;
-  if (state.actor.role === 'ADMIN') void loadAdminAccess(renderApp);
-  else if (state.actor.role === 'EXTERNAL') void refreshNotificationsOnly();
-  else void afterApi();
-}, 30000);
+  lastDataRefresh = now;
+  refreshInProgress = true;
+  scheduleDataRefresh();
+  try {
+    if (state.actor.role === 'ADMIN') await loadAdminAccess(renderApp);
+    else if (state.actor.role === 'EXTERNAL') await refreshNotificationsOnly();
+    else await afterApi();
+  } finally {
+    refreshInProgress = false;
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  refreshCalendarDate();
+  void refreshData();
+});
+scheduleDataRefresh();
 
 /* ---------- เริ่มระบบ: ถามระบบหลังบ้านว่าใครเข้าสู่ระบบอยู่ ---------- */
 // 401 → ไปหน้าเข้าสู่ระบบของระบบกลาง · 403 → บัญชียังไม่ผูกกับพนักงาน · อื่น ๆ → เชื่อมต่อไม่ได้
