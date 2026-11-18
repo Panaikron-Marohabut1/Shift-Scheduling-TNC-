@@ -196,7 +196,7 @@ export function myHtml() {
               <span class="chip today-chip ${codeClass(todayCode || 'O', todayHolidayOT)}">${todayCode ? esc(shownCode(todayCode)) : '–'}</span>
               <div class="today-summary">
                 <div class="today-shift">
-                  <div class="my-shift-title"><b>${todayCode ? esc(label(todayCode)) : 'ไม่มีข้อมูลกะ'}</b>${todaySlot?.absence ? '<span class="absence-tag">ขาดงาน</span>' : ''}${hours ? `<span class="today-hours">${esc(hours)}${todayDef.family === 'N' ? '<small>เลิกวันถัดไป</small>' : ''}</span>` : ''}</div>
+                  <div class="my-shift-title"><b>${todayCode ? esc(label(todayCode)) : 'ไม่มีข้อมูลกะ'}</b>${todaySlot?.absence ? '<span class="absence-tag">ขาดงาน</span>' : ''}${hours ? `<span class="today-hours">${esc(hours)}${todayDef.family === 'N' ? '<span class="sr">เลิกวันถัดไป</span>' : ''}</span>` : ''}</div>
                   ${details.length ? `<span class="today-details">${details.map(esc).join(' · ')}</span>` : ''}
                 </div>
                 <dl class="my-duty-facts">

@@ -66,7 +66,7 @@ function navList() {
   const bell = { id: 'notifications', label: 'แจ้งเตือน', icon: 'bell', badge: unreadCount() };
   if (state.activeRole === 'Contractor / Van Driver') return [{ id: 'driver', label: 'ตารางรับส่งพนักงาน', icon: 'driver' }, bell];
   // หัวหน้ากะก็เป็นพนักงาน: มี "กะของฉัน" และยื่นคำขอของตัวเองได้
-  if (isSupervisorRoleName(state.activeRole)) items.splice(1, 0, { id: 'my-shift', label: 'กะของฉัน', icon: 'my' });
+  if (isSupervisorRoleName(state.activeRole)) items.unshift({ id: 'my-shift', label: 'กะของฉัน', icon: 'my' });
   // พนักงาน: ตารางกะรวมเป็นเมนูแยก
   if (state.activeRole === 'Shift Employee') items.splice(1, 0, { id: 'schedule', label: 'ตารางกะ', icon: 'schedule' });
   items.push(bell); // แจ้งเตือนอยู่ท้ายเมนูซ้ายเสมอ (บนมือถืออยู่มุมขวาบน)

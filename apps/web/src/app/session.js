@@ -22,7 +22,8 @@ export async function enter(actor) {
   state.roles = { [key]: buildRole(key, actor) };
   state.activeRole = key;
   view.employeeRequestGroup = 'shared';
-  state.activeView = (state.roles[key].nav[0] || { id: 'driver' }).id;
+  // หัวหน้ากะเริ่มที่ "กะของฉัน" เหมือนพนักงาน
+  state.activeView = actor.role === 'SUPERVISOR' ? 'my-shift' : (state.roles[key].nav[0] || { id: 'driver' }).id;
   state.selectedShiftFilter = 'ALL';
   state.operatorShowFullGrid = false;
   state.currentYear = DEMO_TODAY.getFullYear();

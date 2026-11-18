@@ -103,12 +103,14 @@
 .my-home .my-duty-date strong { font-size: 1.1rem; font-weight: 600; }
 .my-home .today-line { display: flex; align-items: flex-start; gap: 12px; }
 .my-home .today-chip { width: 40px; min-width: 40px; height: 40px; font-size: 1.1rem; border-radius: 6px; }
+.my-home .today-line:has(.today-details) .today-chip { margin-top: 13px; }
+.my-home .today-line:not(:has(.today-details)) .today-summary { margin-top: 7px; }
+.my-home .today-line:has(.today-details) .my-duty-facts { align-self: center; transform: translateY(4px); }
 .my-home .today-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 24px; min-width: 0; }
 .my-home .today-shift { display: grid; gap: 4px; min-width: 0; }
 .my-home .my-shift-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
 .my-home .my-shift-title b { font-size: 1rem; font-weight: 500; }
 .my-home .today-hours { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
-.my-home .today-hours small { font-size: .85rem; font-weight: 400; color: var(--muted); }
 .my-home .today-details { font-size: .9rem; color: var(--ink-2); }
 .my-home .my-duty-facts { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 0; }
 .my-home .my-duty-facts > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
