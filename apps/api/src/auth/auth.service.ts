@@ -26,6 +26,7 @@ const linkedPilotActor=`${linkedDemoActor} AND u.identity_source='DEMO'
 const linkedSharedDemoActor=`${linkedDemoActor} AND u.identity_source='DEMO' AND (
  (r.role_name IN ('EMPLOYEE','SUPERVISOR','MANAGER') AND u.demo_profile IN
   ('employee-a','employee-b','supervisor-a','supervisor-b','manager',$3))
+ OR (r.role_name='HR' AND u.demo_profile='hr' AND e.employee_code='DEMO-HR' AND e.employment_status='ACTIVE')
  OR (r.role_name='ADMIN' AND u.demo_profile=$4))`;
 const emailMatch=`SELECT u.user_id AS "userId", u.azure_object_id AS linked FROM users u JOIN employees e USING(employee_id)
  WHERE lower(e.email)=lower($1) AND u.is_active AND u.demo_profile IS DISTINCT FROM $2`;

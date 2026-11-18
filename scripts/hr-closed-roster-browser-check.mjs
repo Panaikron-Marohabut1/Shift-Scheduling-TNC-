@@ -20,7 +20,8 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.clock.setFixedTime(new Date('2098-11-30T17:00:00Z'));
   await page.goto(origin);
-  await page.locator(`[data-click='SF.nav("hr-export")']`).first().click();
+  // The collapsed rail displays the icon while clipping the center of the full menu button.
+  await page.locator(`#sideMenu [data-click='SF.nav("hr-export")'] svg`).click();
   const table = page.locator('#hr-closed-roster-table');
   await table.waitFor();
   assert.equal(await page.locator('#hr-closed-roster-month').inputValue(), '2098-11');

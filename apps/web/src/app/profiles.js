@@ -41,10 +41,10 @@ export function buildRole(roleKey, actor) {
       { id: 'my-history', label: 'ประวัติของฉัน' }] },
     HR: { title: 'เจ้าหน้าที่ฝ่ายบุคคล', short: 'ฝ่ายบุคคล', nav: [
       { id: 'schedule', label: 'ตารางกะรวม (Schedule)' },
-      ...(actor.remotePilot ? [] : [
-        { id: 'hr-export', label: actor.hrClosedRoster ? 'ตารางกะปิดเดือนและ CSV' : 'ข้อมูลและส่งออก CSV' },
-        { id: 'hr-audit', label: 'ตรวจสอบ OT และประวัติ' }
-      ])] },
+      ...(actor.hrClosedRoster || !actor.remotePilot ? [
+        { id: 'hr-export', label: actor.hrClosedRoster ? 'ตารางกะปิดเดือนและ CSV' : 'ข้อมูลและส่งออก CSV' }
+      ] : []),
+      ...(actor.remotePilot ? [] : [{ id: 'hr-audit', label: 'ตรวจสอบ OT และประวัติ' }])] },
     'Contractor / Van Driver': { title: 'พนักงานขับรถตู้รับส่ง (สายหลัก) — External User', short: 'ผู้ใช้ภายนอก (External User)', nav: [] }
   }[roleKey] || { title: `Shift Supervisor (Shift ${team})`, short: `หัวหน้ากะ ${team}`, team: `shift${team}`, nav: SUP_NAV.map(n => ({ ...n })) };
   return { initials: String(actor.name || '').slice(0, 2), name: actor.name, ...base };
