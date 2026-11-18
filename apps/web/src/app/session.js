@@ -3,7 +3,7 @@
    ========================================================================== */
 
 import { api } from '../api/client.js';
-import { loadNotifications, loadYear, merge, refreshAll, reloadLoadedYears, resetData } from './data.js';
+import { loadNotifications, loadYear, merge, rebuildSchedule, refreshAll, reloadLoadedYears, resetData } from './data.js';
 import { buildRole, roleKeyOf } from './profiles.js';
 import { pendingYears, renderApp } from './render.js';
 import { DEMO_TODAY, saveLocal, state, view } from './state.js';
@@ -53,8 +53,8 @@ export async function logout() {
   catch (error) { showToast(error.message || 'ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง', 'alert'); return; }
   leave(result.loginUrl, 'ออกจากระบบแล้ว');
 }
-export function leave(loginUrl = view.loginUrl, message = '') {
-  Object.assign(view, { signed: false, loading: false, authMsg: message, loginUrl: loginUrl || '', unlinked: false, accessPending: false });
+export function leave(loginUrl = view.loginUrl, message = '', { accessEnded = false } = {}) {
+  Object.assign(view, { signed: false, loading: false, authMsg: message, loginUrl: loginUrl || '', unlinked: accessEnded, accessPending: false });
   state.actor = null;
   state.roles = {};
   state.apiRequests = [];
@@ -62,9 +62,10 @@ export function leave(loginUrl = view.loginUrl, message = '') {
   state.apiNotifications = [];
   resetNotificationCheck();
   resetData();
+  if (accessEnded) rebuildSchedule();
   Object.keys(pendingYears).forEach(y => { delete pendingYears[y]; });
   merge();
-  view.loading = goToLogin(view.loginUrl, { replace: true });
+  view.loading = !accessEnded && goToLogin(view.loginUrl, { replace: true });
   if (!view.loading) view.loginUrl = '';
   renderApp();
 }

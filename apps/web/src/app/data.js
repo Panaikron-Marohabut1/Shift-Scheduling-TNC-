@@ -111,9 +111,11 @@ export function resetData() {
 // พนักงานและรหัสกะจากตารางในฐานข้อมูล + การแก้ข้อมูลพนักงานในเดโม
 export function rebuildSchedule() {
   const people = new Map();
+  const months = Object.values(state.apiMonths);
+  const exits = new Map(months.flatMap(month => (month.productionExits || []).map(exit => [exit.employeeCode, exit.effectiveOn])));
   state.apiCodes = {};
   state.apiAssign = {};
-  Object.values(state.apiMonths).forEach(r => (r.assignments || []).forEach(a => {
+  months.forEach(r => (r.assignments || []).forEach(a => {
     const id = a.employee_code;
     if (!people.has(id)) people.set(id, a);
     (state.apiCodes[id] = state.apiCodes[id] || {})[a.work_date] = a.swap ? `${a.shift_code}/${a.swap.originalShiftCode}` : a.shift_code;
@@ -125,6 +127,7 @@ export function rebuildSchedule() {
     const sup = a.position === 'SUPERVISOR';
     const emp = {
       id: a.employee_code, eid: a.employee_id, code: a.employee_code, name: a.name, phone: '-', initials: a.name.slice(0, 2),
+      productionExitOn: exits.get(a.employee_code),
       roleCategory: sup ? 'Shift Supervisor' : 'Shift Employee', position: sup ? 'Shift Supervisor (S)' : 'Field Operator', shiftType: `Shift ${a.team_code}`
     };
     if (!state.actor?.remotePilot) Object.assign(emp, state.peopleEdits.byId[emp.id] || {});

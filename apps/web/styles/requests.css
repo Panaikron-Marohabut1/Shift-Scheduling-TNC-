@@ -48,6 +48,25 @@
 .checks li.pass .ic { color: var(--ok); }
 .checks li.warn { color: var(--warn); }
 .checks li.fail { color: var(--bad); font-weight: 500; }
+.swap-quota-summary {
+  width: min(100%, 36rem);
+  margin: 10px auto 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.swap-quota-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.swap-quota-title, .swap-quota-remaining { font-weight: 600; }
+.swap-quota-title span { margin-inline-start: 4px; font-size: .9rem; font-weight: 400; }
+.swap-quota-remaining { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.swap-quota-note { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--line); }
 .steps { display: grid; gap: 8px; counter-reset: step; }
 .steps li { display: grid; grid-template-columns: 26px 1fr; column-gap: 10px; counter-increment: step; }
 .steps li::before { content: counter(step); grid-row: span 2; width: 24px; height: 24px; border-radius: 50%; background: var(--soft); color: var(--muted); display: grid; place-items: center; font-size: 0.82rem; font-weight: 700; }

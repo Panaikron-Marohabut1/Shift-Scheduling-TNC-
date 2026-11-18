@@ -9,7 +9,11 @@ export async function api(path,{method='GET',body,key,format='json'}={}) {
       return await response.blob();
     }
     const payload=await response.json();
-    if(!response.ok) { if(response.status===401) window.dispatchEvent(new CustomEvent('session-expired',{detail:payload})); throw new ApiError(payload.message??'ไม่สามารถดำเนินการได้',response.status,payload.code,payload); }
+    if(!response.ok) {
+      if(response.status===401) window.dispatchEvent(new CustomEvent('session-expired',{detail:payload}));
+      if(payload.code==='PRODUCTION_ACCESS_ENDED') window.dispatchEvent(new CustomEvent('production-access-ended',{detail:payload}));
+      throw new ApiError(payload.message??'ไม่สามารถดำเนินการได้',response.status,payload.code,payload);
+    }
     return payload;
   } catch(e) {
     if(e instanceof ApiError) throw e;

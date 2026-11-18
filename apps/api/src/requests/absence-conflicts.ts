@@ -37,6 +37,8 @@ export async function requireStableAbsenceShifts(c:PoolClient,schedules:Schedule
   JOIN unnest($1::int[],$2::int[]) AS scope(schedule_id,employee_id)
    ON scope.schedule_id=a.schedule_id AND scope.employee_id=a.employee_id
   WHERE ${activeHistory}
+   AND NOT EXISTS (SELECT 1 FROM shiftflow_policy.employee_team_transfers move
+    WHERE move.employee_id=a.employee_id AND move.team_id IS NULL AND move.effective_on<=a.work_date)
  `,[pairs.map(slot=>slot.schedule_id),pairs.map(slot=>slot.employee_id)]);
  for(const {schedule_id,employee_id} of groups.values()) {
   const marked=rows.filter(row=>row.schedule_id===schedule_id&&row.employee_id===employee_id);

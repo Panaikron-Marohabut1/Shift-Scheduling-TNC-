@@ -15,6 +15,8 @@ type SchedulePeriod={year:number;month:number};
 type CalendarHoliday={date:string;name:string;is_active:boolean};
 type DemoHoliday={date:string;through?:string};
 type UsedHoliday={employee_id:number;assignment_id:number;holiday_date:string;base_code:string;ot_work_date:string};
+type HolidaySlot=Pick<Assignment,'assignment_id'|'status'|'work_date'|'shift_code'>;
+type HiddenHolidaySlot=HolidaySlot & {employee_id:number;effective_on:string};
 type AbsenceRow={assignment_id:number;absence_id:number;shift_code:string;start_time:string;end_time:string;holiday_date:string|null};
 type AbsenceInput={active:boolean;version:number;absenceId:number|null;holidayDate:string|null};
 const absenceTable='shiftflow_policy.shift_absences';
@@ -94,21 +96,34 @@ export class SchedulesService {
     AND ($2::int IS NULL OR r.requester_id=$2)
   `,[scheduleId,employeeId])).rows;
  }
- private holidayAllocations(dates:string[],assignments:Assignment[],used:UsedHoliday[],restoring?:UsedHoliday) {
+ private async hiddenHolidaySlots(c:PoolClient,scheduleId:number,employeeIds:number[]) {
+  if(!employeeIds.length)return [];
+  return (await c.query<HiddenHolidaySlot>(`
+   SELECT a.employee_id,a.assignment_id,a.status,a.work_date,st.shift_code,move.effective_on
+   FROM shiftflow_policy.employee_team_transfers move JOIN shift_assignments a USING(employee_id)
+   JOIN shift_types st USING(shift_type_id)
+   WHERE move.team_id IS NULL AND a.schedule_id=$1 AND a.work_date>=move.effective_on
+    AND a.status='ACTIVE' AND a.employee_id=ANY($2::int[])
+  `,[scheduleId,employeeIds])).rows;
+ }
+ private holidayAllocations(dates:string[],assignments:HolidaySlot[],used:UsedHoliday[],restoring?:UsedHoliday,hidden:HiddenHolidaySlot[]=[]) {
   const usedDates=new Set(used.map(row=>row.holiday_date));
-  return allocateHolidayOvertime(dates.filter(date=>!usedDates.has(date)),assignments.filter(slot=>slot.status==='ACTIVE').map(slot=>({
+  const exit=hidden[0]?.effective_on;
+  // Allocate against the original period so removing future shifts does not move OT onto earlier shifts.
+  return allocateHolidayOvertime(dates.filter(date=>!usedDates.has(date)),[...assignments,...hidden].filter(slot=>slot.status==='ACTIVE').map(slot=>({
    workDate:slot.work_date,
    shiftCode:slot.assignment_id===restoring?.assignment_id ? restoring.base_code : slot.shift_code,
-  })),used.map(row=>row.ot_work_date));
+  })),used.map(row=>row.ot_work_date)).filter(item=>!exit||(item.holidayDate<exit&&item.workDate<exit));
  }
- private historicalHolidayOvertime(actor:Actor,month:string,assignments:Assignment[]) {
+ private historicalHolidayOvertime(actor:Actor,month:string,assignments:Assignment[],hidden:HiddenHolidaySlot[]) {
   if(!['EMPLOYEE','SUPERVISOR'].includes(actor.role) || actor.employeeId===null ||
    month>=bangkokWorkDate(new Date()).slice(0,7)) return [];
   const database=new URL(this.db.pool.options.connectionString!);
   if(!isSharedDemoDatabase(database) && !isLocalSchedulingDatabase(database)) return [];
   const dates=demoHolidayDates(month);
   if(!dates.length) return [];
-  return this.holidayAllocations(dates,assignments.filter(slot=>slot.employee_id===actor.employeeId),[])
+  return this.holidayAllocations(dates,assignments.filter(slot=>slot.employee_id===actor.employeeId),[],undefined,
+   hidden.filter(slot=>slot.employee_id===actor.employeeId))
    .map(({workDate,holidayDate,overtimeShiftCode})=>({workDate,holidayDate,shiftCode:overtimeShiftCode}));
  }
  async holidayRoster(c:PoolClient,scheduleId:number,employeeId:number,restoreHolidayDate?:string) {
@@ -118,10 +133,11 @@ export class SchedulesService {
   const dates=holidays.map(holiday=>holiday.date);
   const assignments=(await c.query<Assignment>(`${this.assignmentSelect()} WHERE a.schedule_id=$1 AND a.employee_id=$2 ORDER BY a.work_date`,[scheduleId,employeeId])).rows;
   const allUsed=await this.usedHolidays(c,scheduleId,employeeId);
+  const hidden=dates.length?await this.hiddenHolidaySlots(c,scheduleId,[employeeId]):[];
   const restoring=allUsed.find(row=>row.holiday_date===restoreHolidayDate);
   const used=allUsed.filter(row=>row!==restoring);
   const usedDates=new Set(used.map(row=>row.holiday_date));
-  return {dates,holidays,assignments,allocations:this.holidayAllocations(dates,assignments,used,restoring),
+  return {dates,holidays,assignments,allocations:this.holidayAllocations(dates,assignments,used,restoring,hidden),
    activeHolidayDates:new Set(dates.filter(date=>!usedDates.has(date)))};
  }
  async otEnabled() {
@@ -276,16 +292,23 @@ export class SchedulesService {
   await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
   const assignments=(await c.query<Assignment>(`${this.assignmentSelect()} WHERE a.schedule_id IN
    (SELECT schedule_id FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')) ORDER BY e.employee_id,a.work_date`,[year,number,actor.role])).rows;
+  const productionExits=this.effectiveTeamsEnabled()&&assignments.length ? (await c.query(`
+    SELECT e.employee_code AS "employeeCode",move.effective_on::text AS "effectiveOn",move.employee_id AS "employeeId"
+    FROM shiftflow_policy.employee_team_transfers move JOIN employees e USING(employee_id)
+    WHERE move.team_id IS NULL AND e.employee_id=ANY($1::int[])
+  `,[[...new Set(assignments.map(slot=>slot.employee_id))]])).rows : [];
   const schedule=(await c.query("SELECT schedule_id,month,year,status,version,updated_at FROM schedules WHERE year=$1 AND month=$2 AND ($3<>'HR' OR status='PUBLISHED')",[year,number,actor.role])).rows[0]??null;
   const holidayRecords=await this.calendarHolidayRecords(c,year,number);
   const holidays=holidayRecords.filter(holiday=>holiday.is_active).map(({date,name})=>({date,name}));
   const holidayCalendarActive=await this.holidayEnabled(c);
+  const hiddenShifts=schedule?.status==='PUBLISHED'&&(holidays.length||!holidayRecords.length)
+   ? await this.hiddenHolidaySlots(c,schedule.schedule_id,productionExits.map(exit=>exit.employeeId)) : [];
   if(schedule?.status==='PUBLISHED' && holidayCalendarActive) {
    const used=await this.usedHolidays(c,schedule.schedule_id);
-   this.attachHolidayOvertime(holidays.map(holiday=>holiday.date),assignments,used);
+   this.attachHolidayOvertime(holidays.map(holiday=>holiday.date),assignments,used,hiddenShifts);
   }
   const holidayOvertimePreview=schedule?.status==='PUBLISHED' && !holidayRecords.length
-   ? this.historicalHolidayOvertime(actor,month,assignments)
+   ? this.historicalHolidayOvertime(actor,month,assignments,hiddenShifts)
    : [];
   await this.attachAppliedSwaps(c,assignments);
   const leaveEnabled=await this.leaveEnabled(c);
@@ -310,6 +333,7 @@ export class SchedulesService {
   }
   await c.query("INSERT INTO audit_logs(user_id,action,entity_type,entity_id,new_value) VALUES($1,'SCHEDULE_VIEWED','USER',$1,$2)",[actor.userId,JSON.stringify({month,scope:'ORGANIZATION',teamId:actor.teamId,scheduleVersion:schedule?.version??null})]);
   return {month,schedule,assignments,holidays,holidayOvertimePreview,
+   ...(productionExits.length?{productionExits:productionExits.map(({employeeCode,effectiveOn})=>({employeeCode,effectiveOn}))}:{}),
    ...(absenceHistoryAvailable!==undefined?{absenceHistoryAvailable}:{}),scope:'ORGANIZATION',dataSource:'SYNTHETIC'};
   });
  }
@@ -344,7 +368,7 @@ export class SchedulesService {
    if(minutes!==null)slot.leaveMinutes=minutes;
   }
  }
- private attachHolidayOvertime(holidayDates:string[],assignments:Assignment[],used:UsedHoliday[]) {
+ private attachHolidayOvertime(holidayDates:string[],assignments:Assignment[],used:UsedHoliday[],hidden:HiddenHolidaySlot[]) {
   const usedBySlot=new Map(used.map(row=>[row.assignment_id,row]));
   const usedByEmployee=new Map<number,UsedHoliday[]>();
   for(const row of used) {
@@ -364,7 +388,7 @@ export class SchedulesService {
   }
   for(const [employeeId,slots] of employeeSlots) {
    const consumed=usedByEmployee.get(employeeId)??[];
-   for(const overtime of this.holidayAllocations(holidayDates,[...slots.values()],consumed)) {
+   for(const overtime of this.holidayAllocations(holidayDates,[...slots.values()],consumed,undefined,hidden.filter(slot=>slot.employee_id===employeeId))) {
     slots.get(overtime.workDate)!.holidayOvertime={holidayDate:overtime.holidayDate,shiftCode:overtime.overtimeShiftCode};
    }
   }

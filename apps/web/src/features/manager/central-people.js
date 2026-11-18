@@ -67,10 +67,10 @@ export function centralPeopleHtml() {
         <thead><tr><th scope="col">พนักงาน</th><th scope="col" class="people-team">ทีม</th><th scope="col" class="people-role">บทบาท</th><th scope="col" class="people-position">ตำแหน่ง</th><th scope="col" class="act"><span class="sr">แก้ไข</span></th></tr></thead>
         <tbody>${filtered.map(person => `<tr data-employee-code="${esc(person.employeeCode)}">
           <th scope="row">${esc(person.name)}<span class="people-meta">${esc(person.employeeCode)}</span></th>
-          <td>Shift ${esc(person.teamCode)}${person.scheduledTransfer ? `<span class="people-meta">ย้ายไป Shift ${esc(person.scheduledTransfer.teamCode)}<br><time datetime="${esc(person.scheduledTransfer.effectiveOn)}">${esc(dateText(person.scheduledTransfer.effectiveOn))}</time></span>` : ''}</td>
+          <td>Shift ${esc(person.teamCode)}${person.productionExitOn ? `<span class="people-meta">ย้ายออกจากฝ่ายผลิต <time datetime="${esc(person.productionExitOn)}">${esc(dateText(person.productionExitOn))}</time></span>` : person.scheduledTransfer ? `<span class="people-meta">ย้ายไป Shift ${esc(person.scheduledTransfer.teamCode)}<br><time datetime="${esc(person.scheduledTransfer.effectiveOn)}">${esc(dateText(person.scheduledTransfer.effectiveOn))}</time></span>` : ''}</td>
           <td>${person.hasAccount ? esc(roles[person.role] || '—') : '<span class="st wait">ยังไม่เปิดสิทธิ์</span>'}</td>
           <td ${person.hasAccount && roles[person.role] === (positions[person.position] || person.position) ? 'data-same-as-role' : ''}>${esc(positions[person.position] || person.position || '—')}</td>
-          <td class="act"><button type="button" class="btn sm" data-click="editCentralEmployee(${js(person.employeeId)})">แก้ไข</button></td>
+          <td class="act">${person.productionExitOn ? '' : `<button type="button" class="btn sm" data-click="editCentralEmployee(${js(person.employeeId)})">แก้ไข</button>`}</td>
         </tr>`).join('')}</tbody>
       </table>
     </div>` : '<p class="empty">ไม่พบพนักงานตามตัวกรอง</p>'}` : ''}
@@ -117,7 +117,9 @@ export function editCentralEmployee(employeeId) {
     </p>
     <div id="centralEmployeeError" aria-live="polite"></div>
   </form>`;
-  openModal('แก้ไขข้อมูลพนักงาน', body, '<button class="btn" type="button" data-click="closeModal()">ยกเลิก</button><button class="btn primary" id="centralEmployeeSave" type="submit" form="centralEmployeeForm">บันทึกการเปลี่ยนแปลง</button>');
+  const exitAction = result.productionExitAvailable && !person.scheduledTransfer && !person.productionExitOn
+    ? `<button class="btn danger" type="button" data-click="openProductionExit(${js(person.employeeId)})">ย้ายออกจากฝ่ายผลิต</button>` : '';
+  openModal('แก้ไขข้อมูลพนักงาน', body, `${exitAction}<button class="btn" type="button" data-click="closeModal()">ยกเลิก</button><button class="btn primary" id="centralEmployeeSave" type="submit" form="centralEmployeeForm">บันทึกการเปลี่ยนแปลง</button>`);
   syncCentralEmployeeFields($('#centralEmployeeForm'));
 }
 
@@ -135,34 +137,111 @@ export async function saveCentralEmployee(employeeId, form) {
   try {
     const { person, today } = await api(`${path}/${Number(employeeId)}`, { method: 'PATCH', body });
     if (state.actor !== current.actor) return;
-    current.result = { today, people: current.result.people.map(item => item.employeeId === person.employeeId ? person : item) };
+    current.result = { ...current.result, today, people: current.result.people.map(item => item.employeeId === person.employeeId ? person : item) };
     current.notice = `บันทึกข้อมูลของ ${person.name} แล้ว`;
     if (form.isConnected) closeModal();
     renderDirectory(current);
     try { await reloadLoadedYears(); } catch { /* The next roster refresh will retry. */ }
   } catch (error) {
-    const rows = Array.isArray(error.details?.conflicts) ? error.details.conflicts : [];
-    if (form.isConnected) {
-      const alert = document.createElement('div');
-      alert.className = 'notice bad';
-      alert.setAttribute('role', 'alert');
-      const message = document.createElement('p');
-      message.textContent = error.message || 'บันทึกไม่สำเร็จ';
-      alert.append(message);
-      if (rows.length) {
-        const list = document.createElement('ul');
-        for (const row of rows) {
-          const item = document.createElement('li');
-          const status = ({ PENDING: 'รออนุมัติ', APPROVED: 'อนุมัติแล้ว' })[row.status] || row.status;
-          item.textContent = `คำขอ ${row.requestId} · ${status}${row.workDate ? ` · ${dateText(row.workDate)}` : ''}`;
-          list.append(item);
-        }
-        alert.append(list);
-      }
-      feedback.append(alert);
-    }
+    if (form.isConnected) feedback.replaceChildren(peopleError(error.message || 'บันทึกไม่สำเร็จ', error.details?.conflicts));
   } finally {
     delete form.dataset.busy;
     if (button?.isConnected) { button.disabled = false; button.textContent = 'บันทึกการเปลี่ยนแปลง'; }
   }
+}
+
+function textElement(tag, text) {
+  const element = document.createElement(tag);
+  element.textContent = text;
+  return element;
+}
+
+function peopleError(message, conflicts) {
+  const alert = document.createElement('div');
+  alert.className = 'notice bad';
+  alert.setAttribute('role', 'alert');
+  alert.append(textElement('p', message));
+  if (Array.isArray(conflicts) && conflicts.length) {
+    const list = document.createElement('ul');
+    for (const row of conflicts) {
+      const status = ({ PENDING: 'รออนุมัติ', APPROVED: 'อนุมัติแล้ว' })[row.status] || row.status;
+      list.append(textElement('li', `คำขอ ${row.requestId} · ${status}${row.workDate ? ` · ${dateText(row.workDate)}` : ''}`));
+    }
+    alert.append(list);
+  }
+  return alert;
+}
+
+function showProductionExitPreview(feedback, preview) {
+  const summary = textElement('p', 'กะทำงานที่ได้รับผล ');
+  summary.append(textElement('strong', `${preview.shifts.length} กะ`));
+  feedback.replaceChildren(summary);
+  if (preview.shifts.length) {
+    const details = document.createElement('details');
+    const list = document.createElement('ul');
+    for (const shift of preview.shifts) list.append(textElement('li', `${dateText(shift.workDate)} · ${shift.shiftCode}`));
+    details.append(textElement('summary', 'ดูกะที่ได้รับผล'), list);
+    feedback.append(details);
+  }
+  if (preview.conflicts.length) feedback.append(peopleError('จัดการคำขอเหล่านี้ก่อนยืนยันการย้ายออก', preview.conflicts));
+}
+
+export function openProductionExit(employeeId) {
+  if (!canManagePeople()) return;
+  const current = getDirectory(), directory = current.result;
+  const person = directory?.people.find(item => item.employeeId === Number(employeeId));
+  if (!directory?.productionExitAvailable || !person || person.scheduledTransfer || person.productionExitOn) return;
+  const endpoint = `${path}/${person.employeeId}/production-exit`;
+  openModal('ย้ายออกจากฝ่ายผลิต', `
+    <form id="productionExitForm">
+      <p class="employee-edit-person"><b>${esc(person.name)}</b><span class="small">${esc(person.employeeCode)} · Shift ${esc(person.teamCode)}</span></p>
+      <div class="field"><label for="productionExitDate">วันที่มีผล</label>
+        <input class="inp" id="productionExitDate" type="date" min="${esc(directory.today)}" value="${esc(directory.today)}" required></div>
+      <p class="small muted">วันที่มีผลจะสิ้นสุดสิทธิ์ฝ่ายผลิตและออกจากตารางกะ ประวัติก่อนวันย้ายยังอยู่</p>
+      <div id="productionExitPreview" aria-live="polite"></div>
+    </form>`, `<button class="btn" type="button" data-click="editCentralEmployee(${js(person.employeeId)})">ย้อนกลับ</button>
+    <button class="btn" type="submit" form="productionExitForm" id="previewProductionExit">ตรวจผลกระทบ</button>
+    <button class="btn danger" type="button" id="confirmProductionExit" disabled>ยืนยันการย้ายออก</button>`);
+
+  const form = $('#productionExitForm'), date = $('#productionExitDate', form);
+  const feedback = $('#productionExitPreview', form), check = $('#previewProductionExit'), confirm = $('#confirmProductionExit');
+  let preview;
+  const setBusy = busy => {
+    date.disabled = busy;
+    check.disabled = busy;
+    confirm.disabled = busy || !preview || preview.conflicts.length > 0;
+  };
+  date.addEventListener('input', () => {
+    preview = null;
+    feedback.replaceChildren();
+    setBusy(false);
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (date.disabled || !form.reportValidity()) return;
+    const effectiveOn = date.value;
+    preview = null;
+    setBusy(true);
+    feedback.textContent = 'กำลังตรวจผลกระทบ…';
+    try {
+      preview = await api(`${endpoint}?effectiveOn=${encodeURIComponent(effectiveOn)}`);
+      showProductionExitPreview(feedback, preview);
+    } catch (error) {
+      feedback.replaceChildren(peopleError(error.message));
+    } finally { setBusy(false); }
+  });
+  confirm.addEventListener('click', async () => {
+    if (confirm.disabled || !preview || date.value !== preview.effectiveOn) return;
+    setBusy(true);
+    try {
+      await api(endpoint, { method: 'POST', body: { effectiveOn: preview.effectiveOn, expectedVersion: preview.version } });
+      if (state.actor !== current.actor) return;
+      if (form.isConnected) closeModal();
+      current.notice = `บันทึกการย้ายออกของ ${person.name} วันที่ ${dateText(preview.effectiveOn)} แล้ว`;
+      await Promise.all([loadManagerPeople(), reloadLoadedYears()]);
+    } catch (error) {
+      preview = null;
+      feedback.replaceChildren(peopleError(error.message, error.details?.conflicts));
+    } finally { if (form.isConnected) setBusy(false); }
+  });
 }

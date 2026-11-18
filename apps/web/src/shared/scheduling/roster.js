@@ -109,9 +109,11 @@ export function getShiftOverride(emp, year, month, day) {
 
 export function getShiftCodeForDate(emp, year, month, day) {
   if (!emp) return 'O';
+  const date = isoOf(year, month, day);
+  if (emp.productionExitOn && date >= emp.productionExitOn) return 'O';
   const override = getShiftOverride(emp, year, month, day);
   if (override) return override;
-  const real = state.apiCodes[emp.id] && state.apiCodes[emp.id][isoOf(year, month, day)];
+  const real = state.apiCodes[emp.id]?.[date];
   if (real) return real;
   if (hasScheduleDataForMonth(year, month)) return 'O';
   const scheduled = rotationShift(getTeamForDate(emp, year, month, day), isoOf(year, month, day));
@@ -174,8 +176,9 @@ export function getCurrentWorkRun(emp, today) {
 }
 
 export function getTeamForDate(emp, year, month, day) {
+  const date = isoOf(year, month, day);
+  if (emp.productionExitOn && date >= emp.productionExitOn) return null;
   if (state.actor?.remotePilot || state.actor?.swapPolicy || state.actor?.monthClose || state.actor?.peopleManagement) {
-    const date = isoOf(year, month, day);
     const assignments = state.apiAssign[emp.id];
     const team = assignments?.[date]?.team_code;
     if (team) return `Shift ${team}`;

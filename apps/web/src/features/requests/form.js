@@ -52,7 +52,13 @@ export function renderForm() {
   const y = state.currentYear, m = state.currentMonth, n = daysIn(y, m);
   const myCode = getShiftCodeForDate(emp, y, m, f.day);
   const central = f.k === 'swap' && state.actor?.centralSwap;
-  const { fields, rows, checks, approvers, ready, submit, note } = (central ? centralSwapForm : FORMS[f.k])({ f, emp, y, m, n, myCode });
+  const { fields, rows, checks, approvers, approvalSummary, ready, submit, note } = (central ? centralSwapForm : FORMS[f.k])({ f, emp, y, m, n, myCode });
+  const approverSection = approvalSummary ? `
+    <section aria-labelledby="requestApproversTitle">
+      <h3 id="requestApproversTitle">ผู้อนุมัติ</h3>
+      <p><b>${esc(approvalSummary.title)}</b></p>
+      <p class="small muted">${esc(approvalSummary.detail)}</p>
+    </section>` : approvers.length ? approversList(central ? approvers : routeApprovers(emp, approvers), central ? 'ผู้อนุมัติ' : undefined) : '';
   const body = `
     <dl class="facts plain request-requester">
       <div>
@@ -64,7 +70,7 @@ export function renderForm() {
     ${note}
     ${changesTable(rows)}
     ${checks}
-    ${approvers.length ? approversList(central ? approvers : routeApprovers(emp, approvers), central ? 'ผู้อนุมัติ' : undefined) : ''}`;
+    ${approverSection}`;
   const box = $('#modalRoot .modal-body');
   const top = box ? box.scrollTop : 0;
   const focusedId = (central || ['leave', 'ot', 'holiday'].includes(f.k)) && box?.contains(document.activeElement) ? document.activeElement.id : '';

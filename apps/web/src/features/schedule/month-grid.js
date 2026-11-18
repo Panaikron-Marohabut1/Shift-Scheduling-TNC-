@@ -41,7 +41,7 @@ export function gridHtml(S) {
         <tr class="${me ? 'me' : ''}">
           <th class="nm" scope="row"><div class="nm-in"><span class="name">${esc(emp.name)}</span><span class="name-short" aria-hidden="true">${esc(shortName(emp.name))}</span>${me ? '<span class="sr">แถวของคุณ</span>' : ''}${isSup ? '<span class="tag" title="หัวหน้ากะ">S</span>' : ''}</div></th>
           ${codes.map((code, i) => {
-            if (code === null) return `<td class="${cls[i]}" aria-label="อยู่ทีมอื่นในวันนี้"></td>`;
+            if (code === null) return `<td class="${cls[i]}" aria-label="${emp.productionExitOn && isoOf(y, m, days[i]) >= emp.productionExitOn ? 'พ้นจากตารางกะฝ่ายผลิต' : 'อยู่ทีมอื่นในวันนี้'}"></td>`;
             const d = i + 1, def = state.shiftDefs[code] || state.shiftDefs.O;
             const chg = changeNote(emp, y, m, d, getShiftCodeForDate(emp, y, m, d));
             const assignment = state.apiAssign[emp.id]?.[isoOf(y, m, d)];

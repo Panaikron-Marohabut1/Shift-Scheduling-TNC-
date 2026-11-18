@@ -154,7 +154,10 @@ export class ValidationService {
  private async projectedRoster(c:PoolClient,employeeId:number,firstDate:string,lastDate:string,
   replacements:ReadonlyMap<number,RosterShift>) {
   const rows=(await c.query(`SELECT a.work_date,a.assignment_id,st.is_working,st.start_time,st.end_time FROM shift_assignments a JOIN shift_types st USING(shift_type_id)
-   WHERE a.employee_id=$1 AND a.status='ACTIVE' AND a.work_date BETWEEN $2::date-7 AND $3::date+7 ORDER BY a.work_date`,[employeeId,firstDate,lastDate])).rows;
+   WHERE a.employee_id=$1 AND a.status='ACTIVE' AND a.work_date BETWEEN $2::date-7 AND $3::date+7
+    AND NOT EXISTS (SELECT 1 FROM shiftflow_policy.employee_team_transfers move
+     WHERE move.employee_id=a.employee_id AND move.team_id IS NULL AND move.effective_on<=a.work_date)
+   ORDER BY a.work_date`,[employeeId,firstDate,lastDate])).rows;
   const projected=rows.map(row=>{
    const incoming=replacements.get(row.assignment_id);
    return incoming?{...row,is_working:incoming.is_working,start_time:incoming.start_time,end_time:incoming.end_time}:row;

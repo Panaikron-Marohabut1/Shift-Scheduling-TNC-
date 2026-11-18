@@ -1490,6 +1490,102 @@ test('Milestone 4 demo Manager edits ordinary roles and waits for related swaps 
  assert.equal((await request('manager',`${path}/${partner.employeeId}`,'PATCH',move)).status,200);
 });
 
+test('Manager confirms production exit once and roster, access and evidence follow their effective dates',async(t)=>{
+ const clock=t.mock.timers;
+ clock.enable({apis:['Date'],now:new Date('2180-11-20T05:00:00Z')});
+ const {rows:[employee]}=await admin.query(`INSERT INTO employees(employee_code,first_name,last_name,department,position,team_id,employment_status)
+  SELECT 'DEMO-C8','Production','Exit','DEMO','FIELD_OPERATOR',team_id,'ACTIVE' FROM teams WHERE team_code='C' RETURNING employee_id`);
+ const employeeId=employee.employee_id;
+ await admin.query(`INSERT INTO users(azure_object_id,employee_id,identity_source,role_id)
+  SELECT $1,$2,'DEMO',role_id FROM roles WHERE role_name='EMPLOYEE'`,[signIn('production-exit'),employeeId]);
+ await admin.query(`WITH periods AS (
+   INSERT INTO schedules(month,year,status,created_by) VALUES(11,2180,'PUBLISHED',$2),(12,2180,'PUBLISHED',$2) RETURNING schedule_id,month
+  ) INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT schedule_id,$1,shift_type_id,make_date(2180,month,CASE month WHEN 11 THEN 30 ELSE 1 END),'ACTIVE',$2
+  FROM periods CROSS JOIN shift_types WHERE shift_code='M'`,[employeeId,accounts.a.userId]);
+ const path=`/manager/people/${employeeId}/production-exit`;
+ const effectiveOn='2180-12-01', payload={effectiveOn,expectedVersion:1};
+ assert.equal((await request('worker',path,'POST',payload)).status,403);
+ assert.equal((await request('worker',`${path}?effectiveOn=${effectiveOn}`)).status,403);
+ const preview=await request('manager',`${path}?effectiveOn=${effectiveOn}`);
+ assert.equal(preview.status,200,JSON.stringify(preview.body));
+ assert.deepEqual(preview.body.shifts,[{workDate:effectiveOn,shiftCode:'M'}]);
+ assert.equal((await request('manager',path,'POST',{...payload,effectiveOn:'2180-11-19'})).status,400);
+ assert.equal((await request('manager',path,'POST',{...payload,expectedVersion:2})).status,409);
+ const {rows:[target]}=await admin.query(`INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT schedule_id,$1,shift_type_id,$2,'ACTIVE',$3 FROM schedules CROSS JOIN shift_types
+  WHERE year=2180 AND month=12 AND shift_code='O' RETURNING assignment_id`,[accounts.target.employeeId,effectiveOn,accounts.b.userId]);
+ const {rows:[source]}=await admin.query('SELECT assignment_id FROM shift_assignments WHERE employee_id=$1 AND work_date=$2',[employeeId,effectiveOn]);
+ const {rows:[pending]}=await admin.query("INSERT INTO requests(requester_id,request_type,status,quota_month,submitted_at) VALUES($1,'SWAP','PENDING','2180-12-01',$2) RETURNING request_id",[employeeId,new Date()]);
+ const futureRoster=await assignments('manager','2180-12');
+ const snapshot={source:futureRoster.find(row=>row.assignment_id===source.assignment_id),
+  target:futureRoster.find(row=>row.assignment_id===target.assignment_id),requestVersion:1,approvalRoute:'TWO_SUPERVISORS'};
+ await admin.query(`INSERT INTO change_requests(request_id,assignment_id,target_employee_id,target_assignment_id,snapshot)
+  VALUES($1,$2,$3,$4,$5)`,[pending.request_id,source.assignment_id,accounts.target.employeeId,target.assignment_id,JSON.stringify(snapshot)]);
+ const expectedConflict=[{requestId:pending.request_id,status:'PENDING',workDate:effectiveOn}];
+ assert.deepEqual((await request('manager',`${path}?effectiveOn=${effectiveOn}`)).body.conflicts,expectedConflict);
+ const blocked=await request('manager',path,'POST',payload);
+ assert.equal(blocked.status,409);
+ assert.deepEqual(blocked.body.conflicts,expectedConflict);
+ await admin.query("UPDATE requests SET status='APPROVED' WHERE request_id=$1",[pending.request_id]);
+ assert.equal((await request('manager',path,'POST',payload)).body.conflicts[0].status,'APPROVED');
+ await admin.query("UPDATE requests SET status='CANCELLED' WHERE request_id=$1",[pending.request_id]);
+ const confirmed=await request('manager',path,'POST',payload);
+ assert.equal(confirmed.status,200,JSON.stringify(confirmed.body));
+ assert.equal((await request('manager',path,'POST',payload)).status,409);
+ const listed=await request('manager','/manager/people');
+ assert.equal(listed.body.people.find((person:any)=>person.employeeId===employeeId).productionExitOn,effectiveOn);
+ assert.ok((await assignments('manager','2180-11')).some(row=>row.employee_id===employeeId&&row.team_code==='C'));
+ assert.ok(!(await assignments('manager','2180-12')).some(row=>row.employee_id===employeeId));
+ const futureSwap=await request('production-exit','/requests','POST',{assignmentId:source.assignment_id,
+  targetAssignmentId:target.assignment_id,assignmentVersion:1,targetVersion:1},randomUUID());
+ assert.equal(futureSwap.body.code,'ASSIGNMENT_NOT_FOUND');
+ clock.setTime(Date.parse('2180-11-30T16:59:59Z'));
+ assert.equal((await request('production-exit','/me')).status,200);
+ clock.setTime(Date.parse('2180-11-30T17:00:00Z'));
+ const ended=await request('production-exit','/schedules?month=2180-11');
+ assert.equal(ended.status,403);
+ assert.equal(ended.body.code,'PRODUCTION_ACCESS_ENDED');
+ assert.ok(!(await request('manager','/manager/people')).body.people.some((person:any)=>person.employeeId===employeeId));
+ const previousClose=process.env.ENABLE_LOCAL_MONTH_CLOSE;
+ process.env.ENABLE_LOCAL_MONTH_CLOSE='true';
+ t.after(()=>{if(previousClose===undefined)delete process.env.ENABLE_LOCAL_MONTH_CLOSE;else process.env.ENABLE_LOCAL_MONTH_CLOSE=previousClose;});
+ const closed=await request('hr','/hr/closed-roster?month=2180-11');
+ assert.equal(closed.status,200);
+ assert.ok(closed.body.rows.some((row:any)=>row.employeeCode==='DEMO-C8'&&row.team==='C'&&row.workDate==='2180-11-30'));
+ const stored=await admin.query("SELECT count(*)::int AS count FROM shift_assignments WHERE employee_id=$1",[employeeId]);
+ assert.equal(stored.rows[0].count,2);
+ const evidence=await admin.query('SELECT confirmed_by,effective_on::text FROM shiftflow_policy.production_exit_evidence WHERE employee_id=$1',[employeeId]);
+ assert.equal(evidence.rowCount,1);
+ assert.equal(evidence.rows[0].confirmed_by,accounts.manager.userId);
+ assert.equal(evidence.rows[0].effective_on,effectiveOn);
+ await admin.query("UPDATE shiftflow_policy.production_exit_evidence SET confirmed_at=clock_timestamp()-interval '13 months' WHERE employee_id=$1",[employeeId]);
+ assert.equal((await admin.query('SELECT shiftflow_policy.purge_production_exit_evidence() AS count')).rows[0].count,1);
+ assert.equal((await request('production-exit','/me')).body.code,'PRODUCTION_ACCESS_ENDED');
+});
+
+test('a production exit does not shift holiday OT from an excluded shift onto an earlier one',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2181-01-02T05:00:00Z')});
+ const {rows:[employee]}=await admin.query(`INSERT INTO employees(employee_code,first_name,last_name,department,position,team_id,employment_status)
+  SELECT 'DEMO-C9','Holiday','Exit','DEMO','FIELD_OPERATOR',team_id,'ACTIVE' FROM teams WHERE team_code='C' RETURNING employee_id`);
+ const employeeId=employee.employee_id;
+ await admin.query(`WITH period AS (
+   INSERT INTO schedules(month,year,status,created_by) VALUES(1,2181,'PUBLISHED',$2) RETURNING schedule_id
+  ) INSERT INTO shift_assignments(schedule_id,employee_id,shift_type_id,work_date,status,assigned_by)
+  SELECT schedule_id,$1,shift_type_id,slot.work_date::date,'ACTIVE',$2
+  FROM period CROSS JOIN (VALUES ('2181-01-01','M'),('2181-01-02','O'),('2181-01-04','N')) slot(work_date,code)
+  JOIN shift_types st ON st.shift_code=slot.code`,[employeeId,accounts.a.userId]);
+ await admin.query(`INSERT INTO holidays(holiday_date,holiday_name,is_active,created_by)
+  VALUES('2181-01-02','Production exit fixture',true,$1)`,[accounts.manager.userId]);
+ const roster=async()=> (await assignments('manager','2181-01')).filter(row=>row.employee_id===employeeId);
+ assert.equal((await roster()).find(row=>row.work_date==='2181-01-04')?.holidayOvertime?.shiftCode,'NT');
+ const result=await request('manager',`/manager/people/${employeeId}/production-exit`,'POST',{effectiveOn:'2181-01-04',expectedVersion:1});
+ assert.equal(result.status,200,JSON.stringify(result.body));
+ const after=await roster();
+ assert.deepEqual(after.map(row=>row.work_date),['2181-01-01','2181-01-02']);
+ assert.ok(after.every(row=>!row.holidayOvertime));
+});
+
 test('approved swap cancellation restores four cells, refunds only the requester and preserves approval evidence',async(t)=>{
  const clock=t.mock.timers;
  clock.enable({apis:['Date'],now:new Date('2097-01-01T12:00:00Z')});

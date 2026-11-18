@@ -5,7 +5,7 @@
 import { DEMO_TODAY, state } from '../../app/state.js';
 import { esc } from '../../shared/dom.js';
 import { getAllEmployees, TEAM_KEYS } from '../../shared/scheduling/employees.js';
-import { getShiftCodeForDate } from '../../shared/scheduling/roster.js';
+import { getShiftCodeForDate, getTeamForDate } from '../../shared/scheduling/roster.js';
 import { pageHead } from '../../shared/ui.js';
 import { famOf } from './codes.js';
 
@@ -19,8 +19,10 @@ function teamShiftToday(employee) {
 
 export function overviewHtml() {
   const pending = state.requests.filter(r => r.status.includes('รอ')).length;
-  const all = getAllEmployees();
-  const sizes = TEAM_KEYS.map(k => state.shiftsData[k].employees.length);
+  const y = DEMO_TODAY.getFullYear(), m = DEMO_TODAY.getMonth(), d = DEMO_TODAY.getDate();
+  const people = getAllEmployees().map(person => ({ person, team: getTeamForDate(person, y, m, d) }));
+  const members = TEAM_KEYS.map(k => people.filter(row => row.team === `Shift ${k.slice(-1)}`).map(row => row.person));
+  const sizes = members.map(team => team.length);
   const cross = state.requests.filter(r => r.isCrossShift && r.status.includes('รอ')).length;
   const t = state.managerConfig.shiftTimes;
   const time = code => (t[code] || '').split(' ')[0];
@@ -28,8 +30,8 @@ export function overviewHtml() {
   const shiftOrder = { M: 0, N: 1, O: 2 };
   const teams = TEAM_KEYS.map((k, i) => {
     const team = state.shiftsData[k];
-    const sup = team.employees.find(e => e.id === team.supervisorId);
-    const code = teamShiftToday(sup || team.employees[0]);
+    const sup = members[i].find(e => e.id === team.supervisorId) || members[i].find(e => e.roleCategory === 'Shift Supervisor');
+    const code = teamShiftToday(sup || members[i][0]);
     const hours = code === 'O' ? '' : time(code);
     const status = code === 'O' ? 'พักตามรอบ' : code === 'N' ? `เริ่ม ${hours.split('–')[0]} น.` : 'กำลังเข้ากะ';
     return { name: String(team.name).replace(/"/g, ''), code, hours, sup: sup ? sup.name : '-', size: sizes[i], status, live: code === 'M' };
@@ -52,7 +54,7 @@ export function overviewHtml() {
       </ul>
     </section>
     <p class="ov-sum">
-      กำลังพลทั้งระบบ <b>${all.length}</b> คน (A ${sizes[0]} · B ${sizes[1]} · C ${sizes[2]} · D ${sizes[3]})
+      กำลังพลทั้งระบบ <b>${sizes.reduce((total, size) => total + size, 0)}</b> คน (A ${sizes[0]} · B ${sizes[1]} · C ${sizes[2]} · D ${sizes[3]})
       <span aria-hidden="true">·</span> <button class="link" data-click="switchView('requests')">คำขอรอดำเนินการ <b>${pending}</b> รายการ</button>
       ${cross ? `<span aria-hidden="true">·</span> ข้ามชุดกะรอยืนยัน <b>${cross}</b> รายการ` : ''}
     </p>`;

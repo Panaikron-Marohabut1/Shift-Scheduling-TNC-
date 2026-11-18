@@ -72,7 +72,6 @@ const payloadFor = ({ a, b }) => ({
 const checkPresentation = {
   PASS: { status: 'pass', statusText: 'ผ่าน' },
   FAIL: { status: 'fail', statusText: 'ไม่ผ่าน' },
-  UNCONFIRMED: { status: 'pending', statusText: 'รอยืนยัน' },
 };
 const hiddenPassingChecks = new Set(['OWN_ASSIGNMENT', 'SAME_DATE']);
 const quotaMonth = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'Asia/Bangkok' });
@@ -110,15 +109,15 @@ function renderRulePreview(preview, requesterName, partnerName, selectedDates) {
   if (!result) {
     return '<section class="central-swap-checks" id="centralSwapChecks" aria-busy="true"><p role="status">กำลังตรวจเงื่อนไขและโควตา…</p></section>';
   }
-  const pending = result.checks.filter(check => check.status === 'UNCONFIRMED');
   const checked = result.checks.filter(check => check.status === 'FAIL'
     || (check.status === 'PASS' && !hiddenPassingChecks.has(check.rule)));
   const quota = result.quota;
   const quotaBlock = quota ? `<div class="swap-quota-summary" id="centralSwapQuota">
-    <div><strong>โควตาสลับกะ เดือน${esc(quotaMonth.format(new Date(`${quota.month}T00:00:00+07:00`)))}</strong>
-      <p>ใช้แล้ว ${esc(quota.used)} จาก ${esc(quota.limit)} ครั้ง</p></div>
-    <strong>เหลือ ${esc(quota.remaining)} ครั้ง</strong>
-    <p class="small">คำขอที่รออนุมัติยังไม่ใช้โควตา${quota.remaining === 0 ? ' ส่งคำขอได้ ระบบจะตรวจโควตาอีกครั้งตอนอนุมัติ' : ''}</p>
+    <div class="swap-quota-line">
+      <p class="swap-quota-title">โควตาสลับกะ <span class="muted">เดือน${esc(quotaMonth.format(new Date(`${quota.month}T00:00:00+07:00`)))}</span></p>
+      <strong class="swap-quota-remaining">เหลือ ${esc(quota.remaining)} ครั้ง</strong>
+    </div>
+    <p class="swap-quota-note small muted">คำขอที่รออนุมัติยังไม่ใช้โควตา${quota.remaining === 0 ? ' ส่งคำขอได้ ระบบจะตรวจโควตาอีกครั้งตอนอนุมัติ' : ''}</p>
   </div>` : '';
   const sections = [
     { id: 'Requester', title: 'ผู้ขอ', name: requesterName, extra: quotaBlock,
@@ -126,7 +125,6 @@ function renderRulePreview(preview, requesterName, partnerName, selectedDates) {
     { id: 'Partner', title: 'ผู้ถูกขอ (คู่สลับ)', name: partnerName,
       checks: checked.filter(check => check.participant === 'partner') },
     { id: 'Shared', title: 'เงื่อนไขร่วม', checks: checked.filter(check => !check.participant) },
-    { id: 'Pending', title: 'กฎที่รอยืนยัน', checks: pending },
   ];
   return `<section class="central-swap-checks" id="centralSwapChecks" aria-labelledby="centralSwapChecksTitle">
     <h3 id="centralSwapChecksTitle">ตรวจเงื่อนไขคำขอ</h3>
@@ -210,11 +208,16 @@ export function centralSwapForm({ f, emp, y, m }) {
     ${esc(dayLabel(first, y, m))} · ${esc(pairs[0].b.name)} รับ${esc(getEmployeeFacingShiftLabel(pairs[0].a.shift_code))}แทน ${esc(pairs[0].a.name)}<br>
     ${esc(dayLabel(second, y, m))} · ${esc(pairs[1].a.name)} รับ${esc(getEmployeeFacingShiftLabel(pairs[1].b.shift_code))}แทน ${esc(pairs[1].b.name)}
   </p>` : '';
+  const showApprovers = !conflict && !noCrossDate;
+  const supervisorRequest = state.actor.role === 'SUPERVISOR';
   return {
     fields, rows, checks: renderRulePreview(f.preview, emp.name, partner?.shift.name, pairs.map(({ date }) => date)),
     ready: !conflict && !f.submitting && f.preview?.result?.valid === true,
     note: note + coverage, submit: 'submitCentralSwap()',
-    approvers: conflict || noCrossDate ? [] : state.actor.role === 'SUPERVISOR' ? ['ผู้จัดการ'] : ['หัวหน้ากะทั้งสองทีม (กดได้ทั้งสองลำดับ)'],
+    approvers: showApprovers && supervisorRequest ? ['ผู้จัดการ'] : [],
+    approvalSummary: showApprovers && !supervisorRequest ? {
+      title: 'หัวหน้ากะทั้งสองทีม', detail: 'ต้องอนุมัติครบทั้งสองทีม โดยทีมใดอนุมัติก่อนก็ได้',
+    } : null,
   };
 }
 

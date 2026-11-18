@@ -17,9 +17,11 @@ const linkedActor=`${actorSelect}, NULL::text AS "initialAccess",u.identity_sour
  ${actorFrom} LEFT JOIN teams t USING(team_id)
  WHERE u.azure_object_id=$1 AND u.is_active AND (e.team_id IS NULL OR t.is_active)
  AND u.demo_profile IS DISTINCT FROM $2`;
-const linkedDemoActor=`${actorSelect}, u.initial_access_state AS "initialAccess",u.identity_source AS "identitySource"
+const linkedDemoActor=`${actorSelect}, u.initial_access_state AS "initialAccess",u.identity_source AS "identitySource",
+ (t.team_id IS NULL AND EXISTS(SELECT 1 FROM shiftflow_policy.employee_team_transfers move
+  WHERE move.employee_id=e.employee_id AND move.team_id IS NULL AND move.effective_on<=$2::date)) AS "productionEnded"
  ${actorFrom} LEFT JOIN teams t ON t.team_id=shiftflow_policy.employee_team_on(e.employee_id,e.team_id,$2::date)
- WHERE u.azure_object_id=$1 AND u.is_active AND (e.team_id IS NULL OR t.is_active)`;
+ WHERE u.azure_object_id=$1 AND u.is_active AND (t.team_id IS NULL OR t.is_active)`;
 const linkedPilotActor=`${linkedDemoActor} AND u.identity_source='DEMO'
  AND r.role_name IN ('EMPLOYEE','SUPERVISOR','MANAGER')
  AND u.demo_profile IN ('employee-a','employee-b','supervisor-a','supervisor-b','manager')`;
@@ -32,7 +34,7 @@ const emailMatch=`SELECT u.user_id AS "userId", u.azure_object_id AS linked FROM
  WHERE lower(e.email)=lower($1) AND u.is_active AND u.demo_profile IS DISTINCT FROM $2`;
 type Identity={id:string;email:string|null;microsoft:boolean};
 type SessionUser={id?:unknown;email?:unknown;app_metadata?:{provider?:unknown;providers?:unknown}};
-type LinkedActor=Actor & {initialAccess:'PENDING'|'ASSIGNED'|null;identitySource:string};
+type LinkedActor=Actor & {initialAccess:'PENDING'|'ASSIGNED'|null;identitySource:string;productionEnded?:boolean};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // A verified session is trusted for 30 seconds so the page's parallel API calls and its
 // 30-second refresh do not each wait for the login service. Logout clears it immediately.
@@ -133,7 +135,10 @@ export class AuthService {
   if(!linked||(linked.role==='ADMIN'&&(!demoPeopleAccess(this.db)||linked.identitySource!=='DEMO'||!isDemoAdmin(linked)))) {
    throw new ForbiddenException({code:'ACCOUNT_NOT_LINKED',message:'บัญชีนี้ยังไม่ได้ผูกกับพนักงานในระบบ กรุณาติดต่อผู้ดูแลระบบ'});
   }
-  const {initialAccess,identitySource,...actor}=linked;
+  const {initialAccess,identitySource,productionEnded,...actor}=linked;
+  if(productionEnded) {
+   throw new ForbiddenException({code:'PRODUCTION_ACCESS_ENDED',message:'สิทธิ์ใช้งานตารางกะฝ่ายผลิตสิ้นสุดแล้ว'});
+  }
   if(initialAccess==='PENDING') {
    await this.registerPendingAccess(actor.userId,identity.id);
    throw new ForbiddenException({code:'ACCESS_PENDING',message:'บัญชีนี้ยืนยันตัวตนแล้ว กำลังรอ Admin กำหนดบทบาท'});

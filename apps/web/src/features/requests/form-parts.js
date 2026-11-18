@@ -19,7 +19,7 @@ export function checksList(title, results) {
   const mark = { pass: icon('check'), warn: icon('alert'), fail: icon('x'), pending: icon('more') };
   return `<div class="checks">${title ? `<p class="checks-t">${esc(title)}</p>` : ''}<ul>${results.map(c => `
     <li class="${esc(c.status)}"><i class="mk" aria-hidden="true">${mark[c.status] || icon('dot')}</i>
-      <span>${c.statusText ? `<small class="check-status">${esc(c.statusText)}</small>` : ''}${c.rule ? `<b>${esc(c.rule)}</b>` : ''} ${esc(c.msg)}</span>
+      <span>${c.statusText ? `<small class="check-status">${esc(c.statusText)}</small> ` : ''}${c.rule ? `<b>${esc(c.rule)}</b> ` : ''}${esc(c.msg)}</span>
     </li>`).join('')}</ul></div>`;
 }
 export function changesTable(rows, heading = 'ผลที่จะเกิดในตารางกะเมื่ออนุมัติครบ') {

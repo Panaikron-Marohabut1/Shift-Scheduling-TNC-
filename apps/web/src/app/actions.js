@@ -26,7 +26,7 @@ import {
   updateAnnualTeamFamily
 } from '../features/manager/annual.js';
 import { filterEmployeeSearch, filterEmployeeTeam, openEmployeeForm, saveEmployeeProfile } from '../features/manager/people.js';
-import { editCentralEmployee, loadManagerPeople, saveCentralEmployee, syncCentralEmployeeFields } from '../features/manager/central-people.js';
+import { editCentralEmployee, loadManagerPeople, openProductionExit, saveCentralEmployee, syncCentralEmployeeFields } from '../features/manager/central-people.js';
 import { loadSwapQuota, saveSwapQuota, updateManagerRule, updateManagerShiftTime, updateSwapQuotaDraft } from '../features/manager/settings.js';
 import { openNotification, readAllNotifications } from '../features/notifications/view.js';
 import {
@@ -208,7 +208,7 @@ register({
   loadAdminAccounts: () => loadAdminAccounts(renderApp),
   showAdminAccounts: mode => showAdminAccounts(mode, renderApp),
   searchAdminAccounts: value => searchAdminAccounts(value, renderApp),
-  loadManagerPeople, editCentralEmployee, saveCentralEmployee, syncCentralEmployeeFields,
+  loadManagerPeople, editCentralEmployee, openProductionExit, saveCentralEmployee, syncCentralEmployeeFields,
   jumpAnnualYear, jumpAnnualYearTo, updateAnnualTeamFamily: localDemoOnly(updateAnnualTeamFamily),
   addAnnualHoliday: localDemoOnly(addAnnualHoliday), holidayKey: localDemoOnly(holidayKey), removeAnnualHoliday: localDemoOnly(removeAnnualHoliday),
   updateManagerShiftTime, updateManagerRule, loadSwapQuota, updateSwapQuotaDraft, saveSwapQuota,

@@ -60,6 +60,11 @@ window.addEventListener('session-expired', ev => {
   if (state.actor && state.actor.role !== 'ADMIN') saveLocal();
   leave((ev.detail || {}).loginUrl, 'หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง');
 });
+window.addEventListener('production-access-ended', ev => {
+  if (!view.signed) return;
+  closeModal();
+  leave('', ev.detail.message, { accessEnded: true });
+});
 
 let dateTimer;
 function refreshCalendarDate() {
@@ -116,7 +121,7 @@ async function boot({ retry = false } = {}) {
   try { me = await api('/me'); }
   catch (error) {
     const details = error.details || {};
-    Object.assign(view, { signed: false, loading: false, loginUrl: details.loginUrl || '', unlinked: error.code === 'ACCOUNT_NOT_LINKED',
+    Object.assign(view, { signed: false, loading: false, loginUrl: details.loginUrl || '', unlinked: ['ACCOUNT_NOT_LINKED', 'PRODUCTION_ACCESS_ENDED'].includes(error.code),
       accessPending: error.code === 'ACCESS_PENDING', authMsg: error.message || 'เชื่อมต่อระบบหลังบ้านไม่สำเร็จ' });
     if (error.status === 401 && goToLogin(details.loginUrl)) return;
     renderApp();
