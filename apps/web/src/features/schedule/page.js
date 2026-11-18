@@ -6,7 +6,7 @@ import { state, view } from '../../app/state.js';
 import { esc, js } from '../../shared/dom.js';
 import { icon } from '../../shared/icons.js';
 import { openModal } from '../../shared/modal.js';
-import { daysIn, monthKey, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
+import { daysIn, isoOf, monthKey, monthLabel, thaiMonthName } from '../../shared/scheduling/dates.js';
 import { getAllEmployees } from '../../shared/scheduling/employees.js';
 import { dataMonth, getTeamForDate } from '../../shared/scheduling/roster.js';
 import { pageHead } from '../../shared/ui.js';
@@ -20,9 +20,12 @@ export function teamSections(y, m, day) {
   const map = { A: 'shiftA', B: 'shiftB', C: 'shiftC', D: 'shiftD' };
   const selected = Object.keys(map).filter(k => state.selectedShiftFilter === 'ALL' || state.selectedShiftFilter === k);
   const days = day ? [day] : Array.from({ length: daysIn(y, m) }, (_, i) => i + 1);
+  const publishedRoster = state.actor?.remotePilot && state.apiMonths[monthKey(y, m)]?.schedule?.status === 'PUBLISHED';
   const sections = new Map(selected.map(key => [`Shift ${key}`, { ...state.shiftsData[map[key]], employees: [] }]));
   for (const employee of getAllEmployees()) {
-    const memberships = new Set(days.map(d => getTeamForDate(employee, y, m, d)));
+    const assignments = state.apiAssign[employee.id];
+    const assignedDays = publishedRoster ? days.filter(d => assignments?.[isoOf(y, m, d)]) : days;
+    const memberships = new Set(assignedDays.map(d => getTeamForDate(employee, y, m, d)));
     for (const team of memberships) sections.get(team)?.employees.push({ ...employee, teamForDisplay: team });
   }
   return [...sections.values()];
