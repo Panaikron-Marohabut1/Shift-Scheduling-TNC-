@@ -33,3 +33,19 @@ Finally, I learned that tests need maintenance like code. Our automated browser 
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
 | Claude and Codex | Drafting test cases for the test plan ([Test plan §7](../../Test_plan/TNC%20Shift%20Schedule_test-plan.md)) | Checked and adjusted the drafts against the shift swap workflow |
+
+## 6. Reflection
+
+### 6.1 Lessons learned: How did building the app with AI affect software engineering?
+
+Building this app with AI taught me that software engineering still depends on human understanding and judgment. As the QA / Test lead, I found AI especially useful for time-consuming tasks that needed broad coverage, such as drafting test cases. It helped me produce an initial set faster, giving me more time to compare the cases with our requirements and shift swap workflow. This was a clear improvement in my testing work.
+
+However, the convenience also made careful review harder. When an answer looks complete and well written, it is easy to trust it too quickly. I realised that relying on AI could make me too comfortable and cause me to miss mistakes in its output. A long list of test cases does not automatically mean good coverage. I still need to check whether each case tests the correct behaviour and whether important scenarios are missing. This applies beyond testing: requirements, design, code, quality, and security all need critical review. In a team, we also need to understand and explain the work we share, even when AI helps create it.
+
+### 6.2 Where do I stand in the software industry today, in the AI era?
+
+In today's software industry, I believe strong foundations are essential. Using AI without enough knowledge can leave gaps in the work and prevent us from understanding what we are building. I see myself as a learner who needs to strengthen those foundations so I can question AI's suggestions and take responsibility for the results.
+
+### 6.3 What is my plan for next year and the next five years?
+
+My future direction is still uncertain. Next year, I want to keep learning and exploring what interests me while looking for my own dream. I cannot name a specific position I want to hold in five years yet. By then, I hope to understand my strengths and interests more clearly and have a better sense of the career I want to pursue.
