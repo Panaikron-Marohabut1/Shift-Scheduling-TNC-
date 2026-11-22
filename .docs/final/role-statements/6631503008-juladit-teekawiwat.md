@@ -38,3 +38,23 @@ Some of these commits carry another member's e-mail address because of the local
 | --- | --- | --- |
 | Claude (Claude Code; 21 "Agent host session" commits) | Drafting the requirements workflow, the backlog audit, and the login integration | Read every change before committing, and ran `pnpm audit:backlog` and the API tests |
 | Claude Code | Transcribing the UAT sheets and drafting the final documents | Checked values against the scans; the team confirmed the hard-to-read ones |
+
+## 6. Reflection
+
+### 6.1 Lessons learned: How did building the app with AI affect software engineering?
+
+As Product Owner, I used Claude and Claude Code most for requirements and for the login service. AI changed how fast we could move from an idea to a written requirement or working code, but it did not change who has to decide what is right.
+
+One thing that got better: requirements. A requirement-writer agent turned rough interview notes into draft user stories, and the backlog audit checked that every Must story had exactly one backlog row and a spec link. Before, keeping 42 Must stories in sync by hand would have been slow and error-prone. Now a broken link fails the check before it reaches main.
+
+One thing that got worse: it became easy to trust output too quickly. AI wrote login code that worked on the demo, and we only found out during testing that company-account sign-in could not be checked at all, so IT-01 failed. When AI helped transcribe our UAT sheets, some handwritten numbers were also misread, and the team had to correct them against the scans. AI saves time, but every result still needs a person who checks it against the real source.
+
+### 6.2 Where do I stand in the software industry today, in the AI era?
+
+I see myself as someone whose strength is requirements. AI can now write a lot of the code, so the harder part is knowing exactly what to build, which rules are business decisions, and when to stop and ask the owner instead of guessing. That is the work I enjoyed most, and I think it becomes more valuable as coding gets faster.
+
+### 6.3 What is my plan for next year and the next five years?
+
+Next year: I want an internship or junior role as a business analyst or product owner, where I can practise writing requirements with real stakeholders.
+
+In five years: I want to be a product manager who understands both the business and the technical side well enough to lead a team that builds with AI.
