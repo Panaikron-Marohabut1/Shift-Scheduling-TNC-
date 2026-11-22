@@ -34,3 +34,22 @@ I also learned that small details matter to users. One participant noticed the c
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
 | Claude | Drafting the feature list and user journey, and refining the ShiftFlow layout and on-screen text | Tried every changed screen in the browser and checked the result against the shift supervisors’ feedback |
+## 6. Reflection
+
+### 6.1 Lessons learned: How did building the app with AI affect software engineering?
+
+While working on ShiftFlow, I was the Designer. I designed the screens in Figma first, then used Claude to help me turn them into real web pages. I also learned how to connect a login system with Supabase and put a trial website on Vercel for the company to test. My work went from reading the shift supervisor's feedback, item by item, to designing the screens and checking every role myself.
+
+One thing that got "better": I could try many prototypes. For example, workers had trouble finding their own shift in a big table, so I changed the first page to simple cards. With AI, I could test a new idea in a few hours, and the supervisor could give feedback on a real screen, not just a picture in Figma.
+
+One thing that got "worse": I had to check everything myself. Once, the whole website went white because of one small error in a setting file. Also, some company rules, like OT types PY and PL, were still unclear, and AI could not answer them. That taught me that AI makes the work faster, but only users can tell us what is right.
+
+### 6.2 Where do I stand in the software industry today, in the AI era?
+
+I see myself as a "junior UX/UI designer who can build". With AI, I can make a working prototype, not just a drawing. But I still need to improve my design basics, like accessibility and user testing, and understand code better so I can check what AI makes.
+
+### 6.3 What is my plan for next year and the next five years?
+
+Next year: I want to do an internship in UX/UI design and help with my family business at the same time. I want to see how real design teams work with users and developers.
+
+In five years: I'd like to be a UX/UI or Product Designer who understands users and uses AI well. Or I may go back to my family business and use what I learned to make it digital.
