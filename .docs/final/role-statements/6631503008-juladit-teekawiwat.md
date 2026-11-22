@@ -57,4 +57,4 @@ I see myself as someone whose strength is requirements. AI can now write a lot o
 
 Next year: I want an internship or junior role as a data analyst, where I can turn business questions, like how often shifts change or how long approvals take, into clear answers from data.
 
-In five years: I want to be a senior data analyst who understands both the business and the data well enough to guide decisions, using AI to work faster while still checking every result against the source.
+In five years: I might move into data engineering or data science, building the data pipelines and models that analysts rely on. Whichever path I take, I want to use AI to work faster while still checking every result against the source.
