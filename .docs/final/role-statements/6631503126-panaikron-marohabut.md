@@ -35,3 +35,21 @@ Finally, I learned that AI output must be checked against the real evidence. Whe
 | AI tool | What I used it for | How I checked the output |
 | --- | --- | --- |
 | Codex (`codex/*` branches) | Building the alpha demo and the shared Supabase demo | Reviewed each pull request before merging it into main, and ran the API tests and `pnpm check` |
+
+## 6. Reflection
+
+### 6.1 Lessons learned: How did building the app with AI affect software engineering?
+
+While working on ShiftFlow, I practiced using AI tools like Codex, Claude, and Windsurf. I also got hands-on experience with PostgreSQL through Supabase. I worked on different parts of the project, from talking with my team about what employees and shift supervisors needed to do in the app to testing whether the schedule updated correctly after a shift swap was approved.
+
+One thing that got "better" : was how quickly I could build a screen for my teammates to try. Once we could click through it together, it was easier to see what was confusing and what needed to change. One thing that got "worse" : was that I sometimes trusted AI output too quickly. For example, AI misread some numbers on our handwritten test sheets, so the team checked them against the original scans. That taught me to leave time to check the results, especially when the work involves employee data or access permissions.
+
+### 6.2 Where do I stand in the software industry today, in the AI era?
+
+I still see myself as a "junior software developer". Working on ShiftFlow showed me that I can explain how the system I built works and identify what needs to be tested before people use it. I want to strengthen my programming fundamentals and get more confident working through the logic when I face a new or more complex problem.
+
+### 6.3 What is my plan for next year and the next five years?
+
+*Next year* : I want to keep working in software field and explore roles in project management, business analysis, data analysis, or consulting. I enjoy talking with people to understand their problems and helping the team decide where to start. I’d like to get some practical experience and see which kind of work suits me best.
+
+*In five year* : I’d like to be someone my team can trust to oversee a project, from talking with users and planning with developers to delivering the work. My experience building software will help me understand what users need and what the development team needs to deliver it.
