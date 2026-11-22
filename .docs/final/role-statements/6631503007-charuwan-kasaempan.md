@@ -52,6 +52,6 @@ I see my strength in quality and in working with real users. AI can produce code
 
 ### 6.3 What is my plan for next year and the next five years?
 
-Next year: I want to start in a QA or UX research role, where I can plan tests and run sessions with real users.
+Next year: I want an internship or junior role as a business analyst, where I can gather requirements from real users and check that what the team builds matches what they need.
 
-In five years: I want to lead quality or user research for a product team, making sure what we build with AI is tested, safe, and actually useful.
+In five years: I want to be a senior business analyst who connects users, quality, and the development team, making sure what we build with AI is tested, safe, and actually useful.

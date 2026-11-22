@@ -55,6 +55,6 @@ I see myself as someone whose strength is requirements. AI can now write a lot o
 
 ### 6.3 What is my plan for next year and the next five years?
 
-Next year: I want an internship or junior role as a business analyst or product owner, where I can practise writing requirements with real stakeholders.
+Next year: I want an internship or junior role as a data analyst, where I can turn business questions, like how often shifts change or how long approvals take, into clear answers from data.
 
-In five years: I want to be a product manager who understands both the business and the technical side well enough to lead a team that builds with AI.
+In five years: I want to be a senior data analyst who understands both the business and the data well enough to guide decisions, using AI to work faster while still checking every result against the source.
